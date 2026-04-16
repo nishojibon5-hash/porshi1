@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user profile and status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "lastSeen": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "isOnline"]
+    },
+    "PairRequest": {
+      "title": "PairRequest",
+      "description": "Request to pair with another user",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toUid": { "type": "string" },
+        "toName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUid", "fromName", "toUid", "toName", "status"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Message in a chat session",
+      "type": "object",
+      "properties": {
+        "senderUid": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "pairId": { "type": "string" },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["senderUid", "text", "pairId"]
+    },
+    "TypingStatus": {
+      "title": "TypingStatus",
+      "description": "Real-time typing indicator",
+      "type": "object",
+      "properties": {
+        "isTyping": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["isTyping"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles and online status"
+    },
+    "/requests/{requestId}": {
+      "schema": "PairRequest",
+      "description": "Pairing requests between users"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Messages for a specific chat session"
+    },
+    "/chats/{chatId}/typing/{uid}": {
+      "schema": "TypingStatus",
+      "description": "Typing indicators for users in a chat"
+    }
+  }
+}

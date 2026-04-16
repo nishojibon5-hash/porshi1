@@ -1,0 +1,22 @@
+{
+  "name": "Porshi - পড়শি",
+  "short_name": "Porshi",
+  "description": "একটি শক্তিশালী রিয়েল-টাইম ডিসকভারি এবং পেয়ারিং অ্যাপ।",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0B",
+  "theme_color": "#00D1FF",
+  "icons": [
+    {
+      "src": "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
