@@ -85,7 +85,7 @@ import {
   User as FirebaseUser,
   Timestamp,
   ref,
-  uploadString,
+  uploadBytes,
   getDownloadURL,
   storage,
   deleteDoc,
@@ -141,6 +141,34 @@ export default function App() {
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+
+  const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas context failed'));
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Compression failed'));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+    });
+  };
 
   const addEmoji = (emoji: string) => {
     setPostInput(prev => prev + emoji);
@@ -255,13 +283,7 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('ছবির সাইজ অনেক বড়। দয়া করে ৫ মেগাবাইটের ছোট ছবি নির্বাচন করুন।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      e.target.value = '';
-      return;
-    }
-
+    // Use a small preview version if possible, but for simplicity we read the whole thing then compress
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result as string;
@@ -281,8 +303,9 @@ export default function App() {
     handleFileSelect(e, async (base64Data) => {
       setIsUploadingPhoto(true);
       try {
-        const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}`);
-        await uploadString(storageRef, base64Data, 'data_url');
+        const compressedBlob = await compressImage(base64Data, 400, 0.8);
+        const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
+        await uploadBytes(storageRef, compressedBlob);
         const downloadURL = await getDownloadURL(storageRef);
         
         await updateDoc(doc(db, 'users', user.uid), {
@@ -294,7 +317,7 @@ export default function App() {
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Photo upload error:', error);
-        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে। দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
+        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে।');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
         setIsUploadingPhoto(false);
@@ -310,8 +333,9 @@ export default function App() {
     try {
       let imageUrl = '';
       if (postImage) {
-        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}`);
-        await uploadString(storageRef, postImage, 'data_url');
+        const compressedBlob = await compressImage(postImage, 1200, 0.7);
+        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}.jpg`);
+        await uploadBytes(storageRef, compressedBlob);
         imageUrl = await getDownloadURL(storageRef);
       }
 
@@ -332,7 +356,7 @@ export default function App() {
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
       console.error('Post creation error:', error);
-      setErrorMessage('পোস্ট তৈরি করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+      setErrorMessage('পোস্ট তৈরি করতে সমস্যা হয়েছে।');
       setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.CREATE, 'posts');
     } finally {
@@ -342,6 +366,16 @@ export default function App() {
 
   const likePost = async (postId: string) => {
     if (!user) return;
+    
+    // Optimistic Update locally
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        const isCurrentlyLiked = false; // We don't easily know without tracking, but we can toggle
+        return { ...p, likesCount: p.likesCount + 1 }; 
+      }
+      return p;
+    }));
+
     const likeRef = doc(db, 'posts', postId, 'likes', user.uid);
     const postRef = doc(db, 'posts', postId);
 
@@ -380,8 +414,9 @@ export default function App() {
     handleFileSelect(e, async (base64Data) => {
       setIsUploadingPhoto(true);
       try {
-        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}`);
-        await uploadString(storageRef, base64Data, 'data_url');
+        const compressedBlob = await compressImage(base64Data, 1080, 0.7);
+        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}.jpg`);
+        await uploadBytes(storageRef, compressedBlob);
         const downloadURL = await getDownloadURL(storageRef);
         
         await addDoc(collection(db, 'stories'), {
@@ -397,7 +432,7 @@ export default function App() {
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Story upload error:', error);
-        setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে। দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
+        setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে।');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
         setIsUploadingPhoto(false);
@@ -429,6 +464,17 @@ export default function App() {
 
   const reactToPost = async (postId: string, reactionType: string) => {
     if (!user) return;
+
+    // Optimistic
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        const reactions = { ...p.reactions };
+        reactions[reactionType] = (reactions[reactionType] || 0) + 1;
+        return { ...p, reactions };
+      }
+      return p;
+    }));
+
     try {
       const postRef = doc(db, 'posts', postId);
       await updateDoc(postRef, {
@@ -445,18 +491,34 @@ export default function App() {
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !commentingPostId || !commentInput.trim()) return;
+
+    // Optimistic Update
+    const tempId = 'temp-' + Date.now();
+    const newComment = {
+      id: tempId,
+      authorUid: user.uid,
+      authorName: user.displayName || 'User',
+      authorPhoto: user.photoURL || '',
+      text: commentInput.trim(),
+      timestamp: { toDate: () => new Date() } as any
+    };
+
+    setPostComments(prev => [newComment, ...prev]);
+    setPosts(prev => prev.map(p => p.id === commentingPostId ? { ...p, commentsCount: p.commentsCount + 1 } : p));
+    const savedCommentText = commentInput.trim();
+    setCommentInput('');
+
     try {
       await addDoc(collection(db, 'posts', commentingPostId, 'comments'), {
         authorUid: user.uid,
         authorName: user.displayName,
         authorPhoto: user.photoURL || '',
-        text: commentInput.trim(),
+        text: savedCommentText,
         timestamp: serverTimestamp()
       });
       await updateDoc(doc(db, 'posts', commentingPostId), {
         commentsCount: increment(1)
       });
-      setCommentInput('');
     } catch (error) {
       console.error('Comment error:', error);
       setErrorMessage('কমেন্ট করতে সমস্যা হয়েছে।');
@@ -556,7 +618,11 @@ export default function App() {
     switch (activeTab) {
       case 'home':
         return (
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex-1 overflow-y-auto custom-scrollbar"
+          >
             {/* Stories */}
             <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar bg-surface/50 backdrop-blur-md border-b border-border-custom sticky top-0 z-30">
               <motion.button 
@@ -670,7 +736,7 @@ export default function App() {
                 />
               ))}
             </div>
-          </div>
+          </motion.div>
         );
       case 'scan':
         return (

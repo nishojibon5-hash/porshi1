@@ -18,7 +18,7 @@ import {
   deleteDoc,
   increment
 } from 'firebase/firestore';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadString, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -83,6 +83,7 @@ export {
   increment,
   ref,
   uploadString,
+  uploadBytes,
   getDownloadURL
 };
 export type { User };

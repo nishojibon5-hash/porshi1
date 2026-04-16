@@ -54,8 +54,17 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
       <div className="px-4 pb-4 text-sm leading-relaxed">{post.content}</div>
       {post.imageUrl && (
-        <div className={`w-full border-y ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-          <img src={post.imageUrl} alt="" className="w-full object-cover max-h-[500px]" referrerPolicy="no-referrer" />
+        <div className={`w-full border-y relative min-h-[200px] flex items-center justify-center ${theme === 'dark' ? 'border-border-custom bg-bg-dark/50' : 'border-gray-100 bg-gray-50'}`}>
+          <img 
+            src={post.imageUrl} 
+            alt="" 
+            className="w-full object-cover max-h-[500px]" 
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onLoad={(e) => {
+              (e.currentTarget.parentElement as HTMLElement).style.backgroundColor = 'transparent';
+            }}
+          />
         </div>
       )}
       
