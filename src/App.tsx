@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { 
   Nfc, 
@@ -27,7 +28,9 @@ import {
   UserPlus,
   Minimize2,
   ChevronDown,
-  ArrowLeft
+  ArrowLeft,
+  Camera as CameraIcon,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +61,11 @@ import {
   OperationType,
   handleFirestoreError,
   User as FirebaseUser,
-  Timestamp
+  Timestamp,
+  ref,
+  uploadString,
+  getDownloadURL,
+  storage
 } from './firebase';
 
 interface AppUser {
@@ -107,6 +114,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
       Notification.requestPermission();
@@ -205,6 +213,47 @@ export default function App() {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     } finally {
       setIsUpdatingProfile(false);
+    }
+  };
+
+  const uploadProfilePicture = async () => {
+    if (!user) return;
+    
+    try {
+      const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: true,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Prompt,
+        promptLabelHeader: 'প্রোফাইল ছবি',
+        promptLabelPhoto: 'গ্যালারি থেকে নিন',
+        promptLabelPicture: 'ক্যামেরা দিয়ে তুলুন'
+      });
+
+      if (image.base64String) {
+        setIsUploadingPhoto(true);
+        const storageRef = ref(storage, `profile_pictures/${user.uid}`);
+        const base64Data = `data:image/${image.format};base64,${image.base64String}`;
+        
+        await uploadString(storageRef, base64Data, 'data_url');
+        const downloadURL = await getDownloadURL(storageRef);
+        
+        await updateDoc(doc(db, 'users', user.uid), {
+          photoURL: downloadURL
+        });
+        
+        setUser({ ...user, photoURL: downloadURL });
+        setErrorMessage('প্রোফাইল ছবি আপডেট হয়েছে!');
+        setTimeout(() => setErrorMessage(null), 3000);
+      }
+    } catch (error: any) {
+      if (error.message !== 'User cancelled photos app') {
+        console.error('Photo upload error:', error);
+        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে।');
+        setTimeout(() => setErrorMessage(null), 3000);
+      }
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -848,7 +897,17 @@ export default function App() {
                         <UserIcon className="w-10 h-10 text-accent" />
                       )}
                     </div>
-                    <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 border-4 border-bg-dark rounded-full"></div>
+                    <button 
+                      onClick={uploadProfilePicture}
+                      disabled={isUploadingPhoto}
+                      className="absolute bottom-0 right-0 w-8 h-8 bg-accent text-bg-dark border-2 border-bg-dark rounded-full flex items-center justify-center hover:bg-white transition-colors disabled:opacity-50"
+                    >
+                      {isUploadingPhoto ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CameraIcon className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                   <h2 className="text-xl font-black uppercase tracking-tighter text-white">{user.displayName}</h2>
                   <p className="text-[10px] text-text-dim uppercase tracking-widest mt-1">আপনার প্রোফাইল এডিট করুন</p>

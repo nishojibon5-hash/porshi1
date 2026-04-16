@@ -16,11 +16,13 @@ import {
   limit,
   Timestamp
 } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Operation Types for Error Handling
@@ -74,6 +76,9 @@ export {
   updateDoc,
   orderBy,
   limit,
-  Timestamp
+  Timestamp,
+  ref,
+  uploadString,
+  getDownloadURL
 };
 export type { User };

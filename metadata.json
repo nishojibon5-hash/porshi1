@@ -1,6 +1,6 @@
 {
   "name": "Porshi-পড়শি",
   "description": "একটি শক্তিশালী রিয়েল-টাইম ডিসকভারি এবং পেয়ারিং অ্যাপ। আশেপাশে থাকা মানুষের সাথে কানেক্ট করুন এবং চ্যাট করুন।",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": []
 }
