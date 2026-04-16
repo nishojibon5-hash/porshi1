@@ -18,6 +18,10 @@ interface PostCardProps {
   onReact: (postId: string, reactionType: string) => void;
   onComment?: (postId: string) => void;
   onShare?: (postId: string) => void;
+  onFollow?: () => void;
+  onUnfollow?: () => void;
+  isFollowing?: boolean;
+  currentUserId?: string;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ 
@@ -26,7 +30,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   onLike, 
   onReact,
   onComment,
-  onShare
+  onShare,
+  onFollow,
+  onUnfollow,
+  isFollowing,
+  currentUserId
 }) => {
   const totalReactions = post.reactions ? Object.values(post.reactions).reduce((a, b) => (a as number) + (b as number), 0) as number : 0;
 
@@ -46,7 +54,17 @@ export const PostCard: React.FC<PostCardProps> = ({
             )}
           </div>
           <div>
-            <div className="text-sm font-bold uppercase tracking-tighter">{post.authorName}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-bold uppercase tracking-tighter">{post.authorName}</div>
+              {currentUserId && post.authorUid !== currentUserId && (
+                <button 
+                  onClick={isFollowing ? onUnfollow : onFollow}
+                  className={`text-[8px] uppercase font-black px-2 py-0.5 rounded-full border transition-all ${isFollowing ? 'border-border-custom text-text-dim hover:border-red-500/50 hover:text-red-500' : 'border-accent text-accent hover:bg-accent hover:text-bg-dark'}`}
+                >
+                  {isFollowing ? 'আনফলো' : 'ফলো করুন'}
+                </button>
+              )}
+            </div>
             <div className="text-[8px] text-text-dim uppercase">{post.timestamp?.toDate().toLocaleString()}</div>
           </div>
         </div>

@@ -67,6 +67,8 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
+  signInWithCredential,
+  GoogleAuthProvider,
   onAuthStateChanged, 
   collection, 
   doc, 
@@ -89,7 +91,8 @@ import {
   getDownloadURL,
   storage,
   deleteDoc,
-  increment
+  increment,
+  writeBatch
 } from './firebase';
 
 import { 
@@ -141,6 +144,8 @@ export default function App() {
   const profileImageInputRef = useRef<HTMLInputElement>(null);
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [followingUids, setFollowingUids] = useState<string[]>([]);
+  const [homeFeedTab, setHomeFeedTab] = useState<'all' | 'following'>('all');
 
   const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -174,6 +179,43 @@ export default function App() {
     setPostInput(prev => prev + emoji);
     setIsEmojiPickerOpen(false);
   };
+
+  // One Tap Login Implementation
+  useEffect(() => {
+    if (user) return; // Already logged in
+
+    const initializeOneTap = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: '435191884841-591584510b14983089c038.apps.googleusercontent.com', // Derived from project config
+          callback: handleOneTapResponse,
+          auto_select: true,
+          cancel_on_tap_outside: false,
+          allowed_parent_origin: window.location.origin
+        });
+        window.google.accounts.id.prompt();
+      }
+    };
+
+    const handleOneTapResponse = async (response: any) => {
+      try {
+        const credential = GoogleAuthProvider.credential(response.credential);
+        await signInWithCredential(auth, credential);
+      } catch (error) {
+        console.error('One Tap Error:', error);
+      }
+    };
+
+    // Wait for the script to load
+    const checkGSI = setInterval(() => {
+      if (window.google) {
+        clearInterval(checkGSI);
+        initializeOneTap();
+      }
+    }, 1000);
+
+    return () => clearInterval(checkGSI);
+  }, [user]);
 
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
@@ -723,18 +765,46 @@ export default function App() {
               </div>
             </div>
 
+            {/* Feed Tabs */}
+            <div className="px-4 mb-4 flex gap-6 border-b border-border-custom/30">
+              <button 
+                onClick={() => setHomeFeedTab('all')}
+                className={`text-[10px] uppercase font-black tracking-widest pb-3 border-b-2 transition-all ${homeFeedTab === 'all' ? 'text-accent border-accent' : 'text-text-dim border-transparent'}`}
+              >
+                সব পোস্ট
+              </button>
+              <button 
+                onClick={() => setHomeFeedTab('following')}
+                className={`text-[10px] uppercase font-black tracking-widest pb-3 border-b-2 transition-all ${homeFeedTab === 'following' ? 'text-accent border-accent' : 'text-text-dim border-transparent'}`}
+              >
+                ফলো করছেন যারা
+              </button>
+            </div>
+
             {/* Feed */}
             <div className="space-y-6 pb-20">
-              {posts.map(post => (
+              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).map((post) => (
                 <PostCard 
                   key={post.id}
                   post={post}
                   theme={theme}
-                  onLike={likePost}
-                  onReact={reactToPost}
+                  onLike={() => likePost(post.id)}
+                  onReact={(type) => reactToPost(post.id, type)}
                   onComment={() => setCommentingPostId(post.id)}
+                  onFollow={() => followUser(post.authorUid)}
+                  onUnfollow={() => unfollowUser(post.authorUid)}
+                  isFollowing={followingUids.includes(post.authorUid)}
+                  currentUserId={user?.uid}
                 />
               ))}
+              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length === 0 && (
+                <div className="p-10 text-center opacity-30">
+                  <Globe className="w-12 h-12 mx-auto mb-4" />
+                  <p className="text-xs uppercase font-bold tracking-widest">
+                    {homeFeedTab === 'following' ? 'আপনার ফলো করা কারো পোস্ট নেই' : 'নিউজ ফিড খালি'}
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         );
@@ -911,8 +981,8 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-3 gap-8 w-full border-t border-border-custom pt-6">
                   <div><div className="text-xl font-bold">{posts.filter(p => p.authorUid === user?.uid).length}</div><div className="text-[8px] text-text-dim uppercase">পোস্ট</div></div>
-                  <div><div className="text-xl font-bold">১২৪</div><div className="text-[8px] text-text-dim uppercase">বন্ধু</div></div>
-                  <div><div className="text-xl font-bold">৮৯</div><div className="text-[8px] text-text-dim uppercase">ফলোইং</div></div>
+                  <div><div className="text-xl font-bold">{user?.followersCount || 0}</div><div className="text-[8px] text-text-dim uppercase">ফলোয়ার</div></div>
+                  <div><div className="text-xl font-bold">{user?.followingCount || 0}</div><div className="text-[8px] text-text-dim uppercase">ফলোইং</div></div>
                 </div>
               </div>
               <div className="geometric-card p-6 space-y-4">
@@ -960,6 +1030,19 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Following Listener
+  useEffect(() => {
+    if (!user) {
+      setFollowingUids([]);
+      return;
+    }
+    const q = collection(db, 'users', user.uid, 'following');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setFollowingUids(snapshot.docs.map(doc => doc.id));
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   // Play sound when new user comes online
   useEffect(() => {
@@ -1183,7 +1266,45 @@ export default function App() {
   const logout = async () => {
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), { isOnline: false });
+      setFollowingUids([]);
       await auth.signOut();
+    }
+  };
+
+  const followUser = async (targetUid: string) => {
+    if (!user || user.uid === targetUid) return;
+    try {
+      const batch = writeBatch(db);
+      const now = serverTimestamp();
+      batch.set(doc(db, 'users', user.uid, 'following', targetUid), {
+        followerUid: user.uid,
+        followedUid: targetUid,
+        timestamp: now
+      });
+      batch.set(doc(db, 'users', targetUid, 'followers', user.uid), {
+        followerUid: user.uid,
+        followedUid: targetUid,
+        timestamp: now
+      });
+      batch.update(doc(db, 'users', user.uid), { followingCount: increment(1) });
+      batch.update(doc(db, 'users', targetUid), { followersCount: increment(1) });
+      await batch.commit();
+    } catch (err) {
+      console.error('Follow error:', err);
+    }
+  };
+
+  const unfollowUser = async (targetUid: string) => {
+    if (!user) return;
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', user.uid, 'following', targetUid));
+      batch.delete(doc(db, 'users', targetUid, 'followers', user.uid));
+      batch.update(doc(db, 'users', user.uid), { followingCount: increment(-1) });
+      batch.update(doc(db, 'users', targetUid), { followersCount: increment(-1) });
+      await batch.commit();
+    } catch (err) {
+      console.error('Unfollow error:', err);
     }
   };
 

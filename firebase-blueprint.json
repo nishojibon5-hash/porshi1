@@ -9,9 +9,22 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string" },
         "isOnline": { "type": "boolean" },
-        "lastSeen": { "type": "string", "format": "date-time" }
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "followersCount": { "type": "number" },
+        "followingCount": { "type": "number" }
       },
       "required": ["uid", "displayName", "isOnline"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "Relationship between follower and followed user",
+      "type": "object",
+      "properties": {
+        "followerUid": { "type": "string" },
+        "followedUid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerUid", "followedUid", "timestamp"]
     },
     "PairRequest": {
       "title": "PairRequest",
@@ -165,6 +178,14 @@
     "/monetization/{uid}": {
       "schema": "Monetization",
       "description": "User monetization stats"
+    },
+    "/users/{uid}/followers/{followerUid}": {
+      "schema": "Follow",
+      "description": "Users following a specific user"
+    },
+    "/users/{uid}/following/{followedUid}": {
+      "schema": "Follow",
+      "description": "Users followed by a specific user"
     }
   }
 }

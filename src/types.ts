@@ -6,6 +6,14 @@ export interface AppUser {
   photoURL: string;
   isOnline: boolean;
   lastSeen: any;
+  followersCount?: number;
+  followingCount?: number;
+}
+
+export interface Follow {
+  followerUid: string;
+  followedUid: string;
+  timestamp: any;
 }
 
 export interface Post {
@@ -64,4 +72,10 @@ export interface MonetizationData {
   engagement: number;
   followers: number;
   lastUpdated: any;
+}
+
+declare global {
+  interface Window {
+    google: any;
+  }
 }

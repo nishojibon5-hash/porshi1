@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithCredential, onAuthStateChanged, User } from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
@@ -16,7 +16,8 @@ import {
   limit,
   Timestamp,
   deleteDoc,
-  increment
+  increment,
+  writeBatch
 } from 'firebase/firestore';
 import { getStorage, ref, uploadString, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -65,6 +66,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export { 
   signInWithPopup, 
+  signInWithCredential, 
+  GoogleAuthProvider,
   onAuthStateChanged, 
   collection, 
   doc, 
@@ -81,6 +84,7 @@ export {
   Timestamp,
   deleteDoc,
   increment,
+  writeBatch,
   ref,
   uploadString,
   uploadBytes,
