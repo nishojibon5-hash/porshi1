@@ -36,6 +36,13 @@ jobs:
         run: |
           npx cap sync android || (npx cap add android && npx cap sync android)
 
+      - name: Fix Corrupted Gradle Wrapper
+        run: |
+          curl -L https://github.com/gradle/gradle/raw/v8.2.1/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Build Android APK
         run: |
           cd android

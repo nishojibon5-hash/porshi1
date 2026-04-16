@@ -113,6 +113,9 @@ export default function App() {
     }
   };
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const prevOnlineCount = useRef(0);
+  const isInitialOnlineLoad = useRef(true);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const canShowBrowserNotifications = 'Notification' in window;
   const browserNotificationPermission = canShowBrowserNotifications ? Notification.permission : 'denied';
@@ -230,6 +233,19 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Play sound when new user comes online
+  useEffect(() => {
+    if (!isInitialOnlineLoad.current && onlineUsers.length > prevOnlineCount.current) {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+      audio.volume = 0.4;
+      audio.play().catch(() => {});
+    }
+    if (isInitialOnlineLoad.current && onlineUsers.length > 0) {
+      isInitialOnlineLoad.current = false;
+    }
+    prevOnlineCount.current = onlineUsers.length;
+  }, [onlineUsers]);
 
   // Real-time Listeners
   useEffect(() => {
@@ -375,8 +391,8 @@ export default function App() {
     const unsubscribeTyping = onSnapshot(typingDoc, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        // Only show typing if it was updated in the last 10 seconds
-        const isRecent = data.timestamp && (Date.now() - data.timestamp.toMillis() < 10000);
+        // Only show typing if it was updated in the last 4 seconds
+        const isRecent = data.timestamp && (Date.now() - data.timestamp.toMillis() < 4000);
         setIsPartnerTyping(data.isTyping && isRecent);
       } else {
         setIsPartnerTyping(false);
@@ -468,11 +484,28 @@ export default function App() {
     setMessageInput(text);
     if (!activeChat || !user) return;
     
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
     try {
       await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
         isTyping: text.length > 0,
         timestamp: serverTimestamp()
       });
+
+      // Set timeout to stop typing indicator after 3 seconds of inactivity
+      if (text.length > 0) {
+        typingTimeoutRef.current = setTimeout(async () => {
+          try {
+            await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
+              isTyping: false,
+              timestamp: serverTimestamp()
+            });
+          } catch (e) {}
+        }, 3000);
+      }
     } catch (e) {
       // Silent fail for typing
     }
