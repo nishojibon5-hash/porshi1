@@ -132,6 +132,21 @@ export default function App() {
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
+  const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
+  const [postComments, setPostComments] = useState<any[]>([]);
+  const [commentInput, setCommentInput] = useState('');
+
+  const postImageInputRef = useRef<HTMLInputElement>(null);
+  const storyImageInputRef = useRef<HTMLInputElement>(null);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+
+  const addEmoji = (emoji: string) => {
+    setPostInput(prev => prev + emoji);
+    setIsEmojiPickerOpen(false);
+  };
+
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
       Notification.requestPermission();
@@ -227,31 +242,46 @@ export default function App() {
       setErrorMessage('প্রোফাইল আপডেট হয়েছে!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error) {
+      console.error('Profile update error:', error);
+      setErrorMessage('প্রোফাইল আপডেট করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     } finally {
       setIsUpdatingProfile(false);
     }
   };
 
-  const uploadProfilePicture = async () => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, callback: (base64: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('ছবির সাইজ অনেক বড়। দয়া করে ৫ মেগাবাইটের ছোট ছবি নির্বাচন করুন।');
+      setTimeout(() => setErrorMessage(null), 4000);
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      callback(base64String);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const handleProfilePictureClick = () => {
+    profileImageInputRef.current?.click();
+  };
+
+  const uploadProfilePicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return;
     
-    try {
-      const image = await Camera.getPhoto({
-        quality: 90,
-        allowEditing: true,
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Prompt,
-        promptLabelHeader: 'প্রোফাইল ছবি',
-        promptLabelPhoto: 'গ্যালারি থেকে নিন',
-        promptLabelPicture: 'ক্যামেরা দিয়ে তুলুন'
-      });
-
-      if (image.base64String) {
-        setIsUploadingPhoto(true);
-        const storageRef = ref(storage, `profile_pictures/${user.uid}`);
-        const base64Data = `data:image/${image.format};base64,${image.base64String}`;
-        
+    handleFileSelect(e, async (base64Data) => {
+      setIsUploadingPhoto(true);
+      try {
+        const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}`);
         await uploadString(storageRef, base64Data, 'data_url');
         const downloadURL = await getDownloadURL(storageRef);
         
@@ -262,16 +292,14 @@ export default function App() {
         setUser({ ...user, photoURL: downloadURL });
         setErrorMessage('প্রোফাইল ছবি আপডেট হয়েছে!');
         setTimeout(() => setErrorMessage(null), 3000);
-      }
-    } catch (error: any) {
-      if (error.message !== 'User cancelled photos app') {
+      } catch (error: any) {
         console.error('Photo upload error:', error);
-        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে।');
-        setTimeout(() => setErrorMessage(null), 3000);
+        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে। দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
+        setTimeout(() => setErrorMessage(null), 4000);
+      } finally {
+        setIsUploadingPhoto(false);
       }
-    } finally {
-      setIsUploadingPhoto(false);
-    }
+    });
   };
 
   const createPost = async (e: React.FormEvent) => {
@@ -302,7 +330,10 @@ export default function App() {
       setPostImage(null);
       setErrorMessage('পোস্ট সফল হয়েছে!');
       setTimeout(() => setErrorMessage(null), 3000);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Post creation error:', error);
+      setErrorMessage('পোস্ট তৈরি করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.CREATE, 'posts');
     } finally {
       setIsCreatingPost(false);
@@ -324,39 +355,32 @@ export default function App() {
         await updateDoc(postRef, { likesCount: increment(1) });
       }
     } catch (error) {
+      console.error('Like post error:', error);
+      setErrorMessage('লাইক করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.WRITE, `posts/${postId}/likes`);
     }
   };
 
-  const selectPostImage = async () => {
-    try {
-      const image = await Camera.getPhoto({
-        quality: 80,
-        allowEditing: true,
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Prompt
-      });
-      if (image.base64String) {
-        setPostImage(`data:image/${image.format};base64,${image.base64String}`);
-      }
-    } catch (e) {}
+  const selectPostImage = () => {
+    postImageInputRef.current?.click();
   };
 
-  const createStory = async () => {
-    if (!user) return;
-    try {
-      const image = await Camera.getPhoto({
-        quality: 70,
-        allowEditing: true,
-        resultType: CameraResultType.Base64,
-        source: CameraSource.Prompt
-      });
+  const handlePostImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFileSelect(e, (base64) => setPostImage(base64));
+  };
 
-      if (image.base64String) {
-        setIsUploadingPhoto(true);
+  const createStory = () => {
+    storyImageInputRef.current?.click();
+  };
+
+  const handleStoryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    
+    handleFileSelect(e, async (base64Data) => {
+      setIsUploadingPhoto(true);
+      try {
         const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}`);
-        const base64Data = `data:image/${image.format};base64,${image.base64String}`;
-        
         await uploadString(storageRef, base64Data, 'data_url');
         const downloadURL = await getDownloadURL(storageRef);
         
@@ -371,10 +395,14 @@ export default function App() {
         
         setErrorMessage('স্টোরি আপলোড হয়েছে!');
         setTimeout(() => setErrorMessage(null), 3000);
+      } catch (error: any) {
+        console.error('Story upload error:', error);
+        setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে। দয়া করে ইন্টারনেট কানেকশন চেক করুন।');
+        setTimeout(() => setErrorMessage(null), 4000);
+      } finally {
+        setIsUploadingPhoto(false);
       }
-    } catch (e) {} finally {
-      setIsUploadingPhoto(false);
-    }
+    });
   };
 
   // Listen for monetization data
@@ -407,7 +435,33 @@ export default function App() {
         [`reactions.${reactionType}`]: increment(1)
       });
     } catch (error) {
+      console.error('Reaction error:', error);
+      setErrorMessage('রিঅ্যাক্ট করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+    }
+  };
+
+  const submitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !commentingPostId || !commentInput.trim()) return;
+    try {
+      await addDoc(collection(db, 'posts', commentingPostId, 'comments'), {
+        authorUid: user.uid,
+        authorName: user.displayName,
+        authorPhoto: user.photoURL || '',
+        text: commentInput.trim(),
+        timestamp: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'posts', commentingPostId), {
+        commentsCount: increment(1)
+      });
+      setCommentInput('');
+    } catch (error) {
+      console.error('Comment error:', error);
+      setErrorMessage('কমেন্ট করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
+      handleFirestoreError(error, OperationType.CREATE, `posts/${commentingPostId}/comments`);
     }
   };
 
@@ -425,8 +479,8 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-text-dim"><CameraIcon className="w-5 h-5" /></Button>
-            <Button variant="ghost" size="icon" className="text-text-dim"><PenLine className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" onClick={createStory} className="text-text-dim hover:text-accent"><CameraIcon className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => setActiveTab('profile')} className="text-text-dim hover:text-accent"><PenLine className="w-5 h-5" /></Button>
           </div>
         </div>
 
@@ -554,15 +608,43 @@ export default function App() {
                   </div>
                 )}
                 <div className={`flex justify-between items-center pt-2 border-t ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 relative">
                     <Button variant="ghost" size="sm" onClick={selectPostImage} className="text-text-dim hover:text-accent gap-2">
                       <ImageIcon className="w-4 h-4" />
                       <span className="text-[10px] uppercase font-bold">ছবি</span>
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-text-dim hover:text-accent gap-2">
-                      <Smile className="w-4 h-4" />
-                      <span className="text-[10px] uppercase font-bold">ইমোজি</span>
-                    </Button>
+                    <div className="relative">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+                        className={`gap-2 transition-colors ${isEmojiPickerOpen ? 'text-accent' : 'text-text-dim hover:text-accent'}`}
+                      >
+                        <Smile className="w-4 h-4" />
+                        <span className="text-[10px] uppercase font-bold">ইমোজি</span>
+                      </Button>
+                      
+                      <AnimatePresence>
+                        {isEmojiPickerOpen && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                            className={`absolute bottom-full left-0 mb-2 p-2 rounded-2xl border shadow-2xl flex gap-2 z-50 ${theme === 'dark' ? 'bg-surface border-border-custom' : 'bg-white border-gray-200'}`}
+                          >
+                            {['😊', '😂', '🔥', '❤️', '👍', '🙏', '🙌', '✨', '😎'].map(emoji => (
+                              <button 
+                                key={emoji} 
+                                onClick={() => addEmoji(emoji)}
+                                className="text-xl hover:scale-125 transition-transform"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                   <Button 
                     disabled={isCreatingPost || (!postInput.trim() && !postImage)}
@@ -584,6 +666,7 @@ export default function App() {
                   theme={theme}
                   onLike={likePost}
                   onReact={reactToPost}
+                  onComment={() => setCommentingPostId(post.id)}
                 />
               ))}
             </div>
@@ -752,7 +835,7 @@ export default function App() {
                       <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-16 h-16 text-text-dim" /></div>
                     )}
                   </div>
-                  <button onClick={uploadProfilePicture} className="absolute bottom-2 right-2 p-3 bg-accent text-bg-dark rounded-full shadow-lg hover:scale-110 transition-transform">
+                  <button onClick={handleProfilePictureClick} className="absolute bottom-2 right-2 p-3 bg-accent text-bg-dark rounded-full shadow-lg hover:scale-110 transition-transform">
                     <CameraIcon className="w-5 h-5" />
                   </button>
                 </div>
@@ -824,6 +907,22 @@ export default function App() {
     }
     prevOnlineCount.current = onlineUsers.length;
   }, [onlineUsers]);
+
+  // Comments Listener
+  useEffect(() => {
+    if (!commentingPostId) {
+      setPostComments([]);
+      return;
+    }
+    const q = query(
+      collection(db, 'posts', commentingPostId, 'comments'),
+      orderBy('timestamp', 'asc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPostComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, `posts/${commentingPostId}/comments`));
+    return () => unsubscribe();
+  }, [commentingPostId]);
 
   // Real-time Listeners
   useEffect(() => {
@@ -1036,6 +1135,9 @@ export default function App() {
       });
       // UI will wait for outgoing listener to trigger chat
     } catch (error) {
+      console.error('Pair request error:', error);
+      setErrorMessage('রিকোয়েস্ট পাঠাতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.CREATE, 'requests');
     } finally {
       setTimeout(() => setIsScanning(false), 2000);
@@ -1077,6 +1179,9 @@ export default function App() {
         timestamp: serverTimestamp()
       });
     } catch (error) {
+      console.error('Send message error:', error);
+      setErrorMessage('মেসেজ পাঠাতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.CREATE, `chats/${activeChat.id}/messages`);
     }
   };
@@ -1157,6 +1262,10 @@ export default function App() {
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-bg-dark text-text-main' : 'bg-gray-50 text-gray-900'} font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
       {/* Desktop Sidebar */}
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-64 flex-col p-6 border-r ${theme === 'dark' ? 'border-border-custom bg-surface/30' : 'border-gray-200 bg-white'} backdrop-blur-xl z-50`}>
+        {/* Hidden File Inputs */}
+        <input type="file" accept="image/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
+        <input type="file" accept="image/*" ref={storyImageInputRef} onChange={handleStoryImageChange} className="hidden" />
+        <input type="file" accept="image/*" ref={profileImageInputRef} onChange={uploadProfilePicture} className="hidden" />
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 relative overflow-hidden border border-accent/30 bg-surface">
@@ -1284,6 +1393,74 @@ export default function App() {
                 <button onClick={() => setActiveStory(null)} className="text-white p-2 hover:bg-white/10 rounded-full"><X className="w-6 h-6" /></button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Comment Modal */}
+      <AnimatePresence>
+        {commentingPostId && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 flex items-end md:items-center justify-center animate-in fade-in"
+          >
+            <motion.div 
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`w-full max-w-lg h-[80vh] md:h-[600px] border rounded-t-3xl md:rounded-3xl flex flex-col overflow-hidden ${theme === 'dark' ? 'bg-surface border-border-custom' : 'bg-white border-gray-200'}`}
+            >
+              <div className={`p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
+                <h3 className="font-bold uppercase tracking-widest text-accent text-sm">কমেন্টস</h3>
+                <button onClick={() => setCommentingPostId(null)} className="text-text-dim hover:text-accent p-2">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                {postComments.length === 0 ? (
+                  <div className="text-center text-text-dim py-10 uppercase text-[10px] font-bold tracking-widest">এখনো কোনো কমেন্ট নেই</div>
+                ) : (
+                  postComments.map(c => (
+                    <div key={c.id} className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-surface border border-border-custom flex-shrink-0">
+                        {c.authorPhoto ? (
+                          <img src={c.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <UserIcon className="w-full h-full p-1 text-text-dim" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`px-4 py-2 rounded-2xl ${theme === 'dark' ? 'bg-bg-dark/50 text-text-main' : 'bg-gray-100 text-gray-900'}`}>
+                          <div className="font-bold text-[10px] uppercase tracking-tighter mb-1 text-accent">{c.authorName}</div>
+                          <div className="text-xs leading-relaxed">{c.text}</div>
+                        </div>
+                        {c.timestamp && (
+                          <div className="text-[8px] text-text-dim mt-1 ml-2 uppercase font-bold tracking-tighter">
+                            {c.timestamp.toDate().toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              <form onSubmit={submitComment} className={`p-4 border-t flex gap-2 ${theme === 'dark' ? 'border-border-custom bg-surface' : 'border-gray-100 bg-white'}`}>
+                <Input 
+                  value={commentInput}
+                  onChange={e => setCommentInput(e.target.value)}
+                  placeholder="আপনার মতামত লিখুন..."
+                  className={`rounded-full h-11 border-none px-6 text-sm ${theme === 'dark' ? 'bg-bg-dark text-white placeholder:text-text-dim' : 'bg-gray-100 text-gray-900 placeholder:text-gray-400'}`}
+                />
+                <Button type="submit" disabled={!commentInput.trim()} className="rounded-full bg-accent text-bg-dark font-bold px-6 h-11 hover:scale-105 transition-transform active:scale-95">
+                  পাঠান
+                </Button>
+              </form>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
