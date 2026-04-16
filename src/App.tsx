@@ -30,7 +30,29 @@ import {
   ChevronDown,
   ArrowLeft,
   Camera as CameraIcon,
-  Loader2
+  Loader2,
+  Home,
+  Users,
+  Bell,
+  Search,
+  PlusSquare,
+  Heart,
+  MessageCircle,
+  Share2,
+  MoreHorizontal,
+  Bookmark,
+  Image as ImageIcon,
+  Smile,
+  Globe,
+  Lock,
+  UserCheck,
+  BarChart,
+  TrendingUp,
+  DollarSign,
+  Activity,
+  Moon,
+  Sun,
+  LayoutDashboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -65,34 +87,20 @@ import {
   ref,
   uploadString,
   getDownloadURL,
-  storage
+  storage,
+  deleteDoc,
+  increment
 } from './firebase';
 
-interface AppUser {
-  uid: string;
-  displayName: string;
-  photoURL: string;
-  isOnline: boolean;
-  lastSeen: any;
-}
-
-interface PairRequest {
-  id: string;
-  fromUid: string;
-  fromName: string;
-  toUid: string;
-  toName: string;
-  status: 'pending' | 'accepted' | 'declined';
-  timestamp: any;
-}
-
-interface ChatMessage {
-  id: string;
-  senderUid: string;
-  text: string;
-  timestamp: any;
-  isRead?: boolean;
-}
+import { 
+  AppUser, 
+  Post, 
+  Story, 
+  ChatMessage, 
+  PairRequest, 
+  MonetizationData 
+} from './types';
+import { PostCard } from './components/PostCard';
 
 interface ActiveChat {
   id: string;
@@ -102,8 +110,9 @@ interface ActiveChat {
 
 export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [activeTab, setActiveTab] = useState('scan');
+  const [activeTab, setActiveTab] = useState('home');
   const [onlineUsers, setOnlineUsers] = useState<AppUser[]>([]);
   const [incomingRequest, setIncomingRequest] = useState<PairRequest | null>(null);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
@@ -115,6 +124,14 @@ export default function App() {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [postInput, setPostInput] = useState('');
+  const [postImage, setPostImage] = useState<string | null>(null);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [activeStory, setActiveStory] = useState<Story | null>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
       Notification.requestPermission();
@@ -257,6 +274,518 @@ export default function App() {
     }
   };
 
+  const createPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || (!postInput.trim() && !postImage)) return;
+
+    setIsCreatingPost(true);
+    try {
+      let imageUrl = '';
+      if (postImage) {
+        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}`);
+        await uploadString(storageRef, postImage, 'data_url');
+        imageUrl = await getDownloadURL(storageRef);
+      }
+
+      await addDoc(collection(db, 'posts'), {
+        authorUid: user.uid,
+        authorName: user.displayName,
+        authorPhoto: user.photoURL || '',
+        content: postInput.trim(),
+        imageUrl,
+        likesCount: 0,
+        commentsCount: 0,
+        timestamp: serverTimestamp()
+      });
+
+      setPostInput('');
+      setPostImage(null);
+      setErrorMessage('পোস্ট সফল হয়েছে!');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'posts');
+    } finally {
+      setIsCreatingPost(false);
+    }
+  };
+
+  const likePost = async (postId: string) => {
+    if (!user) return;
+    const likeRef = doc(db, 'posts', postId, 'likes', user.uid);
+    const postRef = doc(db, 'posts', postId);
+
+    try {
+      const likeDoc = await getDoc(likeRef);
+      if (likeDoc.exists()) {
+        await deleteDoc(likeRef);
+        await updateDoc(postRef, { likesCount: increment(-1) });
+      } else {
+        await setDoc(likeRef, { userUid: user.uid, timestamp: serverTimestamp() });
+        await updateDoc(postRef, { likesCount: increment(1) });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `posts/${postId}/likes`);
+    }
+  };
+
+  const selectPostImage = async () => {
+    try {
+      const image = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: true,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Prompt
+      });
+      if (image.base64String) {
+        setPostImage(`data:image/${image.format};base64,${image.base64String}`);
+      }
+    } catch (e) {}
+  };
+
+  const createStory = async () => {
+    if (!user) return;
+    try {
+      const image = await Camera.getPhoto({
+        quality: 70,
+        allowEditing: true,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Prompt
+      });
+
+      if (image.base64String) {
+        setIsUploadingPhoto(true);
+        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}`);
+        const base64Data = `data:image/${image.format};base64,${image.base64String}`;
+        
+        await uploadString(storageRef, base64Data, 'data_url');
+        const downloadURL = await getDownloadURL(storageRef);
+        
+        await addDoc(collection(db, 'stories'), {
+          authorUid: user.uid,
+          authorName: user.displayName,
+          authorPhoto: user.photoURL || '',
+          imageUrl: downloadURL,
+          timestamp: serverTimestamp(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        });
+        
+        setErrorMessage('স্টোরি আপলোড হয়েছে!');
+        setTimeout(() => setErrorMessage(null), 3000);
+      }
+    } catch (e) {} finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  // Listen for monetization data
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'monetization', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setMonetizationData(docSnap.data() as MonetizationData);
+      } else {
+        // Initialize mock data if not exists
+        const initialData: MonetizationData = {
+          totalEarnings: 125.50,
+          monthlyEarnings: 45.20,
+          reach: 12500,
+          engagement: 4500,
+          followers: 1200,
+          lastUpdated: serverTimestamp()
+        };
+        setDoc(doc(db, 'monetization', user.uid), initialData);
+      }
+    });
+    return () => unsub();
+  }, [user]);
+
+  const reactToPost = async (postId: string, reactionType: string) => {
+    if (!user) return;
+    try {
+      const postRef = doc(db, 'posts', postId);
+      await updateDoc(postRef, {
+        [`reactions.${reactionType}`]: increment(1)
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+    }
+  };
+
+  const renderMessenger = () => {
+    return (
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg-dark">
+        <div className="p-4 border-b border-border-custom flex justify-between items-center bg-surface/95 backdrop-blur-2xl sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30 overflow-hidden">
+              <MessageSquare className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <div className="font-black uppercase tracking-widest text-lg text-accent">PORSH</div>
+              <div className="text-[8px] text-text-dim uppercase font-bold">মেসেঞ্জার অ্যাপ</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="text-text-dim"><CameraIcon className="w-5 h-5" /></Button>
+            <Button variant="ghost" size="icon" className="text-text-dim"><PenLine className="w-5 h-5" /></Button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Active Friends Horizontal */}
+          <div className="p-4 flex gap-4 overflow-x-auto no-scrollbar border-b border-border-custom/30">
+            {onlineUsers.map(u => (
+              <div key={u.uid} className="flex flex-col items-center gap-1 flex-shrink-0">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-full border-2 border-accent p-0.5">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-bg-dark">
+                      {u.photoURL ? (
+                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="absolute bottom-1 right-1 w-3 h-3 bg-accent border-2 border-bg-dark rounded-full" />
+                </div>
+                <span className="text-[8px] font-bold uppercase text-text-dim truncate w-14 text-center">{u.displayName}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Chat List */}
+          <div className="p-2">
+            {onlineUsers.map(u => (
+              <button 
+                key={u.uid}
+                onClick={() => setActiveChat({ id: u.uid, partnerId: u.uid, partnerName: u.displayName })}
+                className="w-full p-4 flex items-center gap-4 hover:bg-accent/5 transition-all text-left group rounded-2xl"
+              >
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-full border border-border-custom overflow-hidden bg-bg-dark">
+                    {u.photoURL ? (
+                      <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
+                    )}
+                  </div>
+                  <div className="absolute bottom-0 right-0 w-4 h-4 bg-accent border-4 border-bg-dark rounded-full" />
+                </div>
+                <div className="flex-1 border-b border-border-custom/30 pb-4 group-last:border-none">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold uppercase tracking-tighter text-sm text-white">{u.displayName}</span>
+                    <span className="text-[8px] text-text-dim uppercase">১০:৩০ AM</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-text-dim uppercase tracking-tighter truncate max-w-[180px]">আপনি: হাই, কেমন আছেন?</p>
+                    <div className="w-2 h-2 rounded-full bg-accent" />
+                  </div>
+                </div>
+              </button>
+            ))}
+            {onlineUsers.length === 0 && (
+              <div className="p-20 text-center opacity-20">
+                <MessageSquare className="w-16 h-16 mx-auto mb-4" />
+                <p className="text-xs uppercase font-bold tracking-widest">কোনো মেসেজ নেই</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    if (currentApp === 'porsh') {
+      return renderMessenger();
+    }
+
+    switch (activeTab) {
+      case 'home':
+        return (
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {/* Stories */}
+            <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar bg-surface/50 backdrop-blur-md border-b border-border-custom sticky top-0 z-30">
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={createStory}
+                className="flex-shrink-0 w-16 h-16 rounded-2xl border-2 border-dashed border-accent/30 flex items-center justify-center group hover:border-accent transition-colors"
+              >
+                <PlusSquare className="w-6 h-6 text-accent/50 group-hover:text-accent" />
+              </motion.button>
+              {stories.map(story => (
+                <motion.div 
+                  key={story.id} 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveStory(story)}
+                  className="flex-shrink-0 w-16 h-16 rounded-2xl border-2 border-accent p-0.5 cursor-pointer"
+                >
+                  <img 
+                    src={story.imageUrl} 
+                    alt={story.authorName} 
+                    className="w-full h-full rounded-[14px] object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Create Post */}
+            <div className="p-4">
+              <div className={`p-4 rounded-3xl border space-y-4 ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <div className="flex gap-3">
+                  <div className={`w-10 h-10 rounded-full border overflow-hidden ${theme === 'dark' ? 'bg-accent/20 border-accent/30' : 'bg-gray-100 border-gray-200'}`}>
+                    {user?.photoURL ? (
+                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-5 h-5 text-accent" /></div>
+                    )}
+                  </div>
+                  <textarea 
+                    value={postInput}
+                    onChange={(e) => setPostInput(e.target.value)}
+                    placeholder="আপনার মনে কি আছে?"
+                    className="flex-1 bg-transparent border-none focus:ring-0 text-sm resize-none py-2 min-h-[80px]"
+                  />
+                </div>
+                {postImage && (
+                  <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
+                    <img src={postImage} alt="Preview" className="w-full max-h-60 object-cover" />
+                    <button onClick={() => setPostImage(null)} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
+                <div className={`flex justify-between items-center pt-2 border-t ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={selectPostImage} className="text-text-dim hover:text-accent gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      <span className="text-[10px] uppercase font-bold">ছবি</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-text-dim hover:text-accent gap-2">
+                      <Smile className="w-4 h-4" />
+                      <span className="text-[10px] uppercase font-bold">ইমোজি</span>
+                    </Button>
+                  </div>
+                  <Button 
+                    disabled={isCreatingPost || (!postInput.trim() && !postImage)}
+                    onClick={createPost}
+                    className="bg-accent text-bg-dark font-bold text-[10px] uppercase px-6 h-8 rounded-full shadow-lg shadow-accent/20"
+                  >
+                    {isCreatingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : 'পোস্ট করুন'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Feed */}
+            <div className="space-y-6 pb-20">
+              {posts.map(post => (
+                <PostCard 
+                  key={post.id}
+                  post={post}
+                  theme={theme}
+                  onLike={likePost}
+                  onReact={reactToPost}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      case 'scan':
+        return (
+          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+              <div className="flex flex-col items-center justify-center relative">
+                <div className="w-[280px] h-[280px] md:w-[400px] md:h-[400px] geometric-ring">
+                  <div className="w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full border border-accent/30 flex items-center justify-center relative">
+                    {isScanning && (
+                      <>
+                        <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.5], opacity: [0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
+                        <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.8], opacity: [0.3, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
+                      </>
+                    )}
+                    <motion.div 
+                      className="w-[140px] h-[140px] md:w-[180px] md:h-[180px] bg-accent rounded-full flex flex-col justify-center items-center shadow-[0_0_50px_rgba(0,209,255,0.4)] z-10"
+                      animate={isScanning ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <span className="text-bg-dark font-bold text-xs md:text-sm tracking-widest uppercase">{isScanning ? 'DISCOVERING' : 'READY'}</span>
+                      <div className="text-2xl md:text-3xl mt-1">📶</div>
+                    </motion.div>
+                  </div>
+                </div>
+                <div className="mt-10 w-full space-y-4">
+                  <h3 className="text-[10px] uppercase tracking-widest text-text-dim text-center">আশেপাশে থাকা ব্যবহারকারী ({onlineUsers.length})</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {onlineUsers.length > 0 ? (
+                      onlineUsers.map((u) => (
+                        <motion.div key={u.uid} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="geometric-card flex-row items-center gap-4 py-3 cursor-pointer hover:border-accent group" onClick={() => sendPairRequest(u)}>
+                          <div className="w-10 h-10 rounded-full bg-surface border border-border-custom flex items-center justify-center group-hover:border-accent transition-colors overflow-hidden">
+                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <UserIcon className="w-5 h-5 text-text-dim group-hover:text-accent" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-bold uppercase tracking-tighter">{u.displayName}</div>
+                            <div className="text-[10px] text-accent uppercase">পেয়ার করতে ক্লিক করুন</div>
+                          </div>
+                          <UserPlus className="w-4 h-4 text-text-dim group-hover:text-accent" />
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="text-center py-10 opacity-30 uppercase tracking-widest text-[10px]">কেউ অনলাইনে নেই</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div className="geometric-card p-10 items-center justify-center text-center space-y-4">
+                  <Scan className="w-12 h-12 text-accent opacity-50" />
+                  <h2 className="text-2xl font-light uppercase tracking-widest">Discovery Mode</h2>
+                  <p className="text-text-dim text-sm max-w-xs">আশেপাশে থাকা অন্য ফোনে এই অ্যাপটি খোলা থাকলে আপনি তাদের এখানে দেখতে পাবেন।</p>
+                  <Button className="geometric-btn geometric-btn-active mt-4" onClick={() => setIsScanning(!isScanning)}>{isScanning ? 'STOP SCAN' : 'START SCAN'}</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'monetization':
+        return (
+          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
+                <div className="flex justify-between items-center mb-8">
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tighter uppercase">মনিটাইজেশন ড্যাশবোর্ড</h2>
+                    <p className="text-text-dim text-xs uppercase tracking-widest">আপনার কন্টেন্ট পারফরম্যান্স</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-accent/10">
+                    <TrendingUp className="w-6 h-6 text-accent" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-green-500/10"><DollarSign className="w-4 h-4 text-green-500" /></div>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">মোট আয়</span>
+                    </div>
+                    <div className="text-3xl font-black tracking-tighter">${monetizationData?.totalEarnings.toFixed(2)}</div>
+                    <div className="text-[10px] text-green-500 mt-1 font-bold">+১২% গত মাস থেকে</div>
+                  </div>
+                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-blue-500/10"><Activity className="w-4 h-4 text-blue-500" /></div>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">রিচ (Reach)</span>
+                    </div>
+                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.reach.toLocaleString()}</div>
+                    <div className="text-[10px] text-blue-500 mt-1 font-bold">+৫.৪% গত সপ্তাহ</div>
+                  </div>
+                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-lg bg-purple-500/10"><Users className="w-4 h-4 text-purple-500" /></div>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">ফলোয়ার</span>
+                    </div>
+                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.followers.toLocaleString()}</div>
+                    <div className="text-[10px] text-purple-500 mt-1 font-bold">+৮৬ নতুন আজ</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
+                  <h3 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
+                    <BarChart className="w-4 h-4 text-accent" />
+                    আয়ের পরিসংখ্যান
+                  </h3>
+                  <div className="h-48 flex items-end gap-2 px-2">
+                    {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
+                      <motion.div 
+                        key={i}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${h}%` }}
+                        className="flex-1 bg-accent/20 rounded-t-lg relative group"
+                      >
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-accent text-bg-dark text-[8px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                          ${(h * 1.5).toFixed(0)}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between mt-4 px-2">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                      <span key={i} className="text-[10px] text-text-dim font-bold">{d}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
+                  <h3 className="text-sm font-bold uppercase mb-6">সাম্প্রতিক আপডেট</h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'ভিডিও বোনাস', amount: '+$১২.৪০', date: '২ ঘণ্টা আগে' },
+                      { label: 'স্টারস (Stars)', amount: '+$৫.০০', date: '৫ ঘণ্টা আগে' },
+                      { label: 'অ্যাড রেভিনিউ', amount: '+$২৮.১০', date: 'গতকাল' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-accent/5">
+                        <div>
+                          <div className="text-xs font-bold">{item.label}</div>
+                          <div className="text-[8px] text-text-dim uppercase">{item.date}</div>
+                        </div>
+                        <div className="text-sm font-black text-accent">{item.amount}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'profile':
+        return (
+          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+            <div className="max-w-2xl mx-auto space-y-8">
+              <div className="geometric-card p-8 items-center text-center space-y-6">
+                <div className="relative group">
+                  <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-surface border-4 border-accent/20 overflow-hidden shadow-[0_0_40px_rgba(0,209,255,0.2)]">
+                    {isUploadingPhoto ? (
+                      <div className="w-full h-full flex items-center justify-center bg-bg-dark/50"><Loader2 className="w-8 h-8 text-accent animate-spin" /></div>
+                    ) : user?.photoURL ? (
+                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-16 h-16 text-text-dim" /></div>
+                    )}
+                  </div>
+                  <button onClick={uploadProfilePicture} className="absolute bottom-2 right-2 p-3 bg-accent text-bg-dark rounded-full shadow-lg hover:scale-110 transition-transform">
+                    <CameraIcon className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-bold uppercase tracking-tighter">{user?.displayName}</h2>
+                  <p className="text-accent text-[10px] uppercase font-bold tracking-[4px]">Verified User</p>
+                </div>
+                <div className="grid grid-cols-3 gap-8 w-full border-t border-border-custom pt-6">
+                  <div><div className="text-xl font-bold">{posts.filter(p => p.authorUid === user?.uid).length}</div><div className="text-[8px] text-text-dim uppercase">পোস্ট</div></div>
+                  <div><div className="text-xl font-bold">১২৪</div><div className="text-[8px] text-text-dim uppercase">বন্ধু</div></div>
+                  <div><div className="text-xl font-bold">৮৯</div><div className="text-[8px] text-text-dim uppercase">ফলোইং</div></div>
+                </div>
+              </div>
+              <div className="geometric-card p-6 space-y-4">
+                <h3 className="text-[10px] uppercase tracking-widest text-text-dim">প্রোফাইল এডিট করুন</h3>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[8px] uppercase text-text-dim ml-1">ডিসপ্লে নাম</label>
+                    <input type="text" value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder={user?.displayName} className="w-full bg-surface border border-border-custom rounded-xl p-3 text-sm focus:border-accent transition-colors" />
+                  </div>
+                  <Button onClick={updateProfile} disabled={isUpdatingProfile || !newDisplayName.trim()} className="w-full bg-accent text-bg-dark font-bold uppercase text-[10px] tracking-widest h-12">
+                    {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : 'তথ্য আপডেট করুন'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return <div className="flex-1 flex items-center justify-center opacity-20 uppercase tracking-[10px]">Coming Soon</div>;
+    }
+  };
+
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -309,7 +838,21 @@ export default function App() {
       setOnlineUsers(usersList);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
 
-    // 2. Listen for Incoming Pair Requests
+    // 2. Listen for Posts
+    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+      const postsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      setPosts(postsList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'posts'));
+
+    // 3. Listen for Stories
+    const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
+    const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
+      const storiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
+      setStories(storiesList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'stories'));
+
+    // 4. Listen for Incoming Pair Requests
     const requestsQuery = query(
       collection(db, 'requests'), 
       where('toUid', '==', user.uid), 
@@ -380,6 +923,8 @@ export default function App() {
 
     return () => {
       unsubscribeUsers();
+      unsubscribePosts();
+      unsubscribeStories();
       unsubscribeRequests();
       unsubscribeIncomingAccepted();
       unsubscribeOutgoingAccepted();
@@ -457,9 +1002,16 @@ export default function App() {
 
   const login = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      // User is handled by onAuthStateChanged
     } catch (error: any) {
-      setErrorMessage(error.message);
+      console.error('Login error:', error);
+      if (error.code === 'auth/popup-blocked') {
+        setErrorMessage('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ এলাউ করুন।');
+      } else {
+        setErrorMessage('লগইন করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      }
+      setTimeout(() => setErrorMessage(null), 3000);
     }
   };
 
@@ -602,367 +1154,200 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-dark text-text-main font-sans selection:bg-accent/30 flex flex-col items-center p-4 md:p-10">
-      <header className="w-full max-w-5xl flex justify-between items-center border-b border-border-custom pb-6 mb-10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 relative overflow-hidden border border-accent/30 bg-surface">
-            <img 
-              src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
-              alt="Porshi Logo" 
-              className="w-full h-full object-contain p-1"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = 'https://picsum.photos/seed/porshi/100/100';
-              }}
-            />
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-bg-dark text-text-main' : 'bg-gray-50 text-gray-900'} font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
+      {/* Desktop Sidebar */}
+      <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-64 flex-col p-6 border-r ${theme === 'dark' ? 'border-border-custom bg-surface/30' : 'border-gray-200 bg-white'} backdrop-blur-xl z-50`}>
+        <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 relative overflow-hidden border border-accent/30 bg-surface">
+              <img 
+                src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
+                alt="Logo" 
+                className="w-full h-full object-contain p-1"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="text-xl font-black tracking-widest text-accent">PORSHI</div>
           </div>
-          <div className="flex flex-col">
-            <div className="text-2xl font-extrabold tracking-[2px] uppercase text-accent leading-none">PORSHI</div>
-            <div className="text-sm font-bold text-text-main tracking-widest mt-1">পড়শি</div>
-          </div>
-          <Badge variant="outline" className="hidden md:flex border-accent/30 text-accent bg-accent/5 uppercase text-[10px]">Global</Badge>
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-full hover:bg-accent/10 transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-500" />}
+          </button>
         </div>
-        <div className="flex items-center gap-4">
-          {canShowBrowserNotifications && browserNotificationPermission !== 'granted' && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={requestBrowserPermission}
-              className="hidden md:flex border-accent/50 text-accent hover:bg-accent hover:text-bg-dark text-[10px] uppercase font-bold"
+        
+        <nav className="flex-1 space-y-2">
+          {[
+            { id: 'home', icon: Home, label: 'হোম' },
+            { id: 'scan', icon: Search, label: 'ডিসকভারি' },
+            { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
+            { id: 'monetization', icon: LayoutDashboard, label: 'মনিটাইজেশন' },
+            { id: 'notifications', icon: Bell, label: 'নটিফিকেশন' },
+            { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-accent text-bg-dark font-bold' : 'text-text-dim hover:bg-surface hover:text-white'}`}
             >
-              Enable Notifications
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" onClick={logout} className="text-text-dim hover:text-red-400">
+              <item.icon className="w-5 h-5" />
+              <span className="text-sm uppercase tracking-tighter">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="mt-auto pt-6 border-t border-border-custom">
+          <button onClick={logout} className="w-full flex items-center gap-4 p-3 text-red-400 hover:bg-red-400/10 rounded-xl transition-all">
             <LogOut className="w-5 h-5" />
-          </Button>
+            <span className="text-sm uppercase font-bold">লগআউট</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <header className={`lg:hidden w-full p-4 flex justify-between items-center border-b ${theme === 'dark' ? 'border-border-custom bg-bg-dark/80' : 'border-gray-200 bg-white/80'} backdrop-blur-md sticky top-0 z-40`}>
+        <div className="flex flex-col">
+          <div className="text-xl font-black tracking-widest text-accent">{currentApp === 'porshi' ? 'PORSHI' : 'PORSH'}</div>
+          <button 
+            onClick={() => setCurrentApp(currentApp === 'porshi' ? 'porsh' : 'porshi')}
+            className="text-[8px] font-bold uppercase text-accent/60 flex items-center gap-1"
+          >
+            Switch to {currentApp === 'porshi' ? 'Porsh' : 'Porshi'}
+            <Minimize2 className="w-2 h-2" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 rounded-full hover:bg-accent/10 transition-colors"
+          >
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-500" />}
+          </button>
+          <Button variant="ghost" size="icon" className="text-text-dim"><Search className="w-5 h-5" /></Button>
+          <Button variant="ghost" size="icon" className="text-text-dim"><Bell className="w-5 h-5" /></Button>
         </div>
       </header>
 
-      {canShowBrowserNotifications && browserNotificationPermission !== 'granted' && (
-        <div className="w-full max-w-5xl mb-6 md:hidden">
-          <Alert className="bg-accent/10 border-accent/20 text-accent rounded-none">
-            <Info className="w-4 h-4" />
-            <AlertDescription className="text-[10px] uppercase font-bold flex justify-between items-center gap-2">
-              নটিফিকেশন অন করুন যাতে অ্যাপের বাইরে থাকলেও রিকোয়েস্ট পান।
-              <Button size="sm" onClick={requestBrowserPermission} className="bg-accent text-bg-dark text-[8px] h-6 px-2 shrink-0">অন করুন</Button>
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
-      <main className="flex-1 w-full max-w-5xl flex flex-col relative">
-        {/* Tab Navigation - Only show if NO active chat */}
-        {!activeChat && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            <button onClick={() => setActiveTab('scan')} className={`geometric-btn ${activeTab === 'scan' ? 'geometric-btn-active' : ''}`}>স্ক্যান</button>
-            <button onClick={() => setActiveTab('chat')} className={`geometric-btn ${activeTab === 'chat' ? 'geometric-btn-active' : ''}`}>চ্যাট</button>
-            <button onClick={() => setActiveTab('history')} className={`geometric-btn ${activeTab === 'history' ? 'geometric-btn-active' : ''}`}>ইতিহাস</button>
-            <button onClick={() => setActiveTab('tools')} className={`geometric-btn ${activeTab === 'tools' ? 'geometric-btn-active' : ''}`}>টুলস</button>
-            <button onClick={() => setActiveTab('profile')} className={`geometric-btn ${activeTab === 'profile' ? 'geometric-btn-active' : ''}`}>প্রোফাইল</button>
-          </div>
-        )}
-
-        <AnimatePresence mode="wait">
-          {/* SCAN TAB */}
-          {activeTab === 'scan' && !activeChat && (
-            <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-                {/* Left Column: Visualizer & Discovery */}
-                <div className="flex flex-col items-center justify-center relative">
-                  <div className="w-[280px] h-[280px] md:w-[400px] md:h-[400px] geometric-ring">
-                    <div className="w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full border border-accent/30 flex items-center justify-center relative">
-                      {/* Pulse Rings */}
-                      {isScanning && (
-                        <>
-                          <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.5], opacity: [0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
-                          <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.8], opacity: [0.3, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
-                        </>
-                      )}
-                      
-                      <motion.div 
-                        className="w-[140px] h-[140px] md:w-[180px] md:h-[180px] bg-accent rounded-full flex flex-col justify-center items-center shadow-[0_0_50px_rgba(0,209,255,0.4)] z-10"
-                        animate={isScanning ? { scale: [1, 1.05, 1] } : {}}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      >
-                        <span className="text-bg-dark font-bold text-xs md:text-sm tracking-widest uppercase">
-                          {isScanning ? 'DISCOVERING' : 'READY'}
-                        </span>
-                        <div className="text-2xl md:text-3xl mt-1">📶</div>
-                      </motion.div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-10 w-full space-y-4">
-                    <h3 className="text-[10px] uppercase tracking-widest text-text-dim text-center">আশেপাশে থাকা ব্যবহারকারী ({onlineUsers.length})</h3>
-                    <div className="grid grid-cols-1 gap-3">
-                      {onlineUsers.length > 0 ? (
-                        onlineUsers.map((u) => (
-                          <motion.div 
-                            key={u.uid}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="geometric-card flex-row items-center gap-4 py-3 cursor-pointer hover:border-accent group"
-                            onClick={() => sendPairRequest(u)}
-                          >
-                            <div className="w-10 h-10 rounded-full bg-surface border border-border-custom flex items-center justify-center group-hover:border-accent transition-colors">
-                              <UserIcon className="w-5 h-5 text-text-dim group-hover:text-accent" />
-                            </div>
-                            <div className="flex-1">
-                              <div className="text-sm font-bold uppercase tracking-tighter">{u.displayName}</div>
-                              <div className="text-[10px] text-accent uppercase">পেয়ার করতে ক্লিক করুন</div>
-                            </div>
-                            <UserPlus className="w-4 h-4 text-text-dim group-hover:text-accent" />
-                          </motion.div>
-                        ))
-                      ) : (
-                        <div className="text-center py-10 opacity-30 uppercase tracking-widest text-[10px]">কেউ অনলাইনে নেই</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Scan Controls */}
-                <div className="space-y-6">
-                  <div className="geometric-card p-10 items-center justify-center text-center space-y-4">
-                    <Scan className="w-12 h-12 text-accent opacity-50" />
-                    <h2 className="text-2xl font-light uppercase tracking-widest">Discovery Mode</h2>
-                    <p className="text-text-dim text-sm max-w-xs">আশেপাশে থাকা অন্য ফোনে এই অ্যাপটি খোলা থাকলে আপনি তাদের এখানে দেখতে পাবেন।</p>
-                    <Button 
-                      className="geometric-btn geometric-btn-active mt-4"
-                      onClick={() => setIsScanning(!isScanning)}
-                    >
-                      {isScanning ? 'STOP SCAN' : 'START SCAN'}
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="geometric-card py-4">
-                      <h3 className="text-[10px] uppercase tracking-widest text-text-dim mb-1">আপনার আইডি</h3>
-                      <div className="text-xs font-mono truncate">{user.uid.slice(0, 12)}...</div>
-                    </div>
-                    <div className="geometric-card py-4">
-                      <h3 className="text-[10px] uppercase tracking-widest text-text-dim mb-1">স্ট্যাটাস</h3>
-                      <div className="text-xs text-green-400 uppercase font-bold">সক্রিয়</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* CHAT OVERLAY / TAB */}
-          {(activeTab === 'chat' || activeChat) && (
-            <motion.div 
-              key="chat" 
-              initial={{ opacity: 0, x: '100%' }} 
-              animate={{ opacity: 1, x: 0 }} 
-              exit={{ opacity: 0, x: '100%' }} 
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`flex-1 flex flex-col ${activeChat ? 'fixed inset-0 z-[100] bg-bg-dark' : ''}`}
-            >
-              {activeChat ? (
-                <div className="flex-1 flex flex-col overflow-hidden w-full h-full bg-bg-dark">
-                  <div className="p-4 border-b border-border-custom flex justify-between items-center bg-surface/95 backdrop-blur-2xl sticky top-0 z-20 shadow-md">
-                    <div className="flex items-center gap-3">
-                      <Button variant="ghost" size="icon" onClick={() => setActiveTab('scan')} className="text-text-dim hover:text-accent">
-                        <ArrowLeft className="w-6 h-6" />
-                      </Button>
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30">
-                          <UserIcon className="w-5 h-5 text-accent" />
-                        </div>
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-bg-dark rounded-full"></div>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold uppercase tracking-tighter text-sm text-white">{activeChat.partnerName}</span>
-                        <span className="text-[10px] text-accent uppercase font-bold animate-pulse">অনলাইন</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setActiveChat(null); setActiveTab('scan'); }} className="text-text-dim hover:text-red-400">
-                        <X className="w-6 h-6" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-bg-dark">
-                    <div className="flex flex-col items-center justify-center py-10 opacity-20">
-                      <div className="w-16 h-16 rounded-full border border-accent flex items-center justify-center mb-4">
-                        <UserIcon className="w-8 h-8 text-accent" />
-                      </div>
-                      <p className="text-[10px] uppercase tracking-[4px] text-center">End-to-end encrypted chat with {activeChat.partnerName}</p>
-                    </div>
-                    {messages.map((msg, idx) => {
-                      const isMe = msg.senderUid === user.uid;
-                      const prevMsg = idx > 0 ? messages[idx - 1] : null;
-                      const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
-                      
-                      const isLastInGroup = !nextMsg || nextMsg.senderUid !== msg.senderUid;
-                      const isFirstInGroup = !prevMsg || prevMsg.senderUid !== msg.senderUid;
-                      const showAvatar = !isMe && isLastInGroup;
-                      
-                      return (
-                        <motion.div 
-                          key={msg.id} 
-                          initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end gap-2 ${isLastInGroup ? 'mb-4' : 'mb-1'}`}
-                        >
-                          {!isMe && (
-                            <div className="w-8 flex justify-center">
-                              {showAvatar ? (
-                                <div className="w-8 h-8 rounded-full bg-surface border border-border-custom flex items-center justify-center shadow-sm">
-                                  <UserIcon className="w-4 h-4 text-accent" />
-                                </div>
-                              ) : (
-                                <div className="w-8" />
-                              )}
-                            </div>
-                          )}
-                          
-                          <div className={`max-w-[75%] p-3 px-4 shadow-md transition-all hover:brightness-110 ${
-                            isMe 
-                              ? `bg-gradient-to-br from-accent to-blue-600 text-bg-dark font-medium rounded-2xl ${isLastInGroup ? 'rounded-br-none' : ''}` 
-                              : `bg-surface border border-border-custom text-text-main rounded-2xl ${isLastInGroup ? 'rounded-bl-none' : ''}`
-                          }`}>
-                            <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                            <div className="flex items-center justify-end gap-1 mt-1">
-                              <div className={`text-[8px] uppercase opacity-50 ${isMe ? 'text-bg-dark' : 'text-text-dim'}`}>
-                                {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                              {isMe && isLastInGroup && (
-                                <div className={`text-[8px] font-bold uppercase ${msg.isRead ? 'text-bg-dark opacity-80' : 'text-bg-dark opacity-30'}`}>
-                                  {msg.isRead ? 'Read' : 'Sent'}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                    
-                    {isPartnerTyping && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-start items-center gap-2 mb-4"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-surface border border-border-custom flex items-center justify-center shadow-sm">
-                          <UserIcon className="w-4 h-4 text-accent" />
-                        </div>
-                        <div className="bg-surface border border-border-custom p-2 px-4 rounded-2xl rounded-bl-none flex gap-1 items-center">
-                          <span className="w-1 h-1 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                          <span className="w-1 h-1 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="w-1 h-1 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </div>
-                      </motion.div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  <form onSubmit={sendMessage} className="p-4 border-t border-border-custom flex gap-2 bg-surface/80 backdrop-blur-md">
-                    <Input 
-                      value={messageInput}
-                      onChange={(e) => handleTyping(e.target.value)}
-                      placeholder="মেসেঞ্জার স্টাইলে চ্যাট করুন..."
-                      className="bg-bg-dark border-border-custom rounded-full px-6 h-12 focus:ring-accent/50 text-sm"
-                    />
-                    <Button type="submit" className="bg-accent text-bg-dark hover:bg-white rounded-full w-12 h-12 p-0 flex items-center justify-center shadow-[0_0_20px_rgba(0,209,255,0.3)]">
-                      <Send className="w-5 h-5" />
-                    </Button>
-                  </form>
-                </div>
-              ) : (
-                <div className="geometric-card items-center justify-center py-20 opacity-30 text-center border-dashed">
-                  <MessageSquare className="w-16 h-16 mb-6 mx-auto text-accent animate-pulse" />
-                  <h3 className="uppercase tracking-[4px] text-sm font-bold">No Active Session</h3>
-                  <p className="text-[10px] mt-2 max-w-[200px] mx-auto leading-relaxed">আশেপাশে থাকা কাউকে পেয়ার রিকোয়েস্ট পাঠান অথবা কারো রিকোয়েস্ট একসেপ্ট করুন।</p>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* PROFILE TAB */}
-          {activeTab === 'profile' && !activeChat && (
-            <motion.div key="profile" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="flex-1 w-full max-w-md mx-auto">
-              <div className="geometric-card p-8 space-y-8">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-accent p-1 mb-4 relative">
-                    <div className="w-full h-full rounded-full bg-accent/10 flex items-center justify-center overflow-hidden">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <UserIcon className="w-10 h-10 text-accent" />
-                      )}
-                    </div>
-                    <button 
-                      onClick={uploadProfilePicture}
-                      disabled={isUploadingPhoto}
-                      className="absolute bottom-0 right-0 w-8 h-8 bg-accent text-bg-dark border-2 border-bg-dark rounded-full flex items-center justify-center hover:bg-white transition-colors disabled:opacity-50"
-                    >
-                      {isUploadingPhoto ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <CameraIcon className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  <h2 className="text-xl font-black uppercase tracking-tighter text-white">{user.displayName}</h2>
-                  <p className="text-[10px] text-text-dim uppercase tracking-widest mt-1">আপনার প্রোফাইল এডিট করুন</p>
-                </div>
-
-                <form onSubmit={updateProfile} className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-[2px] font-bold text-accent ml-1">ডিসপ্লে নাম</label>
-                    <Input 
-                      value={newDisplayName}
-                      onChange={(e) => setNewDisplayName(e.target.value)}
-                      placeholder="আপনার নাম লিখুন"
-                      className="bg-bg-dark border-border-custom text-white rounded-none h-12 focus:ring-accent"
-                      maxLength={20}
-                    />
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={isUpdatingProfile || !newDisplayName.trim() || newDisplayName === user.displayName}
-                    className="w-full h-12 bg-accent text-bg-dark hover:bg-white rounded-none font-bold uppercase tracking-widest disabled:opacity-50"
-                  >
-                    {isUpdatingProfile ? 'আপডেট হচ্ছে...' : 'সেভ করুন'}
-                  </Button>
-                </form>
-
-                <div className="pt-6 border-t border-border-custom">
-                  <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-text-dim">
-                    <span>ইউজার আইডি</span>
-                    <span className="font-mono text-[8px]">{user.uid.substring(0, 12)}...</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* HISTORY TAB */}
-          {activeTab === 'history' && !activeChat && (
-            <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
-              <div className="geometric-card p-10 items-center justify-center text-center opacity-30">
-                <div className="text-[10px] uppercase tracking-[4px]">History coming soon</div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* TOOLS TAB */}
-          {activeTab === 'tools' && !activeChat && (
-            <motion.div key="tools" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
-              <div className="geometric-card p-10 items-center justify-center text-center opacity-30">
-                <div className="text-[10px] uppercase tracking-[4px]">Tools coming soon</div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* Main Content */}
+      <main className="flex-1 w-full max-w-2xl lg:ml-64 flex flex-col min-h-screen">
+        {renderContent()}
       </main>
+
+      {/* Mobile Bottom Bar */}
+      <nav className={`lg:hidden fixed bottom-0 left-0 w-full ${theme === 'dark' ? 'bg-surface/80 border-border-custom' : 'bg-white/80 border-gray-200'} backdrop-blur-2xl border-t flex justify-around items-center p-3 z-50`}>
+        {[
+          { id: 'home', icon: Home, app: 'porshi' },
+          { id: 'scan', icon: Search, app: 'porshi' },
+          { id: 'messenger', icon: MessageSquare, app: 'porsh' },
+          { id: 'monetization', icon: LayoutDashboard, app: 'porshi' },
+          { id: 'profile', icon: UserIcon, app: 'porshi' },
+        ].map(item => (
+          <button
+            key={item.id}
+            onClick={() => {
+              if (item.app === 'porsh') {
+                setCurrentApp('porsh');
+              } else {
+                setCurrentApp('porshi');
+                setActiveTab(item.id);
+              }
+            }}
+            className={`p-2 rounded-xl transition-all ${(activeTab === item.id && currentApp === item.app) || (item.app === 'porsh' && currentApp === 'porsh') ? 'text-accent scale-110' : 'text-text-dim'}`}
+          >
+            <item.icon className="w-6 h-6" />
+          </button>
+        ))}
+      </nav>
+
+      {/* Story Modal */}
+      <AnimatePresence>
+        {activeStory && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
+          >
+            <div className="relative w-full max-w-lg h-full md:h-[90vh] md:rounded-3xl overflow-hidden">
+              <img src={activeStory.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div className="absolute top-0 left-0 w-full p-6 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-accent overflow-hidden">
+                    <img src={activeStory.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <div>
+                    <div className="text-white font-bold text-sm uppercase">{activeStory.authorName}</div>
+                    <div className="text-white/60 text-[8px] uppercase">{activeStory.timestamp?.toDate().toLocaleString()}</div>
+                  </div>
+                </div>
+                <button onClick={() => setActiveStory(null)} className="text-white p-2 hover:bg-white/10 rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Overlay */}
+      <AnimatePresence>
+        {activeChat && (
+          <motion.div 
+            initial={{ y: '100%' }} 
+            animate={{ y: 0 }} 
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-0 z-[60] bg-bg-dark flex flex-col"
+          >
+            <div className="p-4 border-b border-border-custom flex justify-between items-center bg-surface/95 backdrop-blur-2xl">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" onClick={() => setActiveChat(null)} className="text-text-dim"><ArrowLeft className="w-6 h-6" /></Button>
+                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30 overflow-hidden">
+                  <UserIcon className="w-5 h-5 text-accent" />
+                </div>
+                <div>
+                  <div className="font-bold uppercase tracking-tighter text-sm text-white">{activeChat.partnerName}</div>
+                  <div className="text-[8px] text-accent uppercase font-bold animate-pulse">অনলাইন</div>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setActiveChat(null)} className="text-text-dim hover:text-red-400"><X className="w-6 h-6" /></Button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+              {messages.map((msg, idx) => {
+                const isMe = msg.senderUid === user?.uid;
+                return (
+                  <motion.div 
+                    key={msg.id} 
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[75%] p-3 px-4 rounded-2xl ${isMe ? 'bg-accent text-bg-dark rounded-br-none' : 'bg-surface border border-border-custom text-white rounded-bl-none'}`}>
+                      <p className="text-sm">{msg.text}</p>
+                      <div className="text-[8px] mt-1 opacity-50 text-right">
+                        {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            <form onSubmit={sendMessage} className="p-4 border-t border-border-custom flex gap-2 bg-surface/80 backdrop-blur-md">
+              <Input 
+                value={messageInput}
+                onChange={(e) => handleTyping(e.target.value)}
+                placeholder="মেসেজ লিখুন..."
+                className="bg-bg-dark border-border-custom rounded-full px-6 h-12 text-sm"
+              />
+              <Button type="submit" className="bg-accent text-bg-dark rounded-full w-12 h-12 p-0 flex items-center justify-center shadow-lg">
+                <Send className="w-5 h-5" />
+              </Button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Incoming Request Overlay */}
       <AnimatePresence>
@@ -973,7 +1358,7 @@ export default function App() {
             exit={{ opacity: 0, scale: 0.9, y: 100 }} 
             className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-bg-dark/90 backdrop-blur-md"
           >
-            <div className="w-full max-w-sm bg-surface border-2 border-accent p-8 shadow-[0_0_100px_rgba(0,209,255,0.4)] relative overflow-hidden">
+            <div className="w-full max-w-sm bg-surface border-2 border-accent p-8 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-accent animate-pulse"></div>
               <div className="flex flex-col items-center text-center">
                 <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mb-6 border-2 border-accent/30 animate-bounce">
@@ -981,7 +1366,7 @@ export default function App() {
                 </div>
                 <h2 className="text-2xl font-black uppercase tracking-tighter mb-2 text-white">নতুন রিকোয়েস্ট!</h2>
                 <p className="text-text-dim text-sm mb-8">
-                  <span className="text-accent font-bold">{incomingRequest.fromName}</span> আপনার সাথে কানেক্ট হতে চায়। আপনি কি রাজি?
+                  <span className="text-accent font-bold">{incomingRequest.fromName}</span> আপনার সাথে কানেক্ট হতে চায়।
                 </p>
                 <div className="flex gap-3 w-full">
                   <Button 
@@ -992,10 +1377,10 @@ export default function App() {
                     না
                   </Button>
                   <Button 
-                    className="flex-1 bg-accent text-bg-dark hover:bg-white rounded-none uppercase font-bold text-xs h-12 shadow-[0_0_20px_rgba(0,209,255,0.4)]"
+                    className="flex-1 bg-accent text-bg-dark hover:bg-white rounded-none uppercase font-bold text-xs h-12 shadow-lg"
                     onClick={() => respondToRequest(incomingRequest.id, 'accepted')}
                   >
-                    হ্যাঁ, অবশ্যই
+                    হ্যাঁ
                   </Button>
                 </div>
               </div>
@@ -1004,58 +1389,27 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Chat Bubble for Minimized Chat */}
+      {/* Error Message */}
       <AnimatePresence>
-        {activeChat && activeTab !== 'chat' && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0, x: 50 }}
-            animate={{ scale: 1, opacity: 1, x: 0 }}
-            exit={{ scale: 0, opacity: 0, x: 50 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('chat')}
-            className="fixed bottom-24 right-6 z-[100] cursor-pointer"
+        {errorMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-accent text-bg-dark px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest shadow-2xl"
           >
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full bg-accent p-1 shadow-[0_0_30px_rgba(0,209,255,0.5)] border-2 border-white/20 flex items-center justify-center overflow-hidden">
-                <div className="w-full h-full rounded-full bg-bg-dark flex items-center justify-center">
-                  <UserIcon className="w-8 h-8 text-accent" />
-                </div>
-              </div>
-              <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-bg-dark flex items-center justify-center animate-bounce">
-                <MessageSquare className="w-3 h-3 text-white" />
-              </div>
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-accent text-bg-dark text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-md whitespace-nowrap">
-                {activeChat.partnerName}
-              </div>
-            </div>
+            {errorMessage}
           </motion.div>
         )}
       </AnimatePresence>
-
-      {errorMessage && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl mt-10">
-          <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 text-red-400 rounded-none">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="uppercase tracking-widest text-xs font-bold">Error</AlertTitle>
-            <AlertDescription className="text-sm">{errorMessage}</AlertDescription>
-          </Alert>
-        </motion.div>
-      )}
-
-      <footer className="w-full max-w-5xl mt-10 pt-6 border-t border-border-custom flex justify-between items-center text-[10px] text-text-dim uppercase tracking-widest">
-        <div className="flex gap-6">
-          <span className="flex items-center gap-1.5"><Wifi className="w-3 h-3" /> REAL-TIME</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> SECURE CHAT</span>
-        </div>
-        <div>© 2024 PORSHI-পড়শি</div>
-      </footer>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #2C2C2E; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #8E8E93; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>
   );

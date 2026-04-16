@@ -7,26 +7,21 @@
 // Fields:
 //   - uid: string (required)
 //   - displayName: string (required)
+//   - photoURL: string (optional)
 //   - isOnline: boolean (required)
 //   - lastSeen: timestamp (optional)
 //
-// Collection: requests
-// Document ID: {requestId}
+// Collection: posts
+// Document ID: {postId}
 // Fields:
-//   - fromUid: string (required)
-//   - fromName: string (required)
-//   - toUid: string (required)
-//   - toName: string (required)
-//   - status: string (required, ['pending', 'accepted', 'declined'])
+//   - authorUid: string (required)
+//   - authorName: string (required)
+//   - authorPhoto: string (optional)
+//   - content: string (required)
+//   - imageUrl: string (optional)
+//   - likesCount: number (required)
+//   - commentsCount: number (required)
 //   - timestamp: timestamp (required)
-//
-// Collection: chats/{chatId}/messages
-// Document ID: {messageId}
-// Fields:
-//   - senderUid: string (required)
-//   - text: string (required)
-//   - timestamp: timestamp (required)
-//   - pairId: string (required)
 //
 // ===============================================================
 
@@ -53,26 +48,41 @@ service cloud.firestore {
              data.isOnline is bool;
     }
 
-    function isValidRequest(data) {
-      return data.fromUid == request.auth.uid &&
-             data.fromName is string &&
-             data.toUid is string &&
-             data.toName is string &&
-             data.status in ['pending', 'accepted', 'declined'] &&
-             data.timestamp is timestamp;
-    }
-
-    function isValidMessage(data) {
-      return data.senderUid == request.auth.uid &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+    function isValidPost(data) {
+      return data.authorUid == request.auth.uid &&
+             data.authorName is string &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.likesCount is number &&
+             data.commentsCount is number &&
              data.timestamp is timestamp &&
-             data.pairId is string &&
-             (!('isRead' in data) || data.isRead is bool);
+             (!('reactions' in data) || data.reactions is map);
     }
 
-    function isValidTyping(data) {
-      return data.isTyping is bool &&
+    function isValidMonetization(data) {
+      return data.totalEarnings is number &&
+             data.reach is number &&
+             data.engagement is number &&
+             data.followers is number;
+    }
+
+    function isValidComment(data) {
+      return data.authorUid == request.auth.uid &&
+             data.authorName is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
              data.timestamp is timestamp;
+    }
+
+    function isValidLike(data) {
+      return data.userUid == request.auth.uid &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidStory(data) {
+      return data.authorUid == request.auth.uid &&
+             data.authorName is string &&
+             data.imageUrl is string &&
+             data.timestamp is timestamp &&
+             data.expiresAt is timestamp;
     }
 
     match /users/{uid} {
@@ -80,26 +90,53 @@ service cloud.firestore {
       allow create, update: if isOwner(uid) && isValidUser(request.resource.data);
     }
 
+    match /posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidPost(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    (isOwner(resource.data.authorUid) || 
+                     request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'commentsCount', 'reactions']));
+      allow delete: if isOwner(resource.data.authorUid);
+    }
+
+    match /monetization/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidMonetization(request.resource.data);
+    }
+
+    match /posts/{postId}/comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidComment(request.resource.data);
+      allow delete: if isOwner(resource.data.authorUid);
+    }
+
+    match /posts/{postId}/likes/{uid} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isOwner(uid);
+    }
+
+    match /stories/{storyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidStory(request.resource.data);
+      allow delete: if isOwner(resource.data.authorUid);
+    }
+
     match /requests/{requestId} {
       allow read: if isAuthenticated() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
-      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow create: if isAuthenticated() && (request.resource.data.fromUid == request.auth.uid);
       allow update: if isAuthenticated() && 
                     (request.auth.uid == resource.data.toUid) && 
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-                    request.resource.data.status in ['accepted', 'declined'];
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
     }
 
     match /chats/{chatId}/messages/{messageId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidMessage(request.resource.data);
-      allow update: if isAuthenticated() && 
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']) &&
-                    request.resource.data.isRead == true;
+      allow create: if isAuthenticated() && (request.resource.data.senderUid == request.auth.uid);
     }
 
     match /chats/{chatId}/typing/{uid} {
       allow read: if isAuthenticated();
-      allow create, update: if isOwner(uid) && isValidTyping(request.resource.data);
+      allow create, update: if isOwner(uid);
     }
   }
 }

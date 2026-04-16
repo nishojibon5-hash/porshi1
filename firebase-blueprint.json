@@ -49,6 +49,84 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["isTyping"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Social media post",
+      "type": "object",
+      "properties": {
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "reactions": { 
+          "type": "object",
+          "properties": {
+            "like": { "type": "number" },
+            "love": { "type": "number" },
+            "haha": { "type": "number" },
+            "wow": { "type": "number" },
+            "sad": { "type": "number" },
+            "angry": { "type": "number" }
+          }
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorUid", "authorName", "content", "timestamp"]
+    },
+    "Monetization": {
+      "title": "Monetization",
+      "description": "User monetization statistics",
+      "type": "object",
+      "properties": {
+        "totalEarnings": { "type": "number" },
+        "monthlyEarnings": { "type": "number" },
+        "reach": { "type": "number" },
+        "engagement": { "type": "number" },
+        "followers": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["totalEarnings", "reach", "engagement", "followers"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a post",
+      "type": "object",
+      "properties": {
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorUid", "authorName", "text", "timestamp"]
+    },
+    "Like": {
+      "title": "Like",
+      "description": "Like on a post",
+      "type": "object",
+      "properties": {
+        "userUid": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userUid", "timestamp"]
+    },
+    "Story": {
+      "title": "Story",
+      "description": "Short-lived story",
+      "type": "object",
+      "properties": {
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorUid", "authorName", "imageUrl", "timestamp", "expiresAt"]
     }
   },
   "firestore": {
@@ -67,6 +145,26 @@
     "/chats/{chatId}/typing/{uid}": {
       "schema": "TypingStatus",
       "description": "Typing indicators for users in a chat"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Social media posts"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on a post"
+    },
+    "/posts/{postId}/likes/{uid}": {
+      "schema": "Like",
+      "description": "Likes on a post"
+    },
+    "/stories/{storyId}": {
+      "schema": "Story",
+      "description": "User stories"
+    },
+    "/monetization/{uid}": {
+      "schema": "Monetization",
+      "description": "User monetization stats"
     }
   }
 }

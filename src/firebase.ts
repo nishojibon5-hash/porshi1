@@ -14,7 +14,9 @@ import {
   updateDoc,
   orderBy,
   limit,
-  Timestamp
+  Timestamp,
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -77,6 +79,8 @@ export {
   orderBy,
   limit,
   Timestamp,
+  deleteDoc,
+  increment,
   ref,
   uploadString,
   getDownloadURL
