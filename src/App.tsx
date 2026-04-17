@@ -182,40 +182,69 @@ export default function App() {
 
   // One Tap Login Implementation
   useEffect(() => {
-    if (user) return; // Already logged in
+    if (user || isAuthReady === false) return; // Wait for auth state to be checked
 
-    const initializeOneTap = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '435191884841-591584510b14983089c038.apps.googleusercontent.com', // Derived from project config
-          callback: handleOneTapResponse,
-          auto_select: true,
-          cancel_on_tap_outside: false,
-          allowed_parent_origin: window.location.origin
-        });
-        window.google.accounts.id.prompt();
-      }
-    };
+    const clientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID || '435191884841-2sedo4n3d14i6q45nvolqgf08ompsnrg.apps.googleusercontent.com';
 
     const handleOneTapResponse = async (response: any) => {
       try {
         const credential = GoogleAuthProvider.credential(response.credential);
         await signInWithCredential(auth, credential);
-      } catch (error) {
-        console.error('One Tap Error:', error);
+      } catch (error: any) {
+        console.error('One Tap Auth Error:', error);
+        setErrorMessage('গুগল লগইন সফল হয়নি। দয়া করে আবার চেষ্টা করুন।');
+        setTimeout(() => setErrorMessage(null), 5000);
       }
     };
 
-    // Wait for the script to load
+    const initializeOneTap = () => {
+      if (!window.google) return;
+      
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleOneTapResponse,
+          auto_select: true,
+          cancel_on_tap_outside: false,
+          use_fedcm_for_prompt: true, // Modern approach
+          allowed_parent_origin: window.location.origin
+        });
+
+        // Prompt the one tap UI
+        window.google.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed()) {
+            console.log('One Tap prompt not displayed:', notification.getNotDisplayedReason());
+          }
+          if (notification.isSkippedMoment()) {
+            console.log('One Tap prompt skipped:', notification.getSkippedReason());
+          }
+        });
+
+        // Also render a button as fallback in the login screen if it's visible
+        const loginButtonDiv = document.getElementById('google-login-button');
+        if (loginButtonDiv) {
+          window.google.accounts.id.renderButton(loginButtonDiv, {
+            theme: 'filled_black',
+            size: 'large',
+            shape: 'pill',
+            width: 280
+          });
+        }
+      } catch (err) {
+        console.error('GIS Init Error:', err);
+      }
+    };
+
+    // Check for GSI script every 500ms
     const checkGSI = setInterval(() => {
-      if (window.google) {
+      if (window.google?.accounts?.id) {
         clearInterval(checkGSI);
         initializeOneTap();
       }
-    }, 1000);
+    }, 500);
 
     return () => clearInterval(checkGSI);
-  }, [user]);
+  }, [user, isAuthReady]);
 
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
@@ -1429,12 +1458,23 @@ export default function App() {
                 আশেপাশে থাকা মানুষের সাথে কানেক্ট করুন এবং কথা বলুন।
               </CardDescription>
             </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div id="google-login-button" className="flex justify-center min-h-[44px]"></div>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border-custom/30" />
+              </div>
+              <div className="relative flex justify-center text-[10px] items-center">
+                <span className="bg-[#1A1A1C] px-2 text-text-dim uppercase font-bold tracking-widest">বা</span>
+              </div>
+            </div>
+
             <Button 
-              className="w-full h-14 bg-accent text-bg-dark hover:bg-white transition-all rounded-none font-bold uppercase tracking-widest"
+              className="w-full h-14 bg-surface border border-border-custom hover:border-accent hover:text-accent text-text-dim transition-all rounded-xl font-bold uppercase tracking-widest text-[10px]"
               onClick={login}
             >
-              Login with Google
+              ম্যানুয়াল পপআপ লগইন
             </Button>
           </CardContent>
           <CardFooter className="justify-center">
