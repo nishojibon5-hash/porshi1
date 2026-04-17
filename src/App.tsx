@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { 
   Nfc, 
   Scan, 
@@ -101,7 +102,8 @@ import {
   Story, 
   ChatMessage, 
   PairRequest, 
-  MonetizationData 
+  MonetizationData,
+  AppConfig 
 } from './types';
 import { PostCard } from './components/PostCard';
 
@@ -138,6 +140,10 @@ export default function App() {
   const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [postComments, setPostComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [isAppActive, setIsAppActive] = useState(true);
 
   const postImageInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
@@ -255,6 +261,19 @@ export default function App() {
   const prevOnlineCount = useRef(0);
   const isInitialOnlineLoad = useRef(true);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let handler: any;
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      setIsAppActive(isActive);
+    }).then(h => {
+      handler = h;
+    });
+    
+    return () => {
+      if (handler) handler.remove();
+    };
+  }, []);
 
   const canShowBrowserNotifications = 'Notification' in window;
   const browserNotificationPermission = canShowBrowserNotifications ? Notification.permission : 'denied';
@@ -682,11 +701,149 @@ export default function App() {
   };
 
   const renderContent = () => {
+    // Maintenance Mode Check
+    if (appConfig?.maintenanceMode && user?.role !== 'admin') {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6 text-center h-[80vh]">
+          <div className="w-24 h-24 bg-accent/20 rounded-full flex items-center justify-center animate-pulse">
+            <Activity className="w-12 h-12 text-accent" />
+          </div>
+          <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Under Maintenance</h1>
+          <p className="text-text-dim text-sm max-w-sm">
+            সিস্টেম আপডেটের কাজ চলছে। পড়শি শীঘ্রই আরও উন্নত ফিচারের সাথে ফিরে আসছে। পাশে থাকার জন্য ধন্যবাদ।
+          </p>
+          <div className="text-[10px] text-accent font-bold uppercase tracking-[4px]">Porshi Team</div>
+        </div>
+      );
+    }
+
     if (currentApp === 'porsh') {
       return renderMessenger();
     }
 
     switch (activeTab) {
+      case 'admin':
+        if (user?.role !== 'admin') return null;
+        return (
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+            <div className="max-w-6xl mx-auto space-y-12 pb-24">
+              <div className="space-y-4">
+                <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Admin Dashboard</h1>
+                <p className="text-text-dim text-xs uppercase tracking-[4px]">পড়শি অ্যাপ কন্ট্রোল সেন্টার</p>
+              </div>
+
+              {/* App Configuration Settings */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4" /> অ্যাপ সেটিংস
+                  </h2>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
+                      <div>
+                        <div className="text-sm font-bold uppercase">Maintenance Mode</div>
+                        <div className="text-[8px] text-text-dim uppercase">ইউজারদের জন্য অ্যাপ বন্ধ রাখা</div>
+                      </div>
+                      <button 
+                        onClick={() => updateDoc(doc(db, 'appConfig', 'remote-settings'), { maintenanceMode: !appConfig?.maintenanceMode })}
+                        className={`w-14 h-8 rounded-full transition-all relative ${appConfig?.maintenanceMode ? 'bg-accent' : 'bg-surface-light border border-border-custom'}`}
+                      >
+                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${appConfig?.maintenanceMode ? 'right-1' : 'left-1'}`} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">Welcome Message</label>
+                      <Input 
+                        value={appConfig?.welcomeMessage} 
+                        onChange={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { welcomeMessage: e.target.value })}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">Announcement</label>
+                      <textarea 
+                        value={appConfig?.announcement} 
+                        onChange={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { announcement: e.target.value })}
+                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
+                  </h2>
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                    {allUsers.map((u: any) => (
+                      <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-surface-light border border-border-custom overflow-hidden">
+                            {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />}
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-bold uppercase">{u.displayName}</div>
+                            <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {u.role !== 'admin' && (
+                            <button 
+                              onClick={async () => {
+                                if (window.confirm(`${u.displayName} কে অ্যাডমিন করতে চান?`)) {
+                                  await updateDoc(doc(db, 'users', u.uid), { role: 'admin' });
+                                }
+                              }}
+                              className="p-2 hover:bg-accent/10 text-accent rounded-lg transition-colors"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button 
+                            onClick={async () => {
+                              if (window.confirm(`${u.displayName} কে ডিলিট করতে চান?`)) {
+                                await deleteDoc(doc(db, 'users', u.uid));
+                              }
+                            }}
+                            className="p-2 hover:bg-red-400/10 text-red-400 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="geometric-card p-8 space-y-6">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                  <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                    <div className="text-3xl font-black text-accent">{allUsers.length}</div>
+                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
+                  </div>
+                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                    <div className="text-3xl font-black text-accent">{posts.length}</div>
+                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Posts</div>
+                  </div>
+                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                    <div className="text-3xl font-black text-accent">{onlineUsers.length}</div>
+                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Live Online</div>
+                  </div>
+                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                    <div className="text-3xl font-black text-accent">{allUsers.filter(u => u.role === 'admin').length}</div>
+                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       case 'home':
         return (
           <motion.div 
@@ -1034,20 +1191,66 @@ export default function App() {
     }
   };
 
+  // App Config and All Users (for Admin) Listener
+  useEffect(() => {
+    // 1. App Config Listener
+    const configUnsubscribe = onSnapshot(doc(db, 'appConfig', 'remote-settings'), (snapshot) => {
+      if (snapshot.exists()) {
+        setAppConfig(snapshot.data() as AppConfig);
+      } else {
+        // Initial Default Config
+        const defaultConfig: AppConfig = {
+          maintenanceMode: false,
+          welcomeMessage: 'Welcome to Porshi!',
+          appVersion: '1.0.0',
+          minVersion: '1.0.0',
+          contactEmail: 'support@porshi.app',
+          announcement: '',
+          themeColor: '#00D1FF'
+        };
+        setAppConfig(defaultConfig);
+        // Only an admin could initialize this if we really wanted to, but we'll let it be null for now if not exists
+      }
+    });
+
+    return () => {
+      configUnsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') {
+      setAllUsers([]);
+      return;
+    }
+    const q = collection(db, 'users');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setAllUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) {
-          setUser(userDoc.data() as AppUser);
+          const userData = userDoc.data() as AppUser;
+          // Bootstrap admin if email matches
+          if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
+             await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
+             userData.role = 'admin';
+          }
+          setUser(userData);
         } else {
           const newUser: AppUser = {
             uid: currentUser.uid,
             displayName: currentUser.displayName || 'Anonymous',
             photoURL: currentUser.photoURL || '',
             isOnline: true,
-            lastSeen: serverTimestamp()
+            lastSeen: serverTimestamp(),
+            role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
           };
           await setDoc(doc(db, 'users', currentUser.uid), newUser);
           setUser(newUser);
@@ -1215,8 +1418,11 @@ export default function App() {
       collection(db, 'chats', activeChat.id, 'messages'),
       orderBy('timestamp', 'asc')
     );
+    
+    let isInitialLoad = true;
+    
     const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-      const newMessages: ChatMessage[] = snapshot.docs.map(doc => {
+      const newMessagesData: ChatMessage[] = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -1227,6 +1433,22 @@ export default function App() {
         };
       });
       
+      // Handle notifications using docChanges
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added' && !isInitialLoad) {
+          const data = change.doc.data();
+          if (data.senderUid !== user?.uid) {
+            // Logic to determine if user should be notified
+            const isNotVisible = !isAppActive || document.hidden || activeTab !== 'chat';
+            if (isNotVisible) {
+              showNotification(`${activeChat.partnerName}`, data.text);
+            }
+          }
+        }
+      });
+      
+      isInitialLoad = false;
+      
       // Mark incoming messages as read if chat is active and tab is 'chat'
       if (activeTab === 'chat' && user) {
         snapshot.docs.forEach(async (d) => {
@@ -1235,25 +1457,17 @@ export default function App() {
             try {
               await updateDoc(doc(db, 'chats', activeChat.id, 'messages', d.id), { isRead: true });
             } catch (e) {
-              // Ignore errors for read receipts to avoid spamming
+              // Ignore errors for read receipts
             }
           }
         });
       }
       
-      // Show notification for new incoming message if tab is hidden
-      if (newMessages.length > messages.length) {
-        const lastMsg = newMessages[newMessages.length - 1];
-        if (lastMsg.senderUid !== user?.uid && (document.hidden || activeTab !== 'chat')) {
-          showNotification(`নতুন মেসেজ: ${activeChat.partnerName}`, lastMsg.text);
-        }
-      }
-      
-      setMessages(newMessages);
+      setMessages(newMessagesData);
     }, (error) => handleFirestoreError(error, OperationType.LIST, `chats/${activeChat.id}/messages`));
 
     return () => unsubscribeMessages();
-  }, [activeChat?.id, user?.uid, activeTab]);
+  }, [activeChat?.id, user?.uid, isAppActive, activeTab]);
 
   // Typing Indicator Listener
   useEffect(() => {
@@ -1513,15 +1727,16 @@ export default function App() {
           </button>
         </div>
         
-        <nav className="flex-1 space-y-2">
-          {[
-            { id: 'home', icon: Home, label: 'হোম' },
-            { id: 'scan', icon: Search, label: 'ডিসকভারি' },
-            { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
-            { id: 'monetization', icon: LayoutDashboard, label: 'মনিটাইজেশন' },
-            { id: 'notifications', icon: Bell, label: 'নটিফিকেশন' },
-            { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
-          ].map(item => (
+          <nav className="flex-1 space-y-2">
+            {[
+              { id: 'home', icon: Home, label: 'হোম' },
+              { id: 'scan', icon: Search, label: 'ডিসকভারি' },
+              { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
+              { id: 'monetization', icon: LayoutDashboard, label: 'মনিটাইজেশন' },
+              { id: 'notifications', icon: Bell, label: 'নটিফিকেশন' },
+              { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
+              ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, label: 'অ্যাডমিন' }] : []),
+            ].map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
@@ -1577,7 +1792,7 @@ export default function App() {
           { id: 'scan', icon: Search, app: 'porshi' },
           { id: 'messenger', icon: MessageSquare, app: 'porsh' },
           { id: 'monetization', icon: LayoutDashboard, app: 'porshi' },
-          { id: 'profile', icon: UserIcon, app: 'porshi' },
+          ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, app: 'porshi' }] : [{ id: 'profile', icon: UserIcon, app: 'porshi' }]),
         ].map(item => (
           <button
             key={item.id}

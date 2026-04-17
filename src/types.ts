@@ -8,6 +8,7 @@ export interface AppUser {
   lastSeen: any;
   followersCount?: number;
   followingCount?: number;
+  role?: 'admin' | 'user';
 }
 
 export interface Follow {
@@ -72,6 +73,16 @@ export interface MonetizationData {
   engagement: number;
   followers: number;
   lastUpdated: any;
+}
+
+export interface AppConfig {
+  maintenanceMode: boolean;
+  welcomeMessage: string;
+  appVersion: string;
+  minVersion: string;
+  contactEmail: string;
+  announcement: string;
+  themeColor: string;
 }
 
 declare global {

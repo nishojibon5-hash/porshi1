@@ -140,6 +140,20 @@
         "expiresAt": { "type": "string", "format": "date-time" }
       },
       "required": ["authorUid", "authorName", "imageUrl", "timestamp", "expiresAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Dynamic application configuration",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "welcomeMessage": { "type": "string" },
+        "appVersion": { "type": "string" },
+        "minVersion": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "announcement": { "type": "string" },
+        "themeColor": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -186,6 +200,10 @@
     "/users/{uid}/following/{followedUid}": {
       "schema": "Follow",
       "description": "Users followed by a specific user"
+    },
+    "/appConfig/{configId}": {
+      "schema": "AppConfig",
+      "description": "Dynamic app remote configuration"
     }
   }
 }
