@@ -17,7 +17,9 @@ import {
   Timestamp,
   deleteDoc,
   increment,
-  writeBatch
+  writeBatch,
+  startAfter,
+  getDocs
 } from 'firebase/firestore';
 import { getStorage, ref, uploadString, uploadBytes, getDownloadURL } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -85,6 +87,8 @@ export {
   deleteDoc,
   increment,
   writeBatch,
+  startAfter,
+  getDocs,
   ref,
   uploadString,
   uploadBytes,

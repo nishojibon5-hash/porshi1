@@ -43,6 +43,7 @@ import {
   MoreHorizontal,
   Bookmark,
   Image as ImageIcon,
+  Video as VideoIcon,
   Smile,
   Globe,
   Lock,
@@ -93,7 +94,9 @@ import {
   storage,
   deleteDoc,
   increment,
-  writeBatch
+  writeBatch,
+  startAfter,
+  getDocs
 } from './firebase';
 
 import { 
@@ -130,9 +133,14 @@ export default function App() {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLimit, setPostsLimit] = useState(10);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [stories, setStories] = useState<Story[]>([]);
   const [postInput, setPostInput] = useState('');
   const [postImage, setPostImage] = useState<string | null>(null);
+  const [postVideo, setPostVideo] = useState<File | null>(null);
+  const [postVideoPreview, setPostVideoPreview] = useState<string | null>(null);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -152,6 +160,13 @@ export default function App() {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [followingUids, setFollowingUids] = useState<string[]>([]);
   const [homeFeedTab, setHomeFeedTab] = useState<'all' | 'following'>('all');
+
+  const loadMorePosts = () => {
+    if (hasMorePosts && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setPostsLimit(prev => prev + 10);
+    }
+  };
 
   const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -417,16 +432,25 @@ export default function App() {
 
   const createPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || (!postInput.trim() && !postImage)) return;
+    if (!user || (!postInput.trim() && !postImage && !postVideo)) return;
 
     setIsCreatingPost(true);
     try {
       let imageUrl = '';
+      let videoUrl = '';
+      let mediaType: 'image' | 'video' | undefined = undefined;
+
       if (postImage) {
+        mediaType = 'image';
         const compressedBlob = await compressImage(postImage, 1200, 0.7);
         const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}.jpg`);
         await uploadBytes(storageRef, compressedBlob);
         imageUrl = await getDownloadURL(storageRef);
+      } else if (postVideo) {
+        mediaType = 'video';
+        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}_${postVideo.name}`);
+        await uploadBytes(storageRef, postVideo);
+        videoUrl = await getDownloadURL(storageRef);
       }
 
       await addDoc(collection(db, 'posts'), {
@@ -434,7 +458,9 @@ export default function App() {
         authorName: user.displayName,
         authorPhoto: user.photoURL || '',
         content: postInput.trim(),
+        mediaType,
         imageUrl,
+        videoUrl,
         likesCount: 0,
         commentsCount: 0,
         timestamp: serverTimestamp()
@@ -442,6 +468,8 @@ export default function App() {
 
       setPostInput('');
       setPostImage(null);
+      setPostVideo(null);
+      setPostVideoPreview(null);
       setErrorMessage('পোস্ট সফল হয়েছে!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
@@ -491,7 +519,21 @@ export default function App() {
   };
 
   const handlePostImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFileSelect(e, (base64) => setPostImage(base64));
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      handleFileSelect(e, (base64) => {
+        setPostImage(base64);
+        setPostVideo(null);
+        setPostVideoPreview(null);
+      });
+    } else if (file.type.startsWith('video/')) {
+      setPostVideo(file);
+      setPostImage(null);
+      const url = URL.createObjectURL(file);
+      setPostVideoPreview(url);
+    }
   };
 
   const createStory = () => {
@@ -500,34 +542,57 @@ export default function App() {
 
   const handleStoryImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user) return;
-    
-    handleFileSelect(e, async (base64Data) => {
-      setIsUploadingPhoto(true);
-      try {
-        const compressedBlob = await compressImage(base64Data, 1080, 0.7);
-        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}.jpg`);
-        await uploadBytes(storageRef, compressedBlob);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const compressedBlob = await compressImage(reader.result as string, 1080, 0.7);
+          const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}.jpg`);
+          await uploadBytes(storageRef, compressedBlob);
+          const downloadURL = await getDownloadURL(storageRef);
+          
+          await addDoc(collection(db, 'stories'), {
+            authorUid: user.uid,
+            authorName: user.displayName,
+            authorPhoto: user.photoURL || '',
+            mediaType: 'image',
+            imageUrl: downloadURL,
+            timestamp: serverTimestamp(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+          });
+          setIsUploadingPhoto(false);
+          setErrorMessage('স্টোরি আপলোড হয়েছে!');
+          setTimeout(() => setErrorMessage(null), 3000);
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(storageRef);
         
         await addDoc(collection(db, 'stories'), {
           authorUid: user.uid,
           authorName: user.displayName,
           authorPhoto: user.photoURL || '',
-          imageUrl: downloadURL,
+          mediaType: 'video',
+          videoUrl: downloadURL,
           timestamp: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
         });
-        
+        setIsUploadingPhoto(false);
         setErrorMessage('স্টোরি আপলোড হয়েছে!');
         setTimeout(() => setErrorMessage(null), 3000);
-      } catch (error: any) {
-        console.error('Story upload error:', error);
-        setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে।');
-        setTimeout(() => setErrorMessage(null), 4000);
-      } finally {
-        setIsUploadingPhoto(false);
       }
-    });
+    } catch (error: any) {
+      console.error('Story upload error:', error);
+      setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
+      setIsUploadingPhoto(false);
+    }
   };
 
   // Listen for monetization data
@@ -645,7 +710,7 @@ export default function App() {
                   <div className="w-14 h-14 rounded-full border-2 border-accent p-0.5">
                     <div className="w-full h-full rounded-full overflow-hidden bg-bg-dark">
                       {u.photoURL ? (
-                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
                       )}
@@ -669,7 +734,7 @@ export default function App() {
                 <div className="relative">
                   <div className="w-14 h-14 rounded-full border border-border-custom overflow-hidden bg-bg-dark">
                     {u.photoURL ? (
-                      <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
                     )}
@@ -781,7 +846,7 @@ export default function App() {
                       <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-surface-light border border-border-custom overflow-hidden">
-                            {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />}
+                            {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />}
                           </div>
                           <div>
                             <div className="text-[10px] font-bold uppercase">{u.displayName}</div>
@@ -850,6 +915,12 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex-1 overflow-y-auto custom-scrollbar"
+            onScroll={(e) => {
+              const target = e.currentTarget;
+              if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+                loadMorePosts();
+              }
+            }}
           >
             {/* Stories */}
             <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar bg-surface/50 backdrop-blur-md border-b border-border-custom sticky top-0 z-30">
@@ -872,6 +943,7 @@ export default function App() {
                     alt={story.authorName} 
                     className="w-full h-full rounded-[14px] object-cover" 
                     referrerPolicy="no-referrer"
+                    loading="lazy"
                   />
                 </motion.div>
               ))}
@@ -883,7 +955,7 @@ export default function App() {
                 <div className="flex gap-3">
                   <div className={`w-10 h-10 rounded-full border overflow-hidden ${theme === 'dark' ? 'bg-accent/20 border-accent/30' : 'bg-gray-100 border-gray-200'}`}>
                     {user?.photoURL ? (
-                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-5 h-5 text-accent" /></div>
                     )}
@@ -897,15 +969,24 @@ export default function App() {
                 </div>
                 {postImage && (
                   <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-                    <img src={postImage} alt="Preview" className="w-full max-h-60 object-cover" />
+                    <img src={postImage} alt="Preview" className="w-full max-h-60 object-cover" loading="lazy" />
                     <button onClick={() => setPostImage(null)} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
+                {postVideoPreview && (
+                  <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
+                    <video src={postVideoPreview} controls className="w-full max-h-60 object-cover" />
+                    <button onClick={() => { setPostVideo(null); setPostVideoPreview(null); }} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
                   </div>
                 )}
                 <div className={`flex justify-between items-center pt-2 border-t ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
                   <div className="flex gap-2 relative">
                     <Button variant="ghost" size="sm" onClick={selectPostImage} className="text-text-dim hover:text-accent gap-2">
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="text-[10px] uppercase font-bold">ছবি</span>
+                      <div className="flex -space-x-1">
+                        <ImageIcon className="w-4 h-4" />
+                        <VideoIcon className="w-4 h-4" />
+                      </div>
+                      <span className="text-[10px] uppercase font-bold">মিডিয়া</span>
                     </Button>
                     <div className="relative">
                       <Button 
@@ -983,12 +1064,38 @@ export default function App() {
                   currentUserId={user?.uid}
                 />
               ))}
-              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length === 0 && (
+
+              {isLoadingMore && (
+                <div className="flex justify-center p-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                </div>
+              )}
+
+              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length === 0 && !isLoadingMore && (
                 <div className="p-10 text-center opacity-30">
                   <Globe className="w-12 h-12 mx-auto mb-4" />
                   <p className="text-xs uppercase font-bold tracking-widest">
                     {homeFeedTab === 'following' ? 'আপনার ফলো করা কারো পোস্ট নেই' : 'নিউজ ফিড খালি'}
                   </p>
+                </div>
+              )}
+
+              {hasMorePosts && !isLoadingMore && posts.length >= postsLimit && (
+                <div className="flex justify-center p-4">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={loadMorePosts}
+                    className="text-[8px] uppercase font-bold tracking-[4px] opacity-40 hover:opacity-100"
+                  >
+                    আরো দেখুন
+                  </Button>
+                </div>
+              )}
+
+              {!hasMorePosts && posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length > 0 && (
+                <div className="p-10 text-center opacity-20 text-[10px] uppercase font-bold tracking-[8px]">
+                  END OF FEED
                 </div>
               )}
             </div>
@@ -1024,7 +1131,7 @@ export default function App() {
                       onlineUsers.map((u) => (
                         <motion.div key={u.uid} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="geometric-card flex-row items-center gap-4 py-3 cursor-pointer hover:border-accent group" onClick={() => sendPairRequest(u)}>
                           <div className="w-10 h-10 rounded-full bg-surface border border-border-custom flex items-center justify-center group-hover:border-accent transition-colors overflow-hidden">
-                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <UserIcon className="w-5 h-5 text-text-dim group-hover:text-accent" />}
+                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <UserIcon className="w-5 h-5 text-text-dim group-hover:text-accent" />}
                           </div>
                           <div className="flex-1">
                             <div className="text-sm font-bold uppercase tracking-tighter">{u.displayName}</div>
@@ -1152,7 +1259,7 @@ export default function App() {
                     {isUploadingPhoto ? (
                       <div className="w-full h-full flex items-center justify-center bg-bg-dark/50"><Loader2 className="w-8 h-8 text-accent animate-spin" /></div>
                     ) : user?.photoURL ? (
-                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-16 h-16 text-text-dim" /></div>
                     )}
@@ -1318,14 +1425,7 @@ export default function App() {
       setOnlineUsers(usersList);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
 
-    // 2. Listen for Posts
-    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(50));
-    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-      const postsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-      setPosts(postsList);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'posts'));
-
-    // 3. Listen for Stories
+    // 2. Listen for Stories
     const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
     const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
       const storiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
@@ -1403,13 +1503,42 @@ export default function App() {
 
     return () => {
       unsubscribeUsers();
-      unsubscribePosts();
       unsubscribeStories();
       unsubscribeRequests();
       unsubscribeIncomingAccepted();
       unsubscribeOutgoingAccepted();
     };
   }, [user, isAuthReady]);
+
+  // 2. Listen for Posts (Paginated & Real-time)
+  useEffect(() => {
+    if (!user || !isAuthReady) return;
+
+    // We fetch a global limit of posts and filter them in the UI for the "Following" tab
+    const q = query(
+      collection(db, 'posts'),
+      orderBy('timestamp', 'desc'),
+      limit(postsLimit)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const postsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      setPosts(postsList);
+      
+      // If we got fewer results than the limit, we reached the end
+      if (snapshot.docs.length < postsLimit) {
+        setHasMorePosts(false);
+      } else {
+        setHasMorePosts(true);
+      }
+      setIsLoadingMore(false);
+    }, (error) => {
+      console.error('Posts Listener Error:', error);
+      setIsLoadingMore(false);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, isAuthReady, postsLimit]);
 
   // Chat Messages Listener
   useEffect(() => {
@@ -1660,6 +1789,7 @@ export default function App() {
                   alt="Porshi Logo" 
                   className="w-full h-full object-contain p-2"
                   referrerPolicy="no-referrer"
+                  loading="lazy"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.src = 'https://picsum.photos/seed/porshi/200/200';
@@ -1704,8 +1834,8 @@ export default function App() {
       {/* Desktop Sidebar */}
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-64 flex-col p-6 border-r ${theme === 'dark' ? 'border-border-custom bg-surface/30' : 'border-gray-200 bg-white'} backdrop-blur-xl z-50`}>
         {/* Hidden File Inputs */}
-        <input type="file" accept="image/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
-        <input type="file" accept="image/*" ref={storyImageInputRef} onChange={handleStoryImageChange} className="hidden" />
+        <input type="file" accept="image/*,video/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
+        <input type="file" accept="image/*,video/*" ref={storyImageInputRef} onChange={handleStoryImageChange} className="hidden" />
         <input type="file" accept="image/*" ref={profileImageInputRef} onChange={uploadProfilePicture} className="hidden" />
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
@@ -1821,11 +1951,15 @@ export default function App() {
             className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
           >
             <div className="relative w-full max-w-lg h-full md:h-[90vh] md:rounded-3xl overflow-hidden">
-              <img src={activeStory.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              {activeStory.mediaType === 'video' ? (
+                <video src={activeStory.videoUrl} autoPlay controls className="w-full h-full object-cover" />
+              ) : (
+                <img src={activeStory.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+              )}
               <div className="absolute top-0 left-0 w-full p-6 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full border-2 border-accent overflow-hidden">
-                    <img src={activeStory.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={activeStory.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                   </div>
                   <div>
                     <div className="text-white font-bold text-sm uppercase">{activeStory.authorName}</div>
@@ -1870,7 +2004,7 @@ export default function App() {
                     <div key={c.id} className="flex gap-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-surface border border-border-custom flex-shrink-0">
                         {c.authorPhoto ? (
-                          <img src={c.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={c.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                         ) : (
                           <UserIcon className="w-full h-full p-1 text-text-dim" />
                         )}

@@ -48,7 +48,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full border overflow-hidden ${theme === 'dark' ? 'bg-surface border-border-custom' : 'bg-gray-100 border-gray-200'}`}>
             {post.authorPhoto ? (
-              <img src={post.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={post.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
             ) : (
               <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-5 h-5 text-accent" /></div>
             )}
@@ -71,7 +71,16 @@ export const PostCard: React.FC<PostCardProps> = ({
         <Button variant="ghost" size="icon" className="text-text-dim"><MoreHorizontal className="w-5 h-5" /></Button>
       </div>
       <div className="px-4 pb-4 text-sm leading-relaxed">{post.content}</div>
-      {post.imageUrl && (
+      {post.mediaType === 'video' && post.videoUrl ? (
+        <div className={`w-full border-y relative min-h-[200px] flex items-center justify-center ${theme === 'dark' ? 'border-border-custom bg-bg-dark/50' : 'border-gray-100 bg-gray-50'}`}>
+          <video 
+            src={post.videoUrl} 
+            controls 
+            className="w-full object-cover max-h-[500px] outline-none"
+            playsInline
+          />
+        </div>
+      ) : post.imageUrl && (
         <div className={`w-full border-y relative min-h-[200px] flex items-center justify-center ${theme === 'dark' ? 'border-border-custom bg-bg-dark/50' : 'border-gray-100 bg-gray-50'}`}>
           <img 
             src={post.imageUrl} 

@@ -23,7 +23,9 @@ export interface Post {
   authorName: string;
   authorPhoto: string;
   content: string;
+  mediaType?: 'image' | 'video';
   imageUrl?: string;
+  videoUrl?: string;
   likesCount: number;
   commentsCount: number;
   reactions?: {
@@ -43,7 +45,9 @@ export interface Story {
   authorUid: string;
   authorName: string;
   authorPhoto: string;
-  imageUrl: string;
+  mediaType?: 'image' | 'video';
+  imageUrl?: string;
+  videoUrl?: string;
   timestamp: any;
   expiresAt: any;
 }
