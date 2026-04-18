@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 export interface AppUser {
   uid: string;
   displayName: string;
+  phoneNumber?: string;
   photoURL: string;
   isOnline: boolean;
   lastSeen: any;
@@ -87,6 +88,8 @@ export interface AppConfig {
   contactEmail: string;
   announcement: string;
   themeColor: string;
+  cloudinaryCloudName?: string;
+  cloudinaryUploadPreset?: string;
 }
 
 declare global {

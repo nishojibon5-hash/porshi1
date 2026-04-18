@@ -72,6 +72,9 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
   onAuthStateChanged, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
   collection, 
   doc, 
   setDoc, 
@@ -142,6 +145,7 @@ export default function App() {
   const [postVideo, setPostVideo] = useState<File | null>(null);
   const [postVideoPreview, setPostVideoPreview] = useState<string | null>(null);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
@@ -152,6 +156,23 @@ export default function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [isAppActive, setIsAppActive] = useState(true);
+  
+  // Auth Form States
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
+  const [authPhone, setAuthPhone] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
+  const [authProcessingStep, setAuthProcessingStep] = useState<string>('');
+  const [authLogs, setAuthLogs] = useState<string[]>([]);
+  
+  const addLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setAuthLogs(prev => [`[${time}] ${msg}`, ...prev.slice(0, 9)]);
+  };
+
+  const registrationData = useRef<{ name: string; phone: string } | null>(null);
 
   const postImageInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
@@ -168,31 +189,80 @@ export default function App() {
     }
   };
 
-  const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
+  const uploadToCloudinary = (file: string | File, resourceType: 'image' | 'video'): Promise<string> => {
     return new Promise((resolve, reject) => {
+      // Hardcoded fallback to ensure it works even if Firestore is empty
+      const cloudName = appConfig?.cloudinaryCloudName || 'dozmbxvo5';
+      const preset = appConfig?.cloudinaryUploadPreset || 'porshi_preset';
+      
+      const url = `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`;
+      const xhr = new XMLHttpRequest();
+      const fd = new FormData();
+
+      xhr.open('POST', url, true);
+      
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = (e.loaded / e.total) * 100;
+          setUploadProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          resolve(response.secure_url);
+        } else {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error?.message || 'Upload failed'));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+
+      fd.append('upload_preset', preset);
+      fd.append('file', file);
+      
+      xhr.send(fd);
+    });
+  };
+
+  const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Image compression timed out')), 15000);
       const img = new Image();
       img.src = base64Str;
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            clearTimeout(timeout);
+            return reject(new Error('Canvas context failed'));
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          clearTimeout(timeout);
+          resolve(dataUrl);
+        } catch (e) {
+          clearTimeout(timeout);
+          reject(e);
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Canvas context failed'));
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Compression failed'));
-        }, 'image/jpeg', quality);
       };
-      img.onerror = reject;
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Image load failed'));
+      };
     });
   };
 
@@ -361,7 +431,7 @@ export default function App() {
     }
   }, [user]);
 
-  const updateProfile = async (e: React.FormEvent) => {
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newDisplayName.trim()) return;
     
@@ -408,21 +478,29 @@ export default function App() {
     handleFileSelect(e, async (base64Data) => {
       setIsUploadingPhoto(true);
       try {
-        const compressedBlob = await compressImage(base64Data, 400, 0.8);
-        const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}.jpg`);
-        await uploadBytes(storageRef, compressedBlob);
-        const downloadURL = await getDownloadURL(storageRef);
+        addLog('প্রোফাইল ছবি প্রসেস হচ্ছে...');
+        let photoURL = '';
+        
+        if (appConfig?.cloudinaryCloudName) {
+          addLog('প্রোফাইল ছবি আলটিমেট মোডে আপলোড হচ্ছে...');
+          photoURL = await uploadToCloudinary(base64Data, 'image');
+        } else {
+          // Compress heavily to stay under 1MB Firestore limit
+          photoURL = await compressImage(base64Data, 300, 0.6);
+        }
         
         await updateDoc(doc(db, 'users', user.uid), {
-          photoURL: downloadURL
+          photoURL: photoURL
         });
         
-        setUser({ ...user, photoURL: downloadURL });
+        setUser({ ...user, photoURL: photoURL });
+        addLog('প্রোফাইল ছবি আপডেট সফল!');
         setErrorMessage('প্রোফাইল ছবি আপডেট হয়েছে!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Photo upload error:', error);
-        setErrorMessage('ছবি আপলোড করতে সমস্যা হয়েছে।');
+        addLog(`ফটো এরর: ${error.message}`);
+        setErrorMessage('ছবি আপডেট করতে সমস্যা হয়েছে।');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
         setIsUploadingPhoto(false);
@@ -434,52 +512,100 @@ export default function App() {
     e.preventDefault();
     if (!user || (!postInput.trim() && !postImage && !postVideo)) return;
 
+    // Save values for background upload
+    const currentInput = postInput.trim();
+    const currentImage = postImage;
+    const currentVideo = postVideo;
+
+    // Reset inputs immediately to give instant feedback
+    setPostInput('');
+    setPostImage(null);
+    setPostVideo(null);
+    setPostVideoPreview(null);
     setIsCreatingPost(true);
-    try {
-      let imageUrl = '';
-      let videoUrl = '';
-      let mediaType: 'image' | 'video' | undefined = undefined;
+    setUploadProgress(0);
+    setErrorMessage('পোস্ট আপলোড হচ্ছে...');
 
-      if (postImage) {
-        mediaType = 'image';
-        const compressedBlob = await compressImage(postImage, 1200, 0.7);
-        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}.jpg`);
-        await uploadBytes(storageRef, compressedBlob);
-        imageUrl = await getDownloadURL(storageRef);
-      } else if (postVideo) {
-        mediaType = 'video';
-        const storageRef = ref(storage, `posts/${user.uid}_${Date.now()}_${postVideo.name}`);
-        await uploadBytes(storageRef, postVideo);
-        videoUrl = await getDownloadURL(storageRef);
-      }
-
-      await addDoc(collection(db, 'posts'), {
-        authorUid: user.uid,
-        authorName: user.displayName,
-        authorPhoto: user.photoURL || '',
-        content: postInput.trim(),
-        mediaType,
-        imageUrl,
-        videoUrl,
-        likesCount: 0,
-        commentsCount: 0,
-        timestamp: serverTimestamp()
+    // Progress Simulation
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 95) return prev;
+        // Faster at start, slower as it reaches 90%
+        const inc = prev < 50 ? 5 : prev < 80 ? 2 : 0.5;
+        return Math.min(prev + inc, 95);
       });
+    }, 200);
 
-      setPostInput('');
-      setPostImage(null);
-      setPostVideo(null);
-      setPostVideoPreview(null);
-      setErrorMessage('পোস্ট সফল হয়েছে!');
-      setTimeout(() => setErrorMessage(null), 3000);
-    } catch (error: any) {
-      console.error('Post creation error:', error);
-      setErrorMessage('পোস্ট তৈরি করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      handleFirestoreError(error, OperationType.CREATE, 'posts');
-    } finally {
-      setIsCreatingPost(false);
-    }
+    // Start background upload process
+    (async () => {
+      try {
+        let imageUrl = '';
+        let videoUrl = '';
+        let mediaType: 'image' | 'video' | undefined = undefined;
+
+        if (currentImage) {
+          mediaType = 'image';
+          addLog('ছবি প্রসেস হচ্ছে... (Firestore)');
+          const dataURL = await compressImage(currentImage, 800, 0.4);
+          imageUrl = dataURL; 
+          addLog('ছবি প্রসেস সফল!');
+        } else if (currentVideo) {
+          mediaType = 'video';
+          addLog('ভিডিও প্রসেস হচ্ছে... (Cloudinary)');
+          
+          // Check Video Duration
+          const videoElement = document.createElement('video');
+          videoElement.src = URL.createObjectURL(currentVideo);
+          await new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+              if (videoElement.duration > 31) { // 31 to be generous
+                URL.revokeObjectURL(videoElement.src);
+                throw new Error('৩০ সেকেন্ডের বেশি বড় ভিডিও আপলোড করা সম্ভব না।');
+              }
+              resolve(true);
+            };
+          });
+          URL.revokeObjectURL(videoElement.src);
+
+          videoUrl = await uploadToCloudinary(currentVideo, 'video');
+          addLog('ভিডিও প্রসেস সফল!');
+        }
+
+        addLog('ডাটাবেজে সেভ হচ্ছে...');
+        await addDoc(collection(db, 'posts'), {
+          authorUid: user.uid,
+          authorName: user.displayName,
+          authorPhoto: user.photoURL || '',
+          content: currentInput,
+          mediaType,
+          imageUrl,
+          videoUrl,
+          likesCount: 0,
+          commentsCount: 0,
+          timestamp: serverTimestamp()
+        });
+
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+        
+        setTimeout(() => {
+          setIsCreatingPost(false);
+          setUploadProgress(0);
+        }, 500);
+
+        addLog('পোস্ট সফলভাবে পাবলিশ হয়েছে!');
+        setErrorMessage('পোস্ট সফলভাবে পাবলিশ হয়েছে!');
+        setTimeout(() => setErrorMessage(null), 3000);
+      } catch (error: any) {
+        clearInterval(progressInterval);
+        setIsCreatingPost(false);
+        setUploadProgress(0);
+        console.error('Background Post error:', error);
+        addLog(`পোস্ট এরর: ${error.message}`);
+        setErrorMessage(`আপলোড ব্যর্থ: ${error.message}`);
+        setTimeout(() => setErrorMessage(null), 5000);
+      }
+    })();
   };
 
   const likePost = async (postId: string) => {
@@ -546,51 +672,73 @@ export default function App() {
     if (!file) return;
 
     setIsUploadingPhoto(true);
+    addLog('স্টোরি প্রসেস শুরু হচ্ছে...');
+    
     try {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const compressedBlob = await compressImage(reader.result as string, 1080, 0.7);
-          const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}.jpg`);
-          await uploadBytes(storageRef, compressedBlob);
-          const downloadURL = await getDownloadURL(storageRef);
-          
-          await addDoc(collection(db, 'stories'), {
-            authorUid: user.uid,
-            authorName: user.displayName,
-            authorPhoto: user.photoURL || '',
-            mediaType: 'image',
-            imageUrl: downloadURL,
-            timestamp: serverTimestamp(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-          });
-          setIsUploadingPhoto(false);
-          setErrorMessage('স্টোরি আপলোড হয়েছে!');
-          setTimeout(() => setErrorMessage(null), 3000);
-        };
-        reader.readAsDataURL(file);
-      } else if (file.type.startsWith('video/')) {
-        const storageRef = ref(storage, `stories/${user.uid}_${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-        
-        await addDoc(collection(db, 'stories'), {
-          authorUid: user.uid,
-          authorName: user.displayName,
-          authorPhoto: user.photoURL || '',
-          mediaType: 'video',
-          videoUrl: downloadURL,
-          timestamp: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-        });
-        setIsUploadingPhoto(false);
-        setErrorMessage('স্টোরি আপলোড হয়েছে!');
-        setTimeout(() => setErrorMessage(null), 3000);
+      let imageUrl = '';
+      let videoUrl = '';
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      if (!isImage && !isVideo) {
+        throw new Error('শুধুমাত্র ছবি বা ভিডিও আপলোড করা সম্ভব।');
       }
-    } catch (error: any) {
-      console.error('Story upload error:', error);
-      setErrorMessage('স্টোরি আপলোড করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
+
+      if (isImage) {
+        addLog('স্টোরি (ছবি) প্রসেস হচ্ছে...');
+        const reader = new FileReader();
+        const imageData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('ছবি পড়তে সমস্যা হয়েছে।'));
+          reader.readAsDataURL(file);
+        });
+        imageUrl = await compressImage(imageData, 800, 0.3);
+      } else if (isVideo) {
+        addLog('স্টোরি (ভিডিও) প্রসেস হচ্ছে...');
+        
+        // Video Duration Check
+        const videoElement = document.createElement('video');
+        videoElement.preload = 'metadata';
+        videoElement.src = URL.createObjectURL(file);
+        
+        await new Promise((resolve, reject) => {
+          videoElement.onloadedmetadata = () => {
+            if (videoElement.duration > 32) { // 32s buffer
+              reject(new Error('৩০ সেকেন্ডের বেশি বড় ভিডিও স্টোরিতে দেওয়া যাবে না।'));
+            } else {
+              resolve(true);
+            }
+          };
+          videoElement.onerror = () => reject(new Error('ভিডিও ফাইলটি বৈধ নয়।'));
+          // Safety timeout
+          setTimeout(() => reject(new Error('ভিডিও তথ্য পড়তে অনেক সময় লাগছে।')), 10000);
+        });
+        URL.revokeObjectURL(videoElement.src);
+
+        addLog('ভিডিও ক্লাউডিনারিতে আপলোড হচ্ছে...');
+        videoUrl = await uploadToCloudinary(file, 'video');
+      }
+
+      addLog('ডাটাবেজে সেভ হচ্ছে...');
+      await addDoc(collection(db, 'stories'), {
+        authorUid: user.uid,
+        authorName: user.displayName,
+        authorPhoto: user.photoURL || '',
+        mediaType: isImage ? 'image' : 'video',
+        imageUrl,
+        videoUrl,
+        timestamp: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      });
+
+      addLog('স্টোরি পাবলিশ সফল!');
+      setErrorMessage('স্টোরি আপলোড হয়েছে!');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Story upload error details:', err);
+      setErrorMessage(err.message || 'স্টোরি আপলোড করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
       setIsUploadingPhoto(false);
     }
   };
@@ -839,6 +987,35 @@ export default function App() {
 
                 <div className="geometric-card p-8 space-y-6">
                   <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <LayoutDashboard className="w-4 h-4" /> মিডিয়া স্টোরেজ (Ultimate Mode)
+                  </h2>
+                  <div className="space-y-4">
+                    <p className="text-[10px] text-text-dim uppercase leading-relaxed">
+                      ফায়ারবেস বিলিং ছাড়াই আনলিমিটেড বড় ভিডিও এবং ছবি আপলোড করতে ক্লাউডিনারি (Cloudinary) ব্যবহার করুন।
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim">Cloudinary Cloud Name</Label>
+                      <Input 
+                        placeholder="e.g. porshi-media" 
+                        defaultValue={appConfig?.cloudinaryCloudName || ''}
+                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryCloudName: e.target.value })}
+                        className="bg-bg-dark/50 border-border-custom text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim">Unsigned Upload Preset (Default: ml_default)</Label>
+                      <Input 
+                        placeholder="e.g. ml_default" 
+                        defaultValue={appConfig?.cloudinaryUploadPreset || ''}
+                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryUploadPreset: e.target.value })}
+                        className="bg-bg-dark/50 border-border-custom text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                     <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
                   </h2>
                   <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
@@ -977,6 +1154,21 @@ export default function App() {
                   <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
                     <video src={postVideoPreview} controls className="w-full max-h-60 object-cover" />
                     <button onClick={() => { setPostVideo(null); setPostVideoPreview(null); }} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
+                {isCreatingPost && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[8px] uppercase font-bold tracking-widest text-accent">
+                      <span>আপলোড হচ্ছে...</span>
+                      <span>{Math.round(uploadProgress)}%</span>
+                    </div>
+                    <div className="h-1 w-full bg-accent/10 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${uploadProgress}%` }}
+                        className="h-full bg-accent shadow-[0_0_10px_rgba(0,209,255,0.5)]"
+                      />
+                    </div>
                   </div>
                 )}
                 <div className={`flex justify-between items-center pt-2 border-t ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
@@ -1285,9 +1477,27 @@ export default function App() {
                     <label className="text-[8px] uppercase text-text-dim ml-1">ডিসপ্লে নাম</label>
                     <input type="text" value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder={user?.displayName} className="w-full bg-surface border border-border-custom rounded-xl p-3 text-sm focus:border-accent transition-colors" />
                   </div>
-                  <Button onClick={updateProfile} disabled={isUpdatingProfile || !newDisplayName.trim()} className="w-full bg-accent text-bg-dark font-bold uppercase text-[10px] tracking-widest h-12">
+                  <Button onClick={(e) => handleProfileUpdate(e as any)} disabled={isUpdatingProfile || !newDisplayName.trim()} className="w-full bg-accent text-bg-dark font-bold uppercase text-[10px] tracking-widest h-12">
                     {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : 'তথ্য আপডেট করুন'}
                   </Button>
+                  
+                  <div className="pt-4 mt-4 border-t border-border-custom space-y-2">
+                    {user?.role === 'admin' && (
+                      <Button 
+                        onClick={() => setActiveTab('admin')} 
+                        className="w-full bg-accent/20 text-accent border border-accent/40 font-bold uppercase text-[10px] tracking-widest h-12 hover:bg-accent/30"
+                      >
+                        <Activity className="w-4 h-4 mr-2" /> অ্যাডমিন প্যানেল
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      onClick={logout} 
+                      className="w-full text-red-400 hover:text-red-500 hover:bg-red-400/10 font-bold uppercase text-[10px] tracking-widest h-12 border border-red-400/20"
+                    >
+                      লগআউট (LOGOUT)
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1313,7 +1523,9 @@ export default function App() {
           minVersion: '1.0.0',
           contactEmail: 'support@porshi.app',
           announcement: '',
-          themeColor: '#00D1FF'
+          themeColor: '#00D1FF',
+          cloudinaryCloudName: 'dozmbxvo5',
+          cloudinaryUploadPreset: 'porshi_preset'
         };
         setAppConfig(defaultConfig);
         // Only an admin could initialize this if we really wanted to, but we'll let it be null for now if not exists
@@ -1339,33 +1551,59 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    addLog('সিস্টেম প্রস্তুত (System Ready)');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as AppUser;
-          // Bootstrap admin if email matches
-          if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
-             await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
-             userData.role = 'admin';
+      try {
+        if (currentUser) {
+          addLog(`ইউজার পাওয়া গেছে: ${currentUser.uid.slice(0, 6)}...`);
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          
+          if (userDoc.exists()) {
+            addLog('প্রোফাইল লোড হচ্ছে...');
+            const userData = userDoc.data() as AppUser;
+            // Bootstrap admin if email matches
+            if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
+              await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
+              userData.role = 'admin';
+            }
+            if (!userData.role && currentUser.email === "salman1000790@gmail.com") {
+                userData.role = 'admin';
+            }
+            setUser(userData);
+            addLog('লগইন সফল! (Login Verified)');
+          } else {
+            addLog('নতুন প্রোফাইল তৈরি করা হচ্ছে...');
+            // New User Registration Handling
+            const name = registrationData.current?.name || currentUser.displayName || 'Porshi User';
+            const phone = registrationData.current?.phone || '';
+            
+            const newUser: AppUser = {
+              uid: currentUser.uid,
+              displayName: name,
+              phoneNumber: phone,
+              photoURL: currentUser.photoURL || '',
+              isOnline: true,
+              lastSeen: serverTimestamp(),
+              role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
+            };
+            
+            await setDoc(doc(db, 'users', currentUser.uid), newUser);
+            addLog('প্রোফাইল তৈরি সম্পন্ন (Profile Created)');
+            setUser(newUser);
           }
-          setUser(userData);
         } else {
-          const newUser: AppUser = {
-            uid: currentUser.uid,
-            displayName: currentUser.displayName || 'Anonymous',
-            photoURL: currentUser.photoURL || '',
-            isOnline: true,
-            lastSeen: serverTimestamp(),
-            role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
-          };
-          await setDoc(doc(db, 'users', currentUser.uid), newUser);
-          setUser(newUser);
+          addLog('ইউজার লগআউট অবস্থায় আছে (Logged Out)');
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (error: any) {
+        console.error('Auth Listener Error:', error);
+        addLog(`ক্রিটিক্যাল এরর: ${error.message}`);
+        setErrorMessage(`সিস্টেম এরর: ${error.message}`);
+      } finally {
+        setIsAuthReady(true);
+        setIsAuthLoading(false);
+        registrationData.current = null; // Clear after use
       }
-      setIsAuthReady(true);
     });
     return () => unsubscribe();
   }, []);
@@ -1635,6 +1873,80 @@ export default function App() {
     }
   };
 
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authPhone || !authPassword) {
+      setErrorMessage('সবগুলো ঘর পূরণ করুন');
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
+
+    if (authView === 'register' && !authName) {
+      setErrorMessage('আপনার নাম লিখুন');
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
+
+    setIsAuthLoading(true);
+    setErrorMessage(null);
+    const email = `${authPhone.trim()}@porshi.app`;
+    const password = authPassword.trim();
+    
+    if (password.length < 6) {
+      addLog('ভুল: পাসওয়ার্ড ছোট (Password too short)');
+      setErrorMessage('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
+      setIsAuthLoading(false);
+      return;
+    }
+
+    try {
+      if (authView === 'register') {
+        const name = authName.trim();
+        const phone = authPhone.trim();
+        
+        if (!name) {
+          setErrorMessage('আপনার নাম লিখুন');
+          setIsAuthLoading(false);
+          return;
+        }
+
+        addLog(`রেজিস্ট্রেশন শুরু: ${phone}`);
+        // Store for listener to use
+        registrationData.current = { name, phone };
+        setAuthProcessingStep('অ্যাকাউন্ট তৈরি হচ্ছে...');
+
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        if (result.user) {
+          addLog('সার্ভার রেসপন্স: সাকসেস (Auth Success)');
+          setAuthSuccessMessage('রেজিস্ট্রেশন সফল!');
+          setAuthPhone('');
+          setAuthPassword('');
+          setAuthName('');
+        }
+      } else {
+        addLog(`লগইন চেষ্টা: ${authPhone.trim()}`);
+        setAuthProcessingStep('লগইন করা হচ্ছে...');
+        await signInWithEmailAndPassword(auth, email, password);
+        addLog('সার্ভার রেসপন্স: ভেরিফাইড (Login Success)');
+        setAuthSuccessMessage('লগইন সফল!');
+      }
+    } catch (error: any) {
+      setIsAuthLoading(false);
+      registrationData.current = null;
+      console.error('Email Auth Error:', error);
+      addLog(`এরর (Auth): ${error.code}`);
+      
+      let msg = 'সমস্যা হয়েছে। আবার চেষ্টা করুন।';
+      if (error.code === 'auth/email-already-in-use') msg = 'এই নাম্বার দিয়ে অলরেডি অ্যাকাউন্ট আছে।';
+      if (error.code === 'auth/invalid-email') msg = 'সঠিক ফোন নাম্বার দিন।';
+      if (error.code === 'auth/wrong-password') msg = 'ভুল পাসওয়ার্ড।';
+      if (error.code === 'auth/user-not-found') msg = 'অ্যাকাউন্ট পাওয়া যায়নি।';
+      if (error.code === 'auth/network-request-failed') msg = 'ইন্টারনেট সমস্যা। আবার চেষ্টা করুন।';
+      
+      setErrorMessage(msg);
+    }
+  };
+
   const logout = async () => {
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), { isOnline: false });
@@ -1780,8 +2092,35 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-bg-dark text-text-main flex items-center justify-center p-4 font-sans">
-        <Card className="max-w-md w-full bg-surface border-border-custom text-text-main shadow-2xl rounded-none">
+      <div className="min-h-screen bg-bg-dark text-text-main flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Full Screen Loading Overlay */}
+        <AnimatePresence>
+          {isAuthLoading && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[500] bg-bg-dark/90 backdrop-blur-xl flex flex-col items-center justify-center space-y-6"
+            >
+              <div className="relative">
+                <div className="w-24 h-24 border-4 border-accent/20 rounded-full animate-spin border-t-accent shadow-[0_0_30px_rgba(0,209,255,0.2)]"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-12 h-12 bg-accent rounded-full animate-pulse blur-sm"></div>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-accent font-black uppercase tracking-[0.3em] text-sm">{authProcessingStep}</p>
+                <div className="flex gap-1">
+                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-1 bg-accent rounded-full" />
+                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 h-1 bg-accent rounded-full" />
+                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 h-1 bg-accent rounded-full" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <Card className="max-w-md w-full bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative z-10">
             <CardHeader className="text-center">
               <div className="w-32 h-32 mx-auto mb-6 relative overflow-hidden border-2 border-accent/30 bg-surface">
                 <img 
@@ -1796,15 +2135,99 @@ export default function App() {
                   }}
                 />
               </div>
-              <CardTitle className="text-4xl font-extrabold tracking-tighter uppercase mb-1 text-accent">PORSHI</CardTitle>
+              <CardTitle className="text-4xl font-extrabold tracking-tighter uppercase mb-1 text-accent flex items-center justify-center gap-2">
+                PORSHI 
+                <span className="text-[8px] bg-accent/20 text-accent px-2 py-1 rounded-full animate-pulse border border-accent/30 font-black">v5 SUCCESS-READY</span>
+              </CardTitle>
               <CardTitle className="text-2xl font-bold tracking-widest mb-4 text-white">পড়শি</CardTitle>
               <CardDescription className="text-text-dim text-sm">
                 আশেপাশে থাকা মানুষের সাথে কানেক্ট করুন এবং কথা বলুন।
               </CardDescription>
             </CardHeader>
-          <CardContent className="space-y-4">
-            <div id="google-login-button" className="flex justify-center min-h-[44px]"></div>
-            
+          <CardContent className="space-y-6">
+            {authSuccessMessage && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-4 bg-green-500/10 border border-green-500/30 rounded-2xl flex items-center gap-3 text-green-400"
+              >
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-black uppercase tracking-widest leading-none mb-1">সফল (SUCCESS)</div>
+                  <div className="text-[10px] opacity-80 font-bold uppercase">{authSuccessMessage}</div>
+                </div>
+              </motion.div>
+            )}
+            <form onSubmit={handleEmailAuth} className="space-y-4">
+              <div className="flex gap-2 p-1 bg-bg-dark border border-border-custom rounded-xl mb-4">
+                <button 
+                  type="button"
+                  onClick={() => setAuthView('login')}
+                  className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'login' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
+                >
+                  লগইন (LOGIN)
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setAuthView('register')}
+                  className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'register' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
+                >
+                  রেজিস্ট্রেশন (JOIN)
+                </button>
+              </div>
+
+              {authView === 'register' && (
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">আপনার নাম</Label>
+                  <Input 
+                    placeholder="উদা: মাসুম বিল্লাহ" 
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">ফোন নাম্বার</Label>
+                <Input 
+                  placeholder="উদা: 017XXXXXXXX" 
+                  type="tel"
+                  value={authPhone}
+                  onChange={(e) => setAuthPhone(e.target.value)}
+                  className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">পাসওয়ার্ড</Label>
+                <Input 
+                  placeholder="••••••••" 
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full h-14 bg-accent hover:bg-accent/90 text-bg-dark font-black text-lg rounded-none transition-all shadow-[0_0_20px_rgba(0,209,255,0.2)]"
+                disabled={isAuthLoading}
+              >
+                {isAuthLoading ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  authView === 'login' ? 'লগইন করুন (SIGN IN)' : 'অ্যাকউন্ট তৈরি করুন (JOIN)'
+                )}
+              </Button>
+            </form>
+
+            <div className="text-center pt-2">
+              <p className="text-[10px] text-text-dim uppercase tracking-tighter font-bold">
+                {authView === 'login' ? 'ফোন নম্বর ও পাসওয়ার্ড দিয়ে প্রবেশ করুন' : 'আপনার সঠিক তথ্য দিয়ে নতুন অ্যাকাউন্ট খুলুন'}
+              </p>
+            </div>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border-custom/30" />
@@ -1814,12 +2237,37 @@ export default function App() {
               </div>
             </div>
 
-            <Button 
-              className="w-full h-14 bg-surface border border-border-custom hover:border-accent hover:text-accent text-text-dim transition-all rounded-xl font-bold uppercase tracking-widest text-[10px]"
-              onClick={login}
-            >
-              ম্যানুয়াল পপআপ লগইন
-            </Button>
+            <div className="space-y-3 mt-4">
+              <Button 
+                type="button"
+                className="w-full h-12 bg-surface border border-border-custom hover:border-accent hover:text-accent text-text-dim transition-all rounded-xl font-bold uppercase tracking-widest text-[10px] flex gap-2"
+                onClick={login}
+              >
+                <Globe className="w-4 h-4" />
+                গুগল দিয়ে লগইন (GOOGLE)
+              </Button>
+            </div>
+
+            {/* System Debug Logs */}
+            <div className="mt-8 pt-4 border-t border-border-custom/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[8px] uppercase font-black text-text-dim tracking-widest">সিস্টেম স্ট্যাটাস (System Logs)</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></div>
+              </div>
+              <div className="bg-bg-dark/50 rounded-lg p-3 font-mono text-[9px] text-accent/70 space-y-1 min-h-[80px]">
+                {authLogs.length > 0 ? authLogs.map((log, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="opacity-40 animate-pulse">{'>'}</span>
+                    <span>{log}</span>
+                  </div>
+                )) : (
+                  <div className="flex gap-2 opacity-30 italic">
+                    <span className="">{'>'}</span>
+                    <span>সিস্টেম লোড হচ্ছে...</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
           <CardFooter className="justify-center">
             <p className="text-[10px] text-text-dim uppercase tracking-widest">Secure Real-time Infrastructure</p>
@@ -1879,9 +2327,9 @@ export default function App() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-border-custom">
-          <button onClick={logout} className="w-full flex items-center gap-4 p-3 text-red-400 hover:bg-red-400/10 rounded-xl transition-all">
+          <button onClick={logout} className="w-full flex items-center gap-4 p-3 text-red-500 hover:bg-red-400/10 rounded-xl transition-all border border-red-500/20">
             <LogOut className="w-5 h-5" />
-            <span className="text-sm uppercase font-bold">লগআউট</span>
+            <span className="text-sm uppercase font-black">লগআউট (LOGOUT)</span>
           </button>
         </div>
       </aside>
@@ -1907,6 +2355,12 @@ export default function App() {
           </button>
           <Button variant="ghost" size="icon" className="text-text-dim"><Search className="w-5 h-5" /></Button>
           <Button variant="ghost" size="icon" className="text-text-dim"><Bell className="w-5 h-5" /></Button>
+          <button 
+            onClick={logout}
+            className="p-2 rounded-full hover:bg-red-400/10 text-red-500 transition-colors ml-2"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
