@@ -5,6 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Porshi',
   webDir: 'dist',
   server: {
+    url: 'https://porshi.vercel.app',
+    allowNavigation: ['porshi.vercel.app'],
     androidScheme: 'https'
   }
 };
