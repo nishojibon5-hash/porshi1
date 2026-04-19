@@ -196,7 +196,10 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
 
       {/* Post Content */}
-      <div className="px-3 pb-2 text-[15px] leading-tight text-foreground">
+      <div 
+        onClick={() => !currentUserId && onLike(post.id)}
+        className="px-3 pb-2 text-[15px] leading-tight text-foreground cursor-pointer"
+      >
         {post.content}
         {post.content.length > 200 && <span className="text-gray-500 font-bold ml-1 cursor-pointer">... more</span>}
       </div>
@@ -205,6 +208,12 @@ export const PostCard: React.FC<PostCardProps> = ({
       {post.mediaType === 'video' && post.videoUrl ? (
         <div className="w-full bg-black flex items-center justify-center">
           <video 
+            onClick={(e) => {
+              if (!currentUserId) {
+                e.preventDefault();
+                onLike(post.id); // Triggers withAuth through onLike
+              }
+            }}
             src={post.videoUrl} 
             controls 
             className="w-full max-h-[500px] outline-none"
@@ -212,7 +221,10 @@ export const PostCard: React.FC<PostCardProps> = ({
           />
         </div>
       ) : post.imageUrl && (
-        <div className="w-full bg-gray-100 dark:bg-black flex items-center justify-center border-t border-b border-gray-100 dark:border-[#3E4042]">
+        <div 
+          onClick={() => !currentUserId && onLike(post.id)}
+          className="w-full bg-gray-100 dark:bg-black flex items-center justify-center border-t border-b border-gray-100 dark:border-[#3E4042] cursor-pointer"
+        >
           <img 
             src={post.imageUrl} 
             alt="" 

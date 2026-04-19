@@ -215,7 +215,55 @@ export default function App() {
   const [adminNoticeLink, setAdminNoticeLink] = useState('');
   const [isSendingNotice, setIsSendingNotice] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  
+  const [googleOneTapLoaded, setGoogleOneTapLoaded] = useState(false);
+
+  // Initialize Google One Tap
+  useEffect(() => {
+    const initializeGoogleOneTap = () => {
+      if (typeof window.google === 'undefined' || !import.meta.env.VITE_GOOGLE_CLIENT_ID) return;
+      
+      try {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: async (response: any) => {
+            setIsAuthLoading(true);
+            try {
+              const credential = GoogleAuthProvider.credential(response.credential);
+              await signInWithCredential(auth, credential);
+              setShowAuthModal(false);
+              setAuthSuccessMessage('গুগল দিয়ে লগইন সফল!');
+            } catch (error: any) {
+              console.error('One Tap Error:', error);
+              setErrorMessage('গুগল লগইন এরর');
+            } finally {
+              setIsAuthLoading(false);
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        
+        if (!user) {
+          window.google.accounts.id.prompt();
+        }
+        setGoogleOneTapLoaded(true);
+      } catch (err) {
+        console.error('GIS Init Error:', err);
+      }
+    };
+
+    if (!googleOneTapLoaded) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogleOneTap;
+      document.body.appendChild(script);
+    } else {
+      initializeGoogleOneTap();
+    }
+  }, [googleOneTapLoaded, user]);
+
   // Helper to enforce auth
   const withAuth = (action: () => void) => {
     if (!user) {
@@ -224,6 +272,21 @@ export default function App() {
     }
     action();
   };
+
+  // Re-render Google button when modal opens
+  useEffect(() => {
+    if (showAuthModal && typeof window.google !== 'undefined' && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+      setTimeout(() => {
+        const btn = document.getElementById("google-login-btn");
+        if (btn) {
+          window.google.accounts.id.renderButton(
+            btn,
+            { theme: "outline", size: "large", width: btn.offsetWidth, shape: "rectangular" }
+          );
+        }
+      }, 100);
+    }
+  }, [showAuthModal]);
 
   const navigateToProfile = (uid: string) => {
     if (!uid) return;
@@ -3126,15 +3189,40 @@ export default function App() {
 
   // Auth Actions
   const login = async () => {
-    setIsAuthLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setShowAuthModal(false);
-    } catch (error: any) {
-      console.error('Login error:', error);
-      setErrorMessage(error.message);
-    } finally {
-      setIsAuthLoading(false);
+    // Attempt standard GIS login to avoid Firebase Bridge redirection feeling
+    if (typeof window.google !== 'undefined' && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+      window.google.accounts.id.createButton(
+        document.getElementById("google-login-btn")!,
+        { theme: "outline", size: "large", width: "100%" }
+      );
+      // For immediate action, we still use the standard popup but with improved domain hint
+      setIsAuthLoading(true);
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ 
+          prompt: 'select_account',
+          login_hint: user?.email || ''
+        });
+        await signInWithPopup(auth, provider);
+        setShowAuthModal(false);
+      } catch (error: any) {
+        console.error('Login error:', error);
+        setErrorMessage(error.message);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    } else {
+      // Fallback
+      setIsAuthLoading(true);
+      try {
+        await signInWithPopup(auth, googleProvider);
+        setShowAuthModal(false);
+      } catch (error: any) {
+        console.error('Login error:', error);
+        setErrorMessage(error.message);
+      } finally {
+        setIsAuthLoading(false);
+      }
     }
   };
 
@@ -3436,7 +3524,11 @@ export default function App() {
                   <span className="text-[10px] text-text-dim uppercase font-bold tracking-widest">বা</span>
                 </div>
                 
-                <Button onClick={login} className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px]">
+                <Button 
+                  id="google-login-btn"
+                  onClick={login} 
+                  className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px]"
+                >
                   <Globe className="w-4 h-4" /> গুগল দিয়ে লগইন
                 </Button>
               </CardContent>
@@ -3481,8 +3573,14 @@ export default function App() {
         <input type="file" accept="image/*,video/*" ref={storyImageInputRef} onChange={handleStoryImageChange} className="hidden" />
         <input type="file" accept="image/*" ref={profileImageInputRef} onChange={uploadProfilePicture} className="hidden" />
         <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 relative overflow-hidden border border-accent/30 bg-surface">
+          <button 
+            onClick={() => {
+              if (!user) setShowAuthModal(true);
+              setActiveTab('home');
+            }}
+            className="flex items-center gap-3 cursor-pointer group"
+          >
+            <div className="w-10 h-10 relative overflow-hidden border border-accent/30 bg-surface group-hover:rotate-6 transition-transform">
               <img 
                 src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
                 alt="Logo" 
@@ -3490,8 +3588,8 @@ export default function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="text-xl font-black tracking-widest text-accent">PORSHI</div>
-          </div>
+            <div className="text-xl font-black tracking-widest text-accent group-hover:italic transition-all">PORSHI</div>
+          </button>
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="p-2 rounded-full hover:bg-accent/10 transition-colors"
@@ -3549,7 +3647,13 @@ export default function App() {
           <button onClick={() => withAuth(() => setIsMobileDrawerOpen(true))} className="p-1">
             <Menu className={`w-6 h-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
           </button>
-          <h1 className={`text-xl font-black tracking-widest uppercase flex items-center ${theme === 'dark' ? 'text-accent' : 'text-[#1877F2]'}`}>
+          <h1 
+            onClick={() => {
+              if (!user) setShowAuthModal(true);
+              setActiveTab('home');
+            }}
+            className={`text-xl font-black tracking-widest uppercase flex items-center cursor-pointer ${theme === 'dark' ? 'text-accent' : 'text-[#1877F2]'}`}
+          >
             {currentApp === 'porshi' ? 'PORSHI' : 'PORSH'}
           </h1>
         </div>
