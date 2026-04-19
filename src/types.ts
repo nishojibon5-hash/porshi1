@@ -123,6 +123,7 @@ export interface Advertisement {
   expiresAt: any;
   reach: number;
   clicks: number;
+  isAdminAd?: boolean;
 }
 
 export interface AppNotification {

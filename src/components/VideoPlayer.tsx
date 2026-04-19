@@ -26,7 +26,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   const [isMuted, setIsMuted] = React.useState(true);
   const [showAd, setShowAd] = React.useState(false);
   const [adVideo, setAdVideo] = React.useState<Advertisement | null>(null);
-  const [skipTime, setSkipTime] = React.useState(5);
+  const [skipTime, setSkipTime] = React.useState(15);
   const [adFinished, setAdFinished] = React.useState(false);
   
   const videoRef = React.useRef<HTMLVideoElement>(null);
@@ -54,7 +54,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
     if (post.isMonetized && !adFinished && inView && !adVideo) {
       const videoAds = ads.filter(ad => ad.status === 'active' && ad.adType === 'video_skippable');
       if (videoAds.length > 0) {
-        const randomAd = videoAds[Math.floor(Math.random() * videoAds.length)];
+        // Prioritize Admin Ads
+        const adminAds = videoAds.filter(ad => ad.isAdminAd);
+        const finalAds = adminAds.length > 0 ? adminAds : videoAds;
+        
+        const randomAd = finalAds[Math.floor(Math.random() * finalAds.length)];
         setAdVideo(randomAd);
         setShowAd(true);
       }

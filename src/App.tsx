@@ -1055,6 +1055,61 @@ export default function App() {
     }
   };
 
+  const handleCreateAdminAd = async () => {
+    if (!user || user.role !== 'admin') return;
+    if (!adForm.title.trim() || !adForm.description.trim() || !adForm.videoAdUrl) {
+      setErrorMessage('টাইটেল, ডিসক্রিপশন এবং ভিডিও এড ফাইল দিন।');
+      return;
+    }
+
+    setIsCreatingAd(true);
+    try {
+      const adData: Omit<Advertisement, 'id'> = {
+        advertiserUid: 'admin',
+        advertiserName: 'পড়শি টীম (Official)',
+        title: adForm.title.trim(),
+        description: adForm.description.trim(),
+        objective: 'views',
+        location: 'All Bangladesh',
+        audience: 'All Audience',
+        durationDays: 365,
+        budget: 0,
+        adType: 'video_skippable',
+        videoAdUrl: adForm.videoAdUrl,
+        status: 'active',
+        paymentStatus: 'paid',
+        timestamp: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        reach: 0,
+        clicks: 0,
+        websiteUrl: adForm.websiteUrl.trim(),
+        isAdminAd: true
+      };
+
+      await addDoc(collection(db, 'ads'), adData);
+      setErrorMessage('সিস্টেম ইন-স্ট্রিম ভিডিও এড সফলভাবে চালু হয়েছে!');
+      
+      setAdForm({
+        title: '',
+        description: '',
+        objective: 'views',
+        location: '',
+        audience: '',
+        websiteUrl: '',
+        durationDays: 5,
+        budget: 100,
+        adType: 'banner',
+        videoAdUrl: ''
+      });
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setIsCreatingAd(false);
+    }
+  };
+
   const sendNotification = async (notif: Omit<AppNotification, 'id' | 'timestamp' | 'isRead'>) => {
     try {
       await addDoc(collection(db, 'notifications'), {
@@ -2401,17 +2456,80 @@ export default function App() {
 
                     <div className="geometric-card p-8 space-y-6">
                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                         <Zap className="w-4 h-4" /> সিস্টেম বিজ্ঞাপন (System Ads)
+                         <Zap className="w-4 h-4" /> সিস্টেম ইন-স্ট্রিম অ্যাডস (Admin System Ads)
                        </h2>
-                       <p className="text-[10px] text-text-dim uppercase leading-relaxed">
-                         মনিটাইজ করা ভিডিওতে এই বিজ্ঞাপনগুলো স্বয়ংক্রিয়ভাবে চালানো হবে। স্কিপেবল ভিডিও বিজ্ঞাপন তৈরি করতে নিচের বাটন ব্যবহার করুন।
-                       </p>
-                       <Button 
-                         onClick={() => setActiveTab('ads')} 
-                         className="w-full h-12 bg-surface border border-accent/30 text-accent font-black uppercase tracking-widest text-[10px]"
-                       >
-                         নতুন সিস্টেম অ্যাড ড্রাফট করুন
-                       </Button>
+                       <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom space-y-4">
+                          <div className="space-y-3">
+                             <Input 
+                               placeholder="অ্যাড টাইটেল (Title)" 
+                               value={adForm.title}
+                               onChange={(e) => setAdForm(prev => ({ ...prev, title: e.target.value }))}
+                               className="bg-bg-dark border-border-custom text-white text-xs h-10"
+                             />
+                             <textarea 
+                               placeholder="অ্যাড ডিসক্রিপশন (Short Description)"
+                               value={adForm.description}
+                               onChange={(e) => setAdForm(prev => ({ ...prev, description: e.target.value }))}
+                               className="w-full bg-bg-dark border border-border-custom rounded-xl p-3 text-xs h-20 outline-none text-white font-sans"
+                             />
+                             <Input 
+                               placeholder="লিংক/ইউআরএল (Action URL)" 
+                               value={adForm.websiteUrl}
+                               onChange={(e) => setAdForm(prev => ({ ...prev, websiteUrl: e.target.value }))}
+                               className="bg-bg-dark border-border-custom text-white text-xs h-10"
+                             />
+                             
+                             <div className="space-y-2">
+                                <Label className="text-[8px] uppercase font-black text-text-dim ml-1">ভিডিও অ্যাড আপলোড (External Video Ad)</Label>
+                                <div 
+                                  onClick={selectVideoAd}
+                                  className="w-full aspect-video rounded-xl border-2 border-dashed border-border-custom bg-bg-dark flex flex-col items-center justify-center cursor-pointer hover:border-accent group"
+                                >
+                                  {adForm.videoAdUrl ? (
+                                    <video src={adForm.videoAdUrl} className="w-full h-full object-contain rounded-lg" />
+                                  ) : (
+                                    <>
+                                      {isUploadingPhoto ? <Loader2 className="w-6 h-6 animate-spin text-accent" /> : <VideoIcon className="w-8 h-8 text-text-dim group-hover:text-accent" />}
+                                      <span className="text-[8px] uppercase font-black text-text-dim mt-2 tracking-widest">ভিডিও আপলোড করুন (এমপি৪)</span>
+                                    </>
+                                  )}
+                                </div>
+                             </div>
+
+                             <Button 
+                               onClick={handleCreateAdminAd}
+                               disabled={isCreatingAd}
+                               className="w-full h-11 bg-accent text-bg-dark font-black uppercase tracking-widest text-[10px] shadow-[0_4px_15px_rgba(0,209,255,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                             >
+                               {isCreatingAd ? <Loader2 className="w-4 h-4 animate-spin" /> : 'সিস্টেম ভিডিও অ্যাড লাইভ করুন'}
+                             </Button>
+                          </div>
+                       </div>
+                       
+                       <div className="space-y-3 mt-6">
+                          <h3 className="text-[8px] uppercase font-black text-accent tracking-widest">সক্রিয় সিস্টেম অ্যাডস</h3>
+                          {allAds.filter(a => a.isAdminAd && a.status === 'active').map(ad => (
+                             <div key={ad.id} className="p-3 bg-bg-dark/80 rounded-xl border border-border-custom flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                   <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center overflow-hidden">
+                                      <video src={ad.videoAdUrl} className="w-full h-full object-cover" />
+                                   </div>
+                                   <div>
+                                      <div className="text-[10px] font-black uppercase">{ad.title}</div>
+                                      <div className="text-[8px] text-text-dim uppercase">Reach: {ad.reach || 0} | Clicks: {ad.clicks || 0}</div>
+                                   </div>
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => deleteDoc(doc(db, 'ads', ad.id))}
+                                  className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity uppercase text-[8px] font-black"
+                                >
+                                  Remove
+                                </Button>
+                             </div>
+                          ))}
+                       </div>
                     </div>
                   </div>
                 </TabsContent>
