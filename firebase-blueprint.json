@@ -13,7 +13,12 @@
         "followersCount": { "type": "number" },
         "followingCount": { "type": "number" },
         "role": { "type": "string", "enum": ["admin", "user"] },
-        "isMonetized": { "type": "boolean" }
+        "isMonetized": { "type": "boolean" },
+        "bio": { "type": "string" },
+        "lastLat": { "type": "number" },
+        "lastLng": { "type": "number" },
+        "isDiscoverable": { "type": "boolean" },
+        "discoveryStatus": { "type": "string" }
       },
       "required": ["uid", "displayName", "isOnline"]
     },

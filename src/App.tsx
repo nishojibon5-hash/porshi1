@@ -41,6 +41,7 @@ import {
   MessageCircle,
   Share2,
   MoreHorizontal,
+  Radar,
   Bookmark,
   Image as ImageIcon,
   Video as VideoIcon,
@@ -71,6 +72,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './components/LanguageSwitcher';
+import NearbyDiscovery from './components/NearbyDiscovery';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -150,6 +152,9 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [marketSearch, setMarketSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<AppUser[]>([]);
+  const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -460,6 +465,100 @@ export default function App() {
     };
     requestPermission();
   }, [canShowBrowserNotifications]);
+
+  // Tab change effects
+  useEffect(() => {
+    setMessageInput('');
+    setSearchResults([]);
+    setSearchQuery('');
+  }, [activeTab]);
+
+  // Geolocation Tracking (Live Location)
+  useEffect(() => {
+    if (!user || activeTab !== 'scan') return;
+
+    let watchId: number;
+    if ('geolocation' in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            await updateDoc(doc(db, 'users', user.uid), {
+              lastLat: latitude,
+              lastLng: longitude,
+              lastSeen: serverTimestamp(),
+              isDiscoverable: true,
+              isOnline: true
+            });
+          } catch (e) {
+            console.error('Geo update failed:', e);
+          }
+        },
+        (err) => console.warn('Geolocation error:', err),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [user?.uid, activeTab]);
+
+  // Nearby Discovery Real-time Listener
+  useEffect(() => {
+    if (!user || activeTab !== 'scan' || !user.lastLat || !user.lastLng) return;
+
+    const q = query(
+      collection(db, 'users'),
+      where('isOnline', '==', true),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const users: (AppUser & { distance: number })[] = [];
+      const currentLat = user.lastLat!;
+      const currentLng = user.lastLng!;
+
+      snapshot.docs.forEach(snap => {
+        const u = { uid: snap.id, ...snap.data() } as any;
+        if (u.uid !== user.uid && u.lastLat && u.lastLng) {
+          const R = 6371000;
+          const dLat = (u.lastLat - currentLat) * Math.PI / 180;
+          const dLng = (u.lastLng - currentLng) * Math.PI / 180;
+          const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(currentLat * Math.PI / 180) * Math.cos(u.lastLat * Math.PI / 180) * 
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distance = Math.round(R * c);
+          
+          if (distance < 5000) users.push({ ...u, distance });
+        }
+      });
+      setNearbyUsers(users.sort((a, b) => a.distance - b.distance));
+    });
+    return () => unsubscribe();
+  }, [user?.uid, activeTab, user?.lastLat, user?.lastLng]);
+
+  const handleGlobalSearch = async (val: string) => {
+    setSearchQuery(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('displayName', '>=', val),
+        where('displayName', '<=', val + '\uf8ff'),
+        limit(20)
+      );
+      const snap = await getDocs(q);
+      setSearchResults(snap.docs.map(d => ({ uid: d.id, ...d.data() } as AppUser)));
+    } catch (e) {
+      console.error('Search error:', e);
+    }
+  };
 
   const showNotification = async (title: string, body: string) => {
     // 1. Native Notification (Capacitor) - Works in background/foreground on Android
@@ -1750,6 +1849,28 @@ export default function App() {
     }
 
     switch (currentTab) {
+      case 'scan':
+        return (
+          <div className="flex-1 overflow-y-auto custom-scrollbar bg-bg-dark">
+            <div className="p-4 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Radar className="w-6 h-6 text-accent animate-pulse" />
+                <h2 className="text-xl font-black italic tracking-tighter text-accent uppercase">Nearby Scan</h2>
+              </div>
+              <p className="text-[8px] text-text-dim font-bold uppercase tracking-widest">Live Discovery</p>
+            </div>
+            <NearbyDiscovery 
+              currentUser={user!} 
+              nearbyUsers={nearbyUsers}
+              onPairRequest={sendPairRequest}
+              onChat={(u) => {
+                setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName });
+                setActiveTab('chat');
+              }}
+              onViewProfile={navigateToProfile}
+            />
+          </div>
+        );
       case 'home':
         return (
           <motion.div 
@@ -3673,22 +3794,64 @@ export default function App() {
             className={`fixed inset-0 z-[120] p-4 flex flex-col ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}
           >
             <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => setIsMobileSearchOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
+              <button 
+                onClick={() => {
+                  setIsMobileSearchOpen(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }} 
+                className="p-2 rounded-full hover:bg-black/5 transition-colors"
+              >
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <div className={`flex-1 flex items-center gap-3 h-10 px-4 rounded-full ${theme === 'dark' ? 'bg-[#242526]' : 'bg-gray-200'}`}>
                 <Search className="w-4 h-4 text-gray-400" />
-                <input autoFocus placeholder="Search..." className="bg-transparent border-none outline-none text-sm w-full" />
+                <input 
+                  autoFocus 
+                  placeholder="Search friends..." 
+                  value={searchQuery}
+                  onChange={(e) => handleGlobalSearch(e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm w-full" 
+                />
               </div>
             </div>
             
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar">
                <div className="flex justify-between items-center px-2">
-                  <h3 className="font-bold text-sm">Recent</h3>
-                  <button className="text-[#1877F2] text-sm">See all</button>
+                  <h3 className="font-bold text-sm uppercase tracking-widest text-text-dim">Search Results</h3>
+                  {searchResults.length > 0 && <button className="text-[#1877F2] text-xs font-bold" onClick={() => setSearchResults([])}>Clear</button>}
                </div>
-               <div className="text-center py-20 opacity-30 uppercase text-[10px] font-bold tracking-widest">
-                  No recent searches
+               
+               <div className="space-y-2">
+                {searchResults.map(u => (
+                  <div key={u.uid} className="p-3 bg-surface border border-white/5 rounded-2xl flex items-center justify-between hover:bg-white/5 transition-colors">
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => { navigateToProfile(u.uid); setIsMobileSearchOpen(false); }}>
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-border-custom px-1 bg-bg-dark">
+                        {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover rounded-full" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                      </div>
+                      <div className="font-bold text-sm truncate max-w-[150px]">{u.displayName}</div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => { followUser(u.uid); setIsMobileSearchOpen(false); }}
+                      className="bg-accent text-bg-dark text-[8px] font-black h-8 px-4 rounded-xl"
+                    >
+                      Follow
+                    </Button>
+                  </div>
+                ))}
+
+                {searchQuery && searchResults.length === 0 && (
+                  <div className="text-center py-20 opacity-30 uppercase text-[10px] font-bold tracking-widest text-text-dim">
+                    No users found matching "{searchQuery}"
+                  </div>
+                )}
+                
+                {!searchQuery && (
+                  <div className="text-center py-20 opacity-30 uppercase text-[10px] font-bold tracking-widest text-text-dim">
+                    Start typing to search friends...
+                  </div>
+                )}
                </div>
             </div>
           </motion.div>
