@@ -52,9 +52,21 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  Star,
   Moon,
   Sun,
-  LayoutDashboard
+  LayoutDashboard,
+  Megaphone,
+  Target,
+  Wallet,
+  CreditCard,
+  Calendar,
+  Menu,
+  Store,
+  PlayCircle,
+  UserCircle,
+  Plus,
+  ThumbsUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -71,6 +83,7 @@ import {
   signInWithPopup, 
   signInWithCredential,
   GoogleAuthProvider,
+  signOut,
   onAuthStateChanged, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -109,7 +122,9 @@ import {
   ChatMessage, 
   PairRequest, 
   MonetizationData,
-  AppConfig 
+  AppConfig,
+  Advertisement,
+  AppNotification
 } from './types';
 import { PostCard } from './components/PostCard';
 
@@ -125,14 +140,18 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [onlineUsers, setOnlineUsers] = useState<AppUser[]>([]);
+  const [ads, setAds] = useState<Advertisement[]>([]);
+  const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<PairRequest | null>(null);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
+  const [marketSearch, setMarketSearch] = useState('');
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newDisplayName, setNewDisplayName] = useState('');
+  const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -145,10 +164,26 @@ export default function App() {
   const [postVideo, setPostVideo] = useState<File | null>(null);
   const [postVideoPreview, setPostVideoPreview] = useState<string | null>(null);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [isPostMonetized, setIsPostMonetized] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
+  const [adForm, setAdForm] = useState({
+    title: '',
+    description: '',
+    objective: 'views',
+    location: '',
+    audience: '',
+    websiteUrl: '',
+    durationDays: 5,
+    budget: 100
+  });
+  const [isCreatingAd, setIsCreatingAd] = useState(false);
+  const [showAdPaymentModal, setShowAdPaymentModal] = useState(false);
+  const [pendingAdId, setPendingAdId] = useState<string | null>(null);
+  const [myAds, setMyAds] = useState<Advertisement[]>([]);
+  const [allAds, setAllAds] = useState<Advertisement[]>([]);
   const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [postComments, setPostComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
@@ -156,6 +191,42 @@ export default function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [isAppActive, setIsAppActive] = useState(true);
+  const [selectedUserUid, setSelectedUserUid] = useState<string | null>(null);
+  const [viewingProfileUser, setViewingProfileUser] = useState<AppUser | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [postPrivacy, setPostPrivacy] = useState<'public' | 'followers' | 'private'>('public');
+  
+  // Notification States
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [isAdminNoticeAll, setIsAdminNoticeAll] = useState(false);
+  const [adminNoticeTargetUid, setAdminNoticeTargetUid] = useState<string>('');
+  const [adminNoticeType, setAdminNoticeType] = useState<'system' | 'link' | 'event' | 'message'>('system');
+  const [adminNoticeTitle, setAdminNoticeTitle] = useState('');
+  const [adminNoticeMessage, setAdminNoticeMessage] = useState('');
+  const [adminNoticeLink, setAdminNoticeLink] = useState('');
+  const [isSendingNotice, setIsSendingNotice] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  
+  // Helper to enforce auth
+  const withAuth = (action: () => void) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    action();
+  };
+
+  const navigateToProfile = (uid: string) => {
+    if (!uid) return;
+    setSelectedUserUid(uid);
+    setActiveTab('profile');
+  };
+
+  const withAuthClick = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation();
+    withAuth(action);
+  };
   
   // Auth Form States
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
@@ -181,6 +252,9 @@ export default function App() {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [followingUids, setFollowingUids] = useState<string[]>([]);
   const [homeFeedTab, setHomeFeedTab] = useState<'all' | 'following'>('all');
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isMobileCreateMenuOpen, setIsMobileCreateMenuOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   const loadMorePosts = () => {
     if (hasMorePosts && !isLoadingMore) {
@@ -428,20 +502,22 @@ export default function App() {
   useEffect(() => {
     if (user) {
       setNewDisplayName(user.displayName || '');
+      setNewBio(user.bio || '');
     }
   }, [user]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newDisplayName.trim()) return;
+    if (!user) return;
     
     setIsUpdatingProfile(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
-        displayName: newDisplayName.trim()
+        displayName: newDisplayName.trim() || user.displayName,
+        bio: newBio.trim()
       });
       // Update local state
-      setUser({ ...user, displayName: newDisplayName.trim() });
+      setUser({ ...user, displayName: newDisplayName.trim() || user.displayName, bio: newBio.trim() });
       setErrorMessage('প্রোফাইল আপডেট হয়েছে!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error) {
@@ -582,7 +658,9 @@ export default function App() {
           videoUrl,
           likesCount: 0,
           commentsCount: 0,
-          timestamp: serverTimestamp()
+          timestamp: serverTimestamp(),
+          isMonetized: isPostMonetized,
+          privacy: postPrivacy
         });
 
         clearInterval(progressInterval);
@@ -608,6 +686,40 @@ export default function App() {
     })();
   };
 
+  const deletePost = async (postId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'posts', postId));
+      setErrorMessage('পোস্ট ডিলেট করা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error) {
+      console.error('Delete post error:', error);
+      setErrorMessage('পোস্ট ডিলেট করতে সমস্যা হয়েছে।');
+    }
+  };
+
+  const updatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingPost || !postInput.trim()) return;
+
+    try {
+      const postRef = doc(db, 'posts', editingPost.id);
+      await updateDoc(postRef, {
+        content: postInput.trim(),
+        isEdited: true,
+        privacy: postPrivacy
+      });
+      setEditingPost(null);
+      setPostInput('');
+      setPostPrivacy('public');
+      setErrorMessage('পোস্ট আপডেট করা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error) {
+      console.error('Update post error:', error);
+      setErrorMessage('পোস্ট আপডেট করতে সমস্যা হয়েছে।');
+    }
+  };
+
   const likePost = async (postId: string) => {
     if (!user) return;
     
@@ -624,6 +736,9 @@ export default function App() {
     const postRef = doc(db, 'posts', postId);
 
     try {
+      const postDoc = await getDoc(postRef);
+      const postData = postDoc.data() as Post;
+      
       const likeDoc = await getDoc(likeRef);
       if (likeDoc.exists()) {
         await deleteDoc(likeRef);
@@ -631,6 +746,28 @@ export default function App() {
       } else {
         await setDoc(likeRef, { userUid: user.uid, timestamp: serverTimestamp() });
         await updateDoc(postRef, { likesCount: increment(1) });
+        
+        // Reward author if post is monetized
+        if (postData.isMonetized && postData.authorUid !== user.uid) {
+          const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
+          await updateDoc(authorMonetizationRef, {
+            totalEarnings: increment(0.01), // $0.01 per like
+            engagement: increment(1)
+          });
+        }
+
+        // Send Notification
+        if (postData.authorUid !== user.uid) {
+          await sendNotification({
+            toUid: postData.authorUid,
+            fromUid: user.uid,
+            fromName: user.displayName,
+            fromPhoto: user.photoURL,
+            type: 'like',
+            title: 'নতুন লাইক!',
+            message: `${user.displayName} আপনার পোস্টে লাইক দিয়েছেন।`
+          });
+        }
       }
     } catch (error) {
       console.error('Like post error:', error);
@@ -659,6 +796,115 @@ export default function App() {
       setPostImage(null);
       const url = URL.createObjectURL(file);
       setPostVideoPreview(url);
+    }
+  };
+
+  // Admin Handlers
+  const handleTogglePaidMode = async () => {
+    try {
+      const currentStatus = appConfig?.adPaidMode || false;
+      await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
+        adPaidMode: !currentStatus
+      });
+      setErrorMessage(`পেইড মোড ${!currentStatus ? 'চালু' : 'বন্ধ'} হয়েছে`);
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Paid mode toggle error:', error);
+      setErrorMessage(`এরর: ${error.message}`);
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  };
+
+  const handleUpdateAdNumber = async (num: string) => {
+    try {
+      await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
+        adPaymentNumber: num
+      });
+      setErrorMessage('পেমেন্ট নাম্বার আপডেট হয়েছে');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  };
+
+  const handleToggleMaintenance = async () => {
+    try {
+      const currentVal = appConfig?.maintenanceMode || false;
+      await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
+        maintenanceMode: !currentVal
+      });
+      setErrorMessage(`মেইনটেন্যান্স মোড ${!currentVal ? 'চালু' : 'বন্ধ'} হয়েছে`);
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  };
+
+  const handleUpdateUserMonetization = async (u: any) => {
+    try {
+      await updateDoc(doc(db, 'users', u.uid), { isMonetized: !u.isMonetized });
+      setErrorMessage(`${u.displayName} এর মনিটাইজেশন ${!u.isMonetized ? 'চালু' : 'বন্ধ'} হয়েছে`);
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  };
+
+  const sendNotification = async (notif: Omit<AppNotification, 'id' | 'timestamp' | 'isRead'>) => {
+    try {
+      await addDoc(collection(db, 'notifications'), {
+        ...notif,
+        isRead: false,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error sending notification:', error);
+    }
+  };
+
+  const markNotificationAsRead = async (notifId: string) => {
+    try {
+      await updateDoc(doc(db, 'notifications', notifId), { isRead: true });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleSendAdminNotice = async () => {
+    if (!user) return;
+    if (!isAdminNoticeAll && !adminNoticeTargetUid) {
+      setErrorMessage('দয়া করে একজন ইউজার সিলেক্ট করুন।');
+      return;
+    }
+    if (!adminNoticeTitle.trim() || !adminNoticeMessage.trim()) {
+      setErrorMessage('টাইটেল এবং মেসেজ লিখুন।');
+      return;
+    }
+
+    setIsSendingNotice(true);
+    try {
+      await sendNotification({
+        toUid: isAdminNoticeAll ? 'all' : adminNoticeTargetUid,
+        fromUid: user.uid,
+        fromName: 'পড়শি টীম (Admin)',
+        fromPhoto: user.photoURL,
+        type: adminNoticeType,
+        title: adminNoticeTitle.trim(),
+        message: adminNoticeMessage.trim(),
+        link: adminNoticeLink.trim() || undefined
+      });
+      setErrorMessage('নটিফিকেশন পাঠানো হয়েছে!');
+      setAdminNoticeTitle('');
+      setAdminNoticeMessage('');
+      setAdminNoticeLink('');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+    } finally {
+      setIsSendingNotice(false);
     }
   };
 
@@ -780,9 +1026,34 @@ export default function App() {
 
     try {
       const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      const postData = postDoc.data() as Post;
+      
       await updateDoc(postRef, {
         [`reactions.${reactionType}`]: increment(1)
       });
+
+      // Reward author if post is monetized
+      if (postData.isMonetized && postData.authorUid !== user.uid) {
+        const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
+        await updateDoc(authorMonetizationRef, {
+          totalEarnings: increment(0.02), // Reactions are worth more
+          engagement: increment(1)
+        });
+      }
+
+      // Send Notification
+      if (postData.authorUid !== user.uid) {
+        await sendNotification({
+          toUid: postData.authorUid,
+          fromUid: user.uid,
+          fromName: user.displayName,
+          fromPhoto: user.photoURL,
+          type: 'like', // Reusing like type for reactions
+          title: 'নতুন রিঅ্যাকশন!',
+          message: `${user.displayName} আপনার পোস্টে রিঅ্যাক্ট করেছেন।`
+        });
+      }
     } catch (error) {
       console.error('Reaction error:', error);
       setErrorMessage('রিঅ্যাক্ট করতে সমস্যা হয়েছে।');
@@ -822,6 +1093,21 @@ export default function App() {
       await updateDoc(doc(db, 'posts', commentingPostId), {
         commentsCount: increment(1)
       });
+
+      // Send Notification
+      const postDoc = await getDoc(doc(db, 'posts', commentingPostId));
+      const postData = postDoc.data() as Post;
+      if (postData && postData.authorUid !== user.uid) {
+        await sendNotification({
+          toUid: postData.authorUid,
+          fromUid: user.uid,
+          fromName: user.displayName,
+          fromPhoto: user.photoURL,
+          type: 'comment',
+          title: 'নতুন কমেন্ট!',
+          message: `${user.displayName} আপনার পোস্টে কমেন্ট করেছেন: "${savedCommentText.substring(0, 30)}..."`
+        });
+      }
     } catch (error) {
       console.error('Comment error:', error);
       setErrorMessage('কমেন্ট করতে সমস্যা হয়েছে।');
@@ -913,6 +1199,529 @@ export default function App() {
     );
   };
 
+  const handleCreateAd = async () => {
+    if (!user) return;
+    if (!adForm.title.trim() || !adForm.description.trim()) {
+      setErrorMessage('দয়া করে বিজ্ঞাপনের টাইটেল এবং ডিসক্রিপশন দিন।');
+      return;
+    }
+
+    setIsCreatingAd(true);
+    addLog('বিজ্ঞাপন তৈরি হচ্ছে...');
+
+    try {
+      const adData: Omit<Advertisement, 'id'> = {
+        advertiserUid: user.uid,
+        advertiserName: user.displayName,
+        title: adForm.title,
+        description: adForm.description,
+        objective: adForm.objective as any,
+        location: adForm.location || 'All Bangladesh',
+        audience: adForm.audience || 'All Audience',
+        durationDays: adForm.durationDays,
+        budget: adForm.budget,
+        status: 'pending',
+        paymentStatus: appConfig?.adPaidMode ? 'unpaid' : 'paid',
+        timestamp: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + adForm.durationDays * 24 * 60 * 60 * 1000),
+        reach: 0,
+        clicks: 0,
+        websiteUrl: adForm.websiteUrl
+      };
+
+      if (!appConfig?.adPaidMode) {
+        adData.status = 'active';
+      }
+
+      const docRef = await addDoc(collection(db, 'ads'), adData);
+      setPendingAdId(docRef.id);
+      
+      if (appConfig?.adPaidMode) {
+        setShowAdPaymentModal(true);
+      } else {
+        setErrorMessage('বিজ্ঞাপন সফলভাবে লাইভ হয়েছে!');
+        setTimeout(() => setErrorMessage(null), 3000);
+      }
+
+      setAdForm({
+        title: '',
+        description: '',
+        objective: 'views',
+        location: '',
+        audience: '',
+        websiteUrl: '',
+        durationDays: 5,
+        budget: 100
+      });
+      addLog('বিজ্ঞাপন সেভ হয়েছে!');
+    } catch (error: any) {
+      console.error('Create Ad error:', error);
+      setErrorMessage(`বিজ্ঞাপন তৈরিতে সমস্যা হয়েছে: ${error.message}`);
+    } finally {
+      setIsCreatingAd(false);
+    }
+  };
+
+  const renderAdPaymentModal = () => {
+    if (!showAdPaymentModal) return null;
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg-dark/80 backdrop-blur-sm animate-in fade-in duration-300">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-md w-full geometric-card p-8 space-y-6 relative"
+        >
+          <button onClick={() => setShowAdPaymentModal(false)} className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full"><X className="w-5 h-5 text-text-dim" /></button>
+          
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Wallet className="w-8 h-8 text-accent" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">পেমেন্ট কমপ্লিট করুন</h2>
+            <p className="text-text-dim text-[10px] uppercase tracking-widest leading-relaxed">বিজ্ঞাপনটি লাইভ করতে ১০০ টাকা পেমেন্ট করুন ৫ দিনের জন্য।</p>
+          </div>
+
+          <div className="p-6 bg-accent/5 rounded-2xl border border-accent/20 space-y-4">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-text-dim uppercase font-bold">বিকাশ/নগদ (পার্সোনাল)</span>
+              <span className="text-accent font-black tracking-widest">{appConfig?.adPaymentNumber}</span>
+            </div>
+            <div className="pt-2 border-t border-accent/10 flex justify-between items-center">
+              <span className="text-[10px] text-text-dim uppercase">মোট প্রদেয়</span>
+              <span className="text-xl font-black">৳১০০.০০</span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-[9px] text-text-dim uppercase italic text-center">উপরে দেওয়া নম্বরে সেন্ড মানি (Send Money) করার পর নিচের বাটনে ক্লিক করুন। অ্যাডমিন ভেরিফাই করে বিজ্ঞাপন লাইভ করবেন।</p>
+            <Button 
+              onClick={async () => {
+                if (pendingAdId) {
+                  await updateDoc(doc(db, 'ads', pendingAdId), { status: 'pending' });
+                  setErrorMessage('পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে। অনুগ্রহ করে অপেক্ষা করুন।');
+                  setTimeout(() => setErrorMessage(null), 3000);
+                }
+                setShowAdPaymentModal(false);
+              }}
+              className="geometric-btn w-full h-14"
+            >
+              আমি পেমেন্ট করেছি
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const renderAdsContent = () => {
+    return (
+      <div className="flex-1 p-4 lg:p-8 overflow-y-auto custom-scrollbar">
+        <div className="max-w-6xl mx-auto space-y-10 pb-24">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setActiveTab('home')} className={`p-2 rounded-full hover:bg-black/5 transition-colors ${theme === 'dark' ? 'text-accent' : 'text-[#1877F2]'}`}>
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+                <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Ad Manager</h1>
+              </div>
+              <p className="text-text-dim text-xs uppercase tracking-[4px] ml-12">বিজ্ঞাপন দিন আর ব্যবসার পরিধি বাড়ান</p>
+            </div>
+            <div className="flex gap-4">
+              <div className="p-6 bg-surface/30 rounded-2xl border border-border-custom text-center min-w-[140px]">
+                <div className="text-2xl font-black text-accent">{myAds.length}</div>
+                <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Campaigns</div>
+              </div>
+              <div className="p-6 bg-surface/30 rounded-2xl border border-border-custom text-center min-w-[140px]">
+                <div className="text-2xl font-black text-accent">{myAds.reduce((acc, ad) => acc + (ad.reach || 0), 0)}</div>
+                <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Reach</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+            {/* Ad Creation Form */}
+            <div className="xl:col-span-2 space-y-6">
+              <div className="geometric-card p-8 space-y-6 bg-surface/30">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                  <PlusSquare className="w-4 h-4" /> নতুন বিজ্ঞাপন তৈরি করুন
+                </h2>
+                
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">বিজ্ঞাপনের টাইটেল</Label>
+                    <Input 
+                      placeholder="e.g. বিশেষ ছাড় অফার!" 
+                      value={adForm.title}
+                      onChange={(e) => setAdForm({...adForm, title: e.target.value})}
+                      className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">কি লিখে বিজ্ঞাপন দিতে চান?</Label>
+                    <textarea 
+                      placeholder="বিজ্ঞাপনের বিস্তারিত লিখুন এখানে..."
+                      value={adForm.description}
+                      onChange={(e) => setAdForm({...adForm, description: e.target.value})}
+                      className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লক্ষ্য (Objective)</Label>
+                      <select 
+                        value={adForm.objective}
+                        onChange={(e) => setAdForm({...adForm, objective: e.target.value})}
+                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-3 text-xs outline-none focus:border-accent"
+                      >
+                        <option value="views">ভিডিও ভিউ</option>
+                        <option value="likes">লাইক ও এঙ্গেজমেন্ট</option>
+                        <option value="followers">ফলোয়ার বৃদ্ধি</option>
+                        <option value="website_views">ওয়েবসাইট ভিউ</option>
+                        <option value="sales">সেলস / অর্ডার</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লোকেশন</Label>
+                      <Input 
+                        placeholder="e.g. Dhaka, Bangladesh" 
+                        value={adForm.location}
+                        onChange={(e) => setAdForm({...adForm, location: e.target.value})}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">অডিয়েন্স ও ইন্টারেস্ট</Label>
+                    <Input 
+                      placeholder="e.g. Students, Tech Enthusiasts" 
+                      value={adForm.audience}
+                      onChange={(e) => setAdForm({...adForm, audience: e.target.value})}
+                      className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                    />
+                  </div>
+
+                  {adForm.objective === 'website_views' && (
+                    <div className="space-y-1 animate-in slide-in-from-top-2">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">ওয়েবসাইট লিঙ্ক</Label>
+                      <Input 
+                        placeholder="https://example.com" 
+                        value={adForm.websiteUrl}
+                        onChange={(e) => setAdForm({...adForm, websiteUrl: e.target.value})}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12 text-accent"
+                      />
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-bg-dark rounded-2xl border border-border-custom flex items-center justify-between">
+                    <div>
+                      <div className="text-[8px] uppercase font-bold text-text-dim">বিজ্ঞাপনের রেট</div>
+                      <div className="text-sm font-black">৳১০০ / ৫ দিন</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[8px] uppercase font-bold text-text-dim">আনুমানিক রিচ</div>
+                      <div className="text-sm font-black text-accent">৫০০০ - ১০০০০</div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={handleCreateAd}
+                    disabled={isCreatingAd}
+                    className="geometric-btn w-full h-14"
+                  >
+                    {isCreatingAd ? <Loader2 className="w-5 h-5 animate-spin" /> : 'বিজ্ঞাপন চালু করুন'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Campaigns List */}
+            <div className="xl:col-span-3 space-y-6">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2 mb-4">
+                <Target className="w-4 h-4" /> আপনার ক্যাম্পেইনসমূহ
+              </h2>
+              
+              <div className="space-y-4">
+                {myAds.map(ad => (
+                  <div key={ad.id} className="geometric-card p-6 bg-bg-dark/40 border-border-custom/50 flex flex-col md:flex-row gap-6 hover:border-accent/40 transition-all group">
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className={`text-[8px] uppercase font-bold tracking-widest py-1 px-3 ${ad.status === 'active' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'}`}>
+                          {ad.status === 'active' ? 'Running' : 'Pending Verification'}
+                        </Badge>
+                        <span className="text-[10px] text-text-dim font-bold">{ad.timestamp?.toDate().toLocaleDateString()}</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black uppercase tracking-tight group-hover:text-accent transition-colors">{ad.title}</h3>
+                        <p className="text-[10px] text-text-dim line-clamp-2 mt-1 leading-relaxed uppercase">{ad.description}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-4 pt-2">
+                        <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
+                          <Activity className="w-3 h-3 text-accent" />
+                          <span className="text-[8px] font-bold uppercase tracking-widest">{ad.objective}</span>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
+                          <Users className="w-3 h-3 text-accent" />
+                          <span className="text-[8px] font-bold uppercase tracking-widest">{ad.audience}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex md:flex-col justify-between items-end border-t md:border-t-0 md:border-l border-border-custom/30 pt-4 md:pt-0 md:pl-6 min-w-[120px]">
+                      <div className="text-right">
+                        <div className="text-[8px] text-text-dim uppercase font-bold mb-1">Total Reach</div>
+                        <div className="text-2xl font-black text-accent">{ad.reach || 0}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[8px] text-text-dim uppercase font-bold mb-1">Clicks</div>
+                        <div className="text-2xl font-black text-white">{ad.clicks || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {myAds.length === 0 && (
+                  <div className="p-20 text-center border-2 border-dashed border-border-custom rounded-3xl opacity-20">
+                    <Megaphone className="w-16 h-16 mx-auto mb-4" />
+                    <p className="text-xs uppercase font-bold tracking-[8px]">কোনো বিজ্ঞাপন নেই</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPostCreationModal = () => {
+    if (!isPostCreationModalOpen) return null;
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-bg-dark/80 backdrop-blur-md animate-in fade-in duration-300">
+        <motion.div 
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          className="bg-white dark:bg-[#242526] w-full max-w-xl sm:rounded-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[100vh] sm:max-h-[90vh]"
+        >
+          {/* Header */}
+          <div className="p-4 border-b border-gray-100 dark:border-[#3E4042] flex items-center justify-between">
+            <h2 className="text-lg font-bold text-foreground">
+              {editingPost ? 'Edit post' : 'Create post'}
+            </h2>
+            <button 
+              onClick={() => {
+                setIsPostCreationModalOpen(false);
+                setEditingPost(null);
+                setPostInput('');
+                setPostImage(null);
+                setPostVideo(null);
+                setPostVideoPreview(null);
+                setPostPrivacy('public');
+              }}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full transition-colors"
+            >
+              <X className="w-6 h-6 text-gray-500" />
+            </button>
+          </div>
+
+          <div className="p-4 flex-1 overflow-y-auto">
+             {/* User Info */}
+             <div className="flex items-center gap-3 mb-4">
+               <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200">
+                 {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-text-dim" />}
+               </div>
+               <div>
+                  <div className="text-sm font-bold">{user?.displayName}</div>
+                  <div className="flex gap-2 mt-1">
+                    <select 
+                      value={postPrivacy}
+                      onChange={(e) => setPostPrivacy(e.target.value as any)}
+                      className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-[10px] font-bold px-2 py-1 rounded-md outline-none cursor-pointer hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors"
+                    >
+                      <option value="public">🌍 Public</option>
+                      <option value="followers">👥 Followers</option>
+                      <option value="private">🔒 Only me</option>
+                    </select>
+
+                    {user?.isMonetized && (
+                      <button 
+                        onClick={() => setIsPostMonetized(!isPostMonetized)}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-md transition-all ${isPostMonetized ? 'bg-accent text-bg-dark' : 'bg-gray-100 dark:bg-[#3A3B3C] text-text-dim'}`}
+                      >
+                        {isPostMonetized ? '$ Monetized' : 'Free Post'}
+                      </button>
+                    )}
+                  </div>
+               </div>
+             </div>
+
+             {/* Text Input */}
+             <textarea 
+               autoFocus
+               placeholder={editingPost ? "Edit your post..." : `What's on your mind, ${user?.displayName.split(' ')[0]}?`}
+               value={postInput}
+               onChange={(e) => setPostInput(e.target.value)}
+               className="w-full bg-transparent text-lg resize-none outline-none min-h-[120px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
+             />
+
+             {/* Media Preview */}
+             {postVideoPreview ? (
+               <div className="relative rounded-xl overflow-hidden mb-4 border border-gray-100 dark:border-[#3E4042]">
+                 <video src={postVideoPreview} controls className="w-full max-h-[300px]" />
+                 {!editingPost && (
+                   <button onClick={() => {setPostVideo(null); setPostVideoPreview(null);}} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full"><X className="w-4 h-4"/></button>
+                 )}
+               </div>
+             ) : postImage && (
+                <div className="relative rounded-xl overflow-hidden mb-4 border border-gray-100 dark:border-[#3E4042]">
+                  <img src={postImage} alt="" className="w-full object-cover max-h-[300px]" />
+                  {!editingPost && (
+                    <button onClick={() => setPostImage(null)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full"><X className="w-4 h-4"/></button>
+                  )}
+                </div>
+             )}
+          </div>
+
+          {/* Footer Actions */}
+          <div className="p-4 border-t border-gray-100 dark:border-[#3E4042]">
+            {!editingPost && (
+              <div className="flex items-center justify-between p-2 mb-4 border border-gray-200 dark:border-[#3E4042] rounded-xl">
+                 <span className="text-sm font-bold ml-2">Add to your post</span>
+                 <div className="flex gap-1 pr-1">
+                    <button onClick={selectPostImage} className="p-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full transition-colors"><ImageIcon className="w-6 h-6 text-green-500" /></button>
+                    <button onClick={selectPostImage} className="p-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full transition-colors"><VideoIcon className="w-6 h-6 text-red-500" /></button>
+                    <button onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)} className="p-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full transition-colors text-yellow-500"><Smile className="w-6 h-6" /></button>
+                 </div>
+              </div>
+            )}
+
+            <Button 
+              onClick={editingPost ? updatePost : createPost}
+              disabled={isCreatingPost || (!postInput.trim() && !postImage && !postVideo)}
+              className="w-full h-10 bg-[#1877F2] text-white hover:bg-[#166FE5] font-bold rounded-lg transition-transform active:scale-[0.98]"
+            >
+              {isCreatingPost ? <Loader2 className="w-5 h-5 animate-spin" /> : (editingPost ? 'Save' : 'Post')}
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
+  const renderNotifications = () => {
+    return (
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-white dark:bg-[#18191A]">
+        <div className="max-w-2xl mx-auto space-y-8 pb-24">
+          <div className="flex justify-between items-end">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <ArrowLeft className="w-6 h-6 text-[#1877F2] dark:text-accent" />
+                </button>
+                <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Notifications</h1>
+              </div>
+              <p className="text-text-dim text-[8px] uppercase tracking-[4px] ml-12">আপনার সকল নতুন আপডেট</p>
+            </div>
+            {unreadNotificationsCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => notifications.forEach(n => !n.isRead && markNotificationAsRead(n.id))}
+                className="text-accent text-[8px] font-black uppercase tracking-widest"
+              >
+                Mark all as read
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {notifications.map(n => (
+              <motion.div 
+                key={n.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                onClick={() => markNotificationAsRead(n.id)}
+                className={`p-5 rounded-3xl border transition-all cursor-pointer group ${!n.isRead ? 'bg-accent/5 border-accent/30 shadow-[0_0_20px_rgba(0,209,255,0.05)]' : 'bg-surface/30 border-border-custom hover:border-accent/40'}`}
+              >
+                <div className="flex gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${!n.isRead ? 'bg-accent text-bg-dark' : 'bg-surface-light text-text-dim group-hover:text-accent'}`}>
+                    {n.type === 'like' && <Heart className="w-6 h-6" />}
+                    {n.type === 'comment' && <MessageCircle className="w-6 h-6" />}
+                    {n.type === 'follow' && <UserPlus className="w-6 h-6" />}
+                    {n.type === 'system' && <Info className="w-6 h-6" />}
+                    {n.type === 'link' && <LinkIcon className="w-6 h-6" />}
+                    {n.type === 'event' && <Star className="w-6 h-6" />}
+                    {n.type === 'message' && <MessageSquare className="w-6 h-6" />}
+                    {n.type === 'pair_request' && <Users className="w-6 h-6" />}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex justify-between items-start">
+                      <h4 className={`text-base font-black uppercase tracking-tighter ${!n.isRead ? 'text-accent' : 'text-white'}`}>{n.title}</h4>
+                      <span className="text-[8px] text-text-dim font-bold uppercase">
+                        {n.timestamp ? (typeof n.timestamp.toDate === 'function' ? n.timestamp.toDate().toLocaleTimeString() : 'Just now') : '...'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-dim leading-relaxed font-medium">{n.message}</p>
+                    {n.link && (
+                      <a 
+                        href={n.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-accent/10 border border-accent/20 rounded-full text-accent text-[8px] font-black uppercase tracking-widest hover:bg-accent hover:text-bg-dark transition-all"
+                      >
+                        View More <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  {!n.isRead && (
+                    <div className="w-2 h-2 rounded-full bg-accent animate-ping self-center" />
+                  )}
+                </div>
+              </motion.div>
+            ))}
+
+            {notifications.length === 0 && (
+              <div className="p-32 text-center border-2 border-dashed border-border-custom rounded-[40px] opacity-20">
+                <Bell className="w-20 h-20 mx-auto mb-6" />
+                <p className="text-sm uppercase font-black tracking-[10px]">কোনো নটিফিকেশন নেই</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLoginRequiredCard = (title: string, description: string) => (
+    <div className="flex-1 flex items-center justify-center p-4 min-h-[70vh]">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
+        <Card className="max-w-md w-full bg-surface border-border-custom text-text-main shadow-2xl overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-accent/30" />
+          <CardHeader className="text-center space-y-4">
+            <div className="w-20 h-20 mx-auto bg-accent/10 rounded-full flex items-center justify-center border border-accent/20">
+               <UserCircle className="w-10 h-10 text-accent animate-pulse" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-black text-accent uppercase tracking-tighter">{title}</CardTitle>
+              <CardDescription className="text-text-dim text-xs mt-2 font-bold uppercase tracking-widest leading-relaxed">
+                {description}
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            <Button onClick={() => setShowAuthModal(true)} className="w-full bg-accent text-bg-dark font-black h-12 uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-transform">লগইন / একাউন্ট খুলুন</Button>
+            <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-white transition-colors">হোমে ফিরে যান</Button>
+          </CardContent>
+          <CardFooter className="justify-center border-t border-border-custom/30 py-4 opacity-30">
+            <div className="text-[8px] font-black uppercase tracking-[4px]">PORSHI PROTECTED</div>
+          </CardFooter>
+        </Card>
+      </motion.div>
+    </div>
+  );
+
   const renderContent = () => {
     // Maintenance Mode Check
     if (appConfig?.maintenanceMode && user?.role !== 'admin') {
@@ -930,19 +1739,329 @@ export default function App() {
       );
     }
 
+    const currentTab = activeTab || 'home';
+
     if (currentApp === 'porsh') {
+      if (!user) return renderLoginRequiredCard('MESSENGER', 'মেসেজ আদান প্রদান করতে দয়া করে লগইন করুন।');
       return renderMessenger();
     }
 
-    switch (activeTab) {
+    switch (currentTab) {
+      case 'home':
+        return (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className={`flex-1 overflow-y-auto custom-scrollbar ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}
+            onScroll={(e) => {
+              const target = e.currentTarget;
+              if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+                loadMorePosts();
+              }
+            }}
+          >
+            {/* Create Post Section (Facebook Style) */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
+                  {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                </div>
+                <button 
+                  onClick={() => withAuth(() => {
+                    setEditingPost(null);
+                    setPostInput('');
+                    setPostPrivacy('public');
+                    setIsPostCreationModalOpen(true);
+                  })}
+                  className={`flex-1 h-10 rounded-full px-4 text-left text-sm ${theme === 'dark' ? 'bg-[#3A3B3C] text-gray-300' : 'bg-[#F0F2F5] text-gray-600'}`}
+                >
+                  {user ? `What's on your mind, ${user.displayName.split(' ')[0]}?` : "What's on your mind?"}
+                </button>
+                <button onClick={() => withAuth(selectPostImage)} className="p-2 transition-transform active:scale-90">
+                  <ImageIcon className="w-6 h-6 text-green-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Stories Section (Facebook Style Cards) */}
+            <div className={`py-4 px-3 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth mb-2 ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}>
+              {/* Create Blocks */}
+              <div className="flex flex-col gap-2 flex-shrink-0 w-[100px]">
+                 <motion.button 
+                   whileTap={{ scale: 0.95 }}
+                   onClick={() => withAuth(createStory)}
+                   className="relative w-full h-[90px] rounded-xl overflow-hidden group bg-[#1877F2]/10"
+                 >
+                    <div className="absolute inset-x-0 top-0 h-2/3 overflow-hidden">
+                       {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" /> : <div className="w-full h-full bg-gray-200" />}
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 h-1/3 flex flex-col items-center justify-center p-1 bg-white dark:bg-[#242526]">
+                       <div className="absolute -top-3 p-1 bg-[#1877F2] rounded-full border-2 border-white dark:border-[#242526]">
+                          <Plus className="w-4 h-4 text-white" />
+                       </div>
+                       <span className="text-[10px] font-bold mt-2">Create story</span>
+                    </div>
+                 </motion.button>
+
+                 <motion.button 
+                   whileTap={{ scale: 0.95 }}
+                   onClick={() => withAuth(() => {})}
+                   className="relative w-full h-[90px] rounded-xl overflow-hidden group bg-gradient-to-tr from-pink-500 to-orange-500 flex flex-col items-center justify-center text-white"
+                 >
+                    <PlayCircle className="w-6 h-6 mb-1" />
+                    <span className="text-[10px] font-bold">Create reel</span>
+                 </motion.button>
+              </div>
+
+              {/* User Stories */}
+              {stories.map(story => (
+                <motion.div 
+                  key={story.id} 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveStory(story)}
+                  className="relative flex-shrink-0 w-[100px] h-full rounded-xl overflow-hidden cursor-pointer group"
+                >
+                  <img 
+                    src={story.imageUrl} 
+                    alt={story.authorName} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform" 
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+                  <div className="absolute top-2 left-2 w-8 h-8 rounded-full border-2 border-[#1877F2] overflow-hidden">
+                    <img src={story.authorPhoto} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="absolute bottom-2 left-2 right-2">
+                    <p className="text-white text-[10px] font-bold leading-tight truncate">{story.authorName}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Feed Section */}
+            <div className="space-y-2">
+              {posts.filter(p => homeFeedTab === 'all' || (user && followingUids.includes(p.authorUid)) || p.authorUid === user?.uid).map((post) => (
+                <PostCard 
+                  key={post.id}
+                  post={post}
+                  ads={ads}
+                  theme={theme}
+                  onLike={() => withAuth(() => likePost(post.id))}
+                  onReact={(type) => withAuth(() => reactToPost(post.id, type))}
+                  onComment={() => withAuth(() => setCommentingPostId(post.id))}
+                  onFollow={() => withAuth(() => followUser(post.authorUid))}
+                  onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
+                  onShare={() => withAuth(() => setErrorMessage('Sharing feature coming soon!'))}
+                  onEdit={(p) => { 
+                    setEditingPost(p); 
+                    setPostInput(p.content); 
+                    setPostPrivacy(p.privacy || 'public');
+                    setIsPostCreationModalOpen(true); 
+                  }}
+                  onDelete={deletePost}
+                  onUserClick={navigateToProfile}
+                  isFollowing={user ? followingUids.includes(post.authorUid) : false}
+                  currentUserId={user?.uid}
+                />
+              ))}
+
+              {isLoadingMore && (
+                <div className="flex justify-center p-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                </div>
+              )}
+
+              {posts.filter(p => homeFeedTab === 'all' || (user && followingUids.includes(p.authorUid)) || p.authorUid === user?.uid).length === 0 && !isLoadingMore && (
+                <div className="p-10 text-center opacity-30">
+                  <Globe className="w-12 h-12 mx-auto mb-4" />
+                  <p className="text-xs uppercase font-bold tracking-widest">
+                    {homeFeedTab === 'following' ? 'আপনার ফলো করা কারো পোস্ট নেই' : 'নিউজ ফিড খালি'}
+                  </p>
+                </div>
+              )}
+
+              {hasMorePosts && !isLoadingMore && posts.length >= postsLimit && (
+                <div className="flex justify-center p-4">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={loadMorePosts}
+                    className="text-[8px] uppercase font-bold tracking-[4px] opacity-40 hover:opacity-100"
+                  >
+                    আরো দেখুন
+                  </Button>
+                </div>
+              )}
+
+              {!hasMorePosts && posts.filter(p => homeFeedTab === 'all' || (user && followingUids.includes(p.authorUid)) || p.authorUid === user?.uid).length > 0 && (
+                <div className="p-10 text-center opacity-20 text-[10px] uppercase font-bold tracking-[8px]">
+                  END OF FEED
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+
       case 'admin':
-        if (user?.role !== 'admin') return null;
+        if (user?.role !== 'admin') {
+           setActiveTab('home');
+           return null;
+        }
         return (
           <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
             <div className="max-w-6xl mx-auto space-y-12 pb-24">
-              <div className="space-y-4">
-                <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Admin Dashboard</h1>
-                <p className="text-text-dim text-xs uppercase tracking-[4px]">পড়শি অ্যাপ কন্ট্রোল সেন্টার</p>
+              <div className="flex items-center gap-4 mb-8">
+                <Button variant="ghost" size="icon" onClick={() => setActiveTab('home')} className="rounded-full">
+                  <ArrowLeft className="w-6 h-6" />
+                </Button>
+                <div className="space-y-4">
+                  <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Admin Dashboard</h1>
+                  <p className="text-text-dim text-xs uppercase tracking-[4px]">পড়শি অ্যাপ কন্ট্রোল সেন্টার</p>
+                </div>
+              </div>
+
+              {/* System Overview Dashboard */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-700">
+                <div className="geometric-card p-6 bg-accent/5 border-accent/20 flex flex-col justify-between h-32">
+                  <Users className="w-5 h-5 text-accent" />
+                  <div>
+                    <div className="text-2xl font-black">{allUsers.length}</div>
+                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট ইউজার</div>
+                  </div>
+                </div>
+                <div className="geometric-card p-6 bg-green-500/5 border-green-500/20 flex flex-col justify-between h-32">
+                  <Activity className="w-5 h-5 text-green-500" />
+                  <div>
+                    <div className="text-2xl font-black">{onlineUsers.length}</div>
+                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">অনলাইন ইউজার</div>
+                  </div>
+                </div>
+                <div className="geometric-card p-6 bg-yellow-500/5 border-yellow-500/20 flex flex-col justify-between h-32">
+                  <Megaphone className="w-5 h-5 text-yellow-500" />
+                  <div>
+                    <div className="text-2xl font-black">{allAds.filter(a => a.status === 'pending').length}</div>
+                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">পেন্ডিং বিজ্ঞাপন</div>
+                  </div>
+                </div>
+                <div className="geometric-card p-6 bg-purple-500/5 border-purple-500/20 flex flex-col justify-between h-32">
+                  <LayoutDashboard className="w-5 h-5 text-purple-500" />
+                  <div>
+                    <div className="text-2xl font-black">{appConfig?.maintenanceMode ? 'ON' : 'OFF'}</div>
+                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মেইনটেন্যান্স মোড</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ads Management & Settings */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <Megaphone className="w-4 h-4" /> গেটওয়ে ও পেমেন্ট সেটিংস
+                  </h2>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
+                      <div>
+                        <div className="text-sm font-bold uppercase">Paid Ad Mode</div>
+                        <div className="text-[8px] text-text-dim uppercase">বিজ্ঞাপন লাইভ করতে পেমেন্ট বাধ্যতামূলক করা</div>
+                      </div>
+                      <button 
+                        id="paid-mode-toggle"
+                        onClick={handleTogglePaidMode}
+                        className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.adPaidMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
+                      >
+                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.adPaidMode ? 'right-1' : 'left-1'}`} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">Payment Bkash/Nagad Number</label>
+                      <Input 
+                        id="payment-number-input"
+                        defaultValue={appConfig?.adPaymentNumber} 
+                        onBlur={(e) => handleUpdateAdNumber(e.target.value)}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <Target className="w-4 h-4" /> বিজ্ঞাপন ম্যানেজমেন্ট
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
+                      <div className="text-[8px] text-text-dim uppercase font-bold">সচল বিজ্ঞাপন</div>
+                      <div className="text-xl font-black text-green-500">{allAds.filter(a => a.status === 'active').length}</div>
+                    </div>
+                    <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
+                      <div className="text-[8px] text-text-dim uppercase font-bold">মোট বাজেট</div>
+                      <div className="text-xl font-black text-accent">৳{allAds.reduce((acc, a) => acc + (a.budget || 0), 0)}</div>
+                    </div>
+                  </div>
+                  <Tabs defaultValue="pending" className="w-full">
+                    <TabsList className="bg-bg-dark border border-border-custom w-full">
+                      <TabsTrigger value="pending" className="flex-1 uppercase text-[8px] font-black tracking-widest">পেন্ডিং</TabsTrigger>
+                      <TabsTrigger value="active" className="flex-1 uppercase text-[8px] font-black tracking-widest">সচল</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="pending" className="mt-4 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {allAds.filter(ad => ad.status === 'pending').map(ad => (
+                        <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="text-xs font-bold uppercase text-white">{ad.title}</div>
+                              <div className="text-[8px] text-text-dim uppercase">Advertiser: {ad.advertiserName}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-black text-accent">৳{ad.budget}</div>
+                              <div className="text-[8px] text-text-dim uppercase">{ad.durationDays} Days</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'active', paymentStatus: 'paid' })}
+                              className="flex-1 bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20 text-[8px] font-black uppercase tracking-widest"
+                            >
+                              Approve
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => deleteDoc(doc(db, 'ads', ad.id))}
+                              className="flex-1 bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20 text-[8px] font-black uppercase tracking-widest"
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {allAds.filter(ad => ad.status === 'pending').length === 0 && (
+                        <div className="text-center py-10 opacity-20 uppercase tracking-widest text-[8px]">কোনো পেন্ডিং বিজ্ঞাপন নেই</div>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="active" className="mt-4 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {allAds.filter(ad => ad.status === 'active').map(ad => (
+                        <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex justify-between items-center">
+                          <div>
+                            <div className="text-xs font-bold uppercase text-white">{ad.title}</div>
+                            <div className="text-[8px] text-text-dim uppercase">Clicks: {ad.clicks || 0} | Reach: {ad.reach || 0}</div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'paused' })}
+                            className="text-yellow-500 hover:bg-yellow-500/10 text-[8px] font-black uppercase"
+                          >
+                            Pause
+                          </Button>
+                        </div>
+                      ))}
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
 
               {/* App Configuration Settings */}
@@ -958,29 +2077,69 @@ export default function App() {
                         <div className="text-[8px] text-text-dim uppercase">ইউজারদের জন্য অ্যাপ বন্ধ রাখা</div>
                       </div>
                       <button 
-                        onClick={() => updateDoc(doc(db, 'appConfig', 'remote-settings'), { maintenanceMode: !appConfig?.maintenanceMode })}
-                        className={`w-14 h-8 rounded-full transition-all relative ${appConfig?.maintenanceMode ? 'bg-accent' : 'bg-surface-light border border-border-custom'}`}
+                        id="maintenance-mode-toggle"
+                        onClick={handleToggleMaintenance}
+                        className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.maintenanceMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
                       >
-                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${appConfig?.maintenanceMode ? 'right-1' : 'left-1'}`} />
+                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.maintenanceMode ? 'right-1' : 'left-1'}`} />
                       </button>
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-[8px] uppercase text-text-dim ml-1">Welcome Message</label>
                       <Input 
-                        value={appConfig?.welcomeMessage} 
-                        onChange={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { welcomeMessage: e.target.value })}
-                        className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                        defaultValue={appConfig?.welcomeMessage || ''} 
+                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { welcomeMessage: e.target.value })}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
                       />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-[8px] uppercase text-text-dim ml-1">Announcement</label>
                       <textarea 
-                        value={appConfig?.announcement} 
-                        onChange={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { announcement: e.target.value })}
+                        defaultValue={appConfig?.announcement || ''} 
+                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { announcement: e.target.value })}
                         className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
                       />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">App Version</label>
+                        <Input 
+                          defaultValue={appConfig?.appVersion || '1.0.0'} 
+                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { appVersion: e.target.value })}
+                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">Contact Email</label>
+                        <Input 
+                          defaultValue={appConfig?.contactEmail || ''} 
+                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { contactEmail: e.target.value })}
+                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">Min. Required Version</label>
+                        <Input 
+                          defaultValue={appConfig?.minVersion || '1.0.0'} 
+                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { minVersion: e.target.value })}
+                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">Support Phone</label>
+                        <Input 
+                          defaultValue={appConfig?.themeColor || ''} // Reusing themeColor field for phone as proxy correctly
+                          placeholder="e.g. 016500..."
+                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { themeColor: e.target.value })}
+                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1030,8 +2189,18 @@ export default function App() {
                             <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {u.role !== 'admin' && (
+                          <div className="flex items-center gap-2">
+                            {user.role === 'admin' && (
+                              <button 
+                                id={`monetization-toggle-${u.uid}`}
+                                onClick={() => handleUpdateUserMonetization(u)}
+                                className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark shadow-[0_0_10px_rgba(0,209,255,0.3)]' : 'bg-surface-light text-text-dim hover:text-accent'}`}
+                                title="Toggle Monetization"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                              </button>
+                            )}
+                            {u.role !== 'admin' && (
                             <button 
                               onClick={async () => {
                                 if (window.confirm(`${u.displayName} কে অ্যাডমিন করতে চান?`)) {
@@ -1062,6 +2231,98 @@ export default function App() {
               
               <div className="geometric-card p-8 space-y-6">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                  <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
+                </h2>
+                <div className="space-y-4">
+                  <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
+                    <button 
+                      onClick={() => setIsAdminNoticeAll(false)}
+                      className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark' : 'text-text-dim'}`}
+                    >
+                      সিঙ্গেল ইউজার
+                    </button>
+                    <button 
+                      onClick={() => setIsAdminNoticeAll(true)}
+                      className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim'}`}
+                    >
+                      সকল ইউজার
+                    </button>
+                  </div>
+
+                    {!isAdminNoticeAll && (
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
+                      <select 
+                        value={adminNoticeTargetUid}
+                        onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
+                        className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none"
+                      >
+                        <option value="">সিলেক্ট ইউজার</option>
+                        {allUsers.map(u => (
+                          <option key={u.uid || u.id} value={u.uid || u.id}>{u.displayName} ({u.role || 'user'})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
+                      <select 
+                        value={adminNoticeType}
+                        onChange={(e) => setAdminNoticeType(e.target.value as any)}
+                        className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none"
+                      >
+                        <option value="system">সিস্টেম বার্তা</option>
+                        <option value="link">লিংক/ইউআরএল</option>
+                        <option value="event">ইভেন্ট/অফার</option>
+                        <option value="message">ব্যক্তিগত মেসেজ</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
+                      <Input 
+                        value={adminNoticeTitle}
+                        onChange={(e) => setAdminNoticeTitle(e.target.value)}
+                        placeholder="যেমন: নতুন আপডেট"
+                        className="bg-bg-dark/50 border-border-custom text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
+                    <textarea 
+                      value={adminNoticeMessage}
+                      onChange={(e) => setAdminNoticeMessage(e.target.value)}
+                      placeholder="আপনার বার্তাটি এখানে লিখুন..."
+                      className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
+                    <Input 
+                      value={adminNoticeLink}
+                      onChange={(e) => setAdminNoticeLink(e.target.value)}
+                      placeholder="https://example.com"
+                      className="bg-bg-dark/50 border-border-custom text-white"
+                    />
+                  </div>
+
+                  <Button 
+                    onClick={handleSendAdminNotice}
+                    disabled={isSendingNotice}
+                    className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
+                  >
+                    {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
+                    নটিফিকেশন পাঠান
+                  </Button>
+                </div>
+              </div>
+
+              <div className="geometric-card p-8 space-y-6">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                   <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1086,273 +2347,226 @@ export default function App() {
             </div>
           </div>
         );
-      case 'home':
+      case 'notifications':
+        if (!user) return renderLoginRequiredCard('NOTIFICATIONS', 'নটিফিকেশন দেখতে দয়া করে লগইন করুন।');
+        return renderNotifications();
+      case 'video':
         return (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex-1 overflow-y-auto custom-scrollbar"
-            onScroll={(e) => {
-              const target = e.currentTarget;
-              if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
-                loadMorePosts();
-              }
-            }}
+            className={`flex-1 overflow-y-auto custom-scrollbar ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}
           >
-            {/* Stories */}
-            <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar bg-surface/50 backdrop-blur-md border-b border-border-custom sticky top-0 z-30">
-              <motion.button 
-                whileTap={{ scale: 0.95 }}
-                onClick={createStory}
-                className="flex-shrink-0 w-16 h-16 rounded-2xl border-2 border-dashed border-accent/30 flex items-center justify-center group hover:border-accent transition-colors"
-              >
-                <PlusSquare className="w-6 h-6 text-accent/50 group-hover:text-accent" />
-              </motion.button>
-              {stories.map(story => (
-                <motion.div 
-                  key={story.id} 
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveStory(story)}
-                  className="flex-shrink-0 w-16 h-16 rounded-2xl border-2 border-accent p-0.5 cursor-pointer"
-                >
-                  <img 
-                    src={story.imageUrl} 
-                    alt={story.authorName} 
-                    className="w-full h-full rounded-[14px] object-cover" 
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Create Post */}
             <div className="p-4">
-              <div className={`p-4 rounded-3xl border space-y-4 ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <div className="flex gap-3">
-                  <div className={`w-10 h-10 rounded-full border overflow-hidden ${theme === 'dark' ? 'bg-accent/20 border-accent/30' : 'bg-gray-100 border-gray-200'}`}>
-                    {user?.photoURL ? (
-                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-5 h-5 text-accent" /></div>
-                    )}
-                  </div>
-                  <textarea 
-                    value={postInput}
-                    onChange={(e) => setPostInput(e.target.value)}
-                    placeholder="আপনার মনে কি আছে?"
-                    className="flex-1 bg-transparent border-none focus:ring-0 text-sm resize-none py-2 min-h-[80px]"
-                  />
-                </div>
-                {postImage && (
-                  <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-                    <img src={postImage} alt="Preview" className="w-full max-h-60 object-cover" loading="lazy" />
-                    <button onClick={() => setPostImage(null)} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
-                  </div>
-                )}
-                {postVideoPreview && (
-                  <div className={`relative rounded-xl overflow-hidden border ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-                    <video src={postVideoPreview} controls className="w-full max-h-60 object-cover" />
-                    <button onClick={() => { setPostVideo(null); setPostVideoPreview(null); }} className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white"><X className="w-4 h-4" /></button>
-                  </div>
-                )}
-                {isCreatingPost && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[8px] uppercase font-bold tracking-widest text-accent">
-                      <span>আপলোড হচ্ছে...</span>
-                      <span>{Math.round(uploadProgress)}%</span>
-                    </div>
-                    <div className="h-1 w-full bg-accent/10 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${uploadProgress}%` }}
-                        className="h-full bg-accent shadow-[0_0_10px_rgba(0,209,255,0.5)]"
+               <div className="flex items-center gap-3 mb-4">
+                 <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 transition-colors">
+                   <ArrowLeft className="w-6 h-6" />
+                 </button>
+                 <h2 className="text-xl font-bold">Video</h2>
+               </div>
+               <div className="space-y-4">
+                  {posts.filter(p => p.mediaType === 'video').length > 0 ? (
+                    posts.filter(p => p.mediaType === 'video').map((post) => (
+                      <PostCard 
+                        key={post.id}
+                        post={post}
+                        ads={ads}
+                        theme={theme}
+                        onLike={() => withAuth(() => likePost(post.id))}
+                        onReact={(type) => withAuth(() => reactToPost(post.id, type))}
+                        onComment={() => withAuth(() => setCommentingPostId(post.id))}
+                        onFollow={() => withAuth(() => followUser(post.authorUid))}
+                        onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
+                        isFollowing={followingUids.includes(post.authorUid)}
+                        currentUserId={user?.uid}
                       />
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                       <PlayCircle className="w-16 h-16 mb-4" />
+                       <p className="font-bold uppercase tracking-widest text-sm">No videos found</p>
                     </div>
-                  </div>
-                )}
-                <div className={`flex justify-between items-center pt-2 border-t ${theme === 'dark' ? 'border-border-custom' : 'border-gray-100'}`}>
-                  <div className="flex gap-2 relative">
-                    <Button variant="ghost" size="sm" onClick={selectPostImage} className="text-text-dim hover:text-accent gap-2">
-                      <div className="flex -space-x-1">
-                        <ImageIcon className="w-4 h-4" />
-                        <VideoIcon className="w-4 h-4" />
-                      </div>
-                      <span className="text-[10px] uppercase font-bold">মিডিয়া</span>
-                    </Button>
-                    <div className="relative">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-                        className={`gap-2 transition-colors ${isEmojiPickerOpen ? 'text-accent' : 'text-text-dim hover:text-accent'}`}
-                      >
-                        <Smile className="w-4 h-4" />
-                        <span className="text-[10px] uppercase font-bold">ইমোজি</span>
-                      </Button>
-                      
-                      <AnimatePresence>
-                        {isEmojiPickerOpen && (
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                            className={`absolute bottom-full left-0 mb-2 p-2 rounded-2xl border shadow-2xl flex gap-2 z-50 ${theme === 'dark' ? 'bg-surface border-border-custom' : 'bg-white border-gray-200'}`}
-                          >
-                            {['😊', '😂', '🔥', '❤️', '👍', '🙏', '🙌', '✨', '😎'].map(emoji => (
-                              <button 
-                                key={emoji} 
-                                onClick={() => addEmoji(emoji)}
-                                className="text-xl hover:scale-125 transition-transform"
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-                  <Button 
-                    disabled={isCreatingPost || (!postInput.trim() && !postImage)}
-                    onClick={createPost}
-                    className="bg-accent text-bg-dark font-bold text-[10px] uppercase px-6 h-8 rounded-full shadow-lg shadow-accent/20"
-                  >
-                    {isCreatingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : 'পোস্ট করুন'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Feed Tabs */}
-            <div className="px-4 mb-4 flex gap-6 border-b border-border-custom/30">
-              <button 
-                onClick={() => setHomeFeedTab('all')}
-                className={`text-[10px] uppercase font-black tracking-widest pb-3 border-b-2 transition-all ${homeFeedTab === 'all' ? 'text-accent border-accent' : 'text-text-dim border-transparent'}`}
-              >
-                সব পোস্ট
-              </button>
-              <button 
-                onClick={() => setHomeFeedTab('following')}
-                className={`text-[10px] uppercase font-black tracking-widest pb-3 border-b-2 transition-all ${homeFeedTab === 'following' ? 'text-accent border-accent' : 'text-text-dim border-transparent'}`}
-              >
-                ফলো করছেন যারা
-              </button>
-            </div>
-
-            {/* Feed */}
-            <div className="space-y-6 pb-20">
-              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).map((post) => (
-                <PostCard 
-                  key={post.id}
-                  post={post}
-                  theme={theme}
-                  onLike={() => likePost(post.id)}
-                  onReact={(type) => reactToPost(post.id, type)}
-                  onComment={() => setCommentingPostId(post.id)}
-                  onFollow={() => followUser(post.authorUid)}
-                  onUnfollow={() => unfollowUser(post.authorUid)}
-                  isFollowing={followingUids.includes(post.authorUid)}
-                  currentUserId={user?.uid}
-                />
-              ))}
-
-              {isLoadingMore && (
-                <div className="flex justify-center p-4">
-                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
-                </div>
-              )}
-
-              {posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length === 0 && !isLoadingMore && (
-                <div className="p-10 text-center opacity-30">
-                  <Globe className="w-12 h-12 mx-auto mb-4" />
-                  <p className="text-xs uppercase font-bold tracking-widest">
-                    {homeFeedTab === 'following' ? 'আপনার ফলো করা কারো পোস্ট নেই' : 'নিউজ ফিড খালি'}
-                  </p>
-                </div>
-              )}
-
-              {hasMorePosts && !isLoadingMore && posts.length >= postsLimit && (
-                <div className="flex justify-center p-4">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={loadMorePosts}
-                    className="text-[8px] uppercase font-bold tracking-[4px] opacity-40 hover:opacity-100"
-                  >
-                    আরো দেখুন
-                  </Button>
-                </div>
-              )}
-
-              {!hasMorePosts && posts.filter(p => homeFeedTab === 'all' || followingUids.includes(p.authorUid) || p.authorUid === user?.uid).length > 0 && (
-                <div className="p-10 text-center opacity-20 text-[10px] uppercase font-bold tracking-[8px]">
-                  END OF FEED
-                </div>
-              )}
+                  )}
+               </div>
             </div>
           </motion.div>
         );
       case 'scan':
         return (
-          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-              <div className="flex flex-col items-center justify-center relative">
-                <div className="w-[280px] h-[280px] md:w-[400px] md:h-[400px] geometric-ring">
-                  <div className="w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full border border-accent/30 flex items-center justify-center relative">
-                    {isScanning && (
-                      <>
-                        <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.5], opacity: [0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
-                        <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.8], opacity: [0.3, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
-                      </>
-                    )}
-                    <motion.div 
-                      className="w-[140px] h-[140px] md:w-[180px] md:h-[180px] bg-accent rounded-full flex flex-col justify-center items-center shadow-[0_0_50px_rgba(0,209,255,0.4)] z-10"
-                      animate={isScanning ? { scale: [1, 1.05, 1] } : {}}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <span className="text-bg-dark font-bold text-xs md:text-sm tracking-widest uppercase">{isScanning ? 'DISCOVERING' : 'READY'}</span>
-                      <div className="text-2xl md:text-3xl mt-1">📶</div>
-                    </motion.div>
+          <div className={`flex-1 overflow-y-auto custom-scrollbar ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}>
+            {/* Marketplace Search Header */}
+            <div className={`p-4 border-b ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E4E4]'}`}>
+               <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 transition-colors">
+                      <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <h2 className="text-2xl font-bold">Marketplace</h2>
                   </div>
-                </div>
-                <div className="mt-10 w-full space-y-4">
-                  <h3 className="text-[10px] uppercase tracking-widest text-text-dim text-center">আশেপাশে থাকা ব্যবহারকারী ({onlineUsers.length})</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    {onlineUsers.length > 0 ? (
-                      onlineUsers.map((u) => (
-                        <motion.div key={u.uid} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="geometric-card flex-row items-center gap-4 py-3 cursor-pointer hover:border-accent group" onClick={() => sendPairRequest(u)}>
-                          <div className="w-10 h-10 rounded-full bg-surface border border-border-custom flex items-center justify-center group-hover:border-accent transition-colors overflow-hidden">
-                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <UserIcon className="w-5 h-5 text-text-dim group-hover:text-accent" />}
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-bold uppercase tracking-tighter">{u.displayName}</div>
-                            <div className="text-[10px] text-accent uppercase">পেয়ার করতে ক্লিক করুন</div>
-                          </div>
-                          <UserPlus className="w-4 h-4 text-text-dim group-hover:text-accent" />
-                        </motion.div>
-                      ))
-                    ) : (
-                      <div className="text-center py-10 opacity-30 uppercase tracking-widest text-[10px]">কেউ অনলাইনে নেই</div>
-                    )}
+                  <div className="flex gap-2">
+                     <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-gray-100'}`}><UserIcon className="w-5 h-5" /></button>
+                     <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-gray-100'}`}><Search className="w-5 h-5" /></button>
                   </div>
-                </div>
-              </div>
-              <div className="space-y-6">
-                <div className="geometric-card p-10 items-center justify-center text-center space-y-4">
-                  <Scan className="w-12 h-12 text-accent opacity-50" />
-                  <h2 className="text-2xl font-light uppercase tracking-widest">Discovery Mode</h2>
-                  <p className="text-text-dim text-sm max-w-xs">আশেপাশে থাকা অন্য ফোনে এই অ্যাপটি খোলা থাকলে আপনি তাদের এখানে দেখতে পাবেন।</p>
-                  <Button className="geometric-btn geometric-btn-active mt-4" onClick={() => setIsScanning(!isScanning)}>{isScanning ? 'STOP SCAN' : 'START SCAN'}</Button>
+               </div>
+               <div className={`flex items-center gap-3 h-10 px-4 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+                  <Search className="w-4 h-4 text-gray-500" />
+                  <input 
+                    placeholder="Search Marketplace" 
+                    className="bg-transparent border-none outline-none text-sm w-full"
+                    value={marketSearch}
+                    onChange={(e) => setMarketSearch(e.target.value)}
+                  />
+               </div>
+            </div>
+
+            <div className="p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+                <div className="flex flex-col items-center justify-center relative">
+                  <div className={`w-[280px] h-[280px] md:w-[400px] md:h-[400px] border-4 border-dashed rounded-full flex items-center justify-center ${theme === 'dark' ? 'border-[#3E4042]' : 'border-gray-300'}`}>
+                    <div className="w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full border border-accent/20 flex items-center justify-center relative">
+                      {isScanning && (
+                        <>
+                          <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.5], opacity: [0.5, 0] }} transition={{ duration: 2, repeat: Infinity }} />
+                          <motion.div className="absolute inset-0 border border-accent rounded-full" animate={{ scale: [1, 1.8], opacity: [0.3, 0] }} transition={{ duration: 2, repeat: Infinity, delay: 0.5 }} />
+                        </>
+                      )}
+                      <motion.div 
+                        whileTap={{ scale: 0.95 }}
+                        className="w-[140px] h-[140px] md:w-[180px] md:h-[180px] bg-[#1877F2] rounded-full flex flex-col justify-center items-center shadow-[0_0_50px_rgba(24,119,242,0.4)] z-10 text-white cursor-pointer"
+                        animate={isScanning ? { scale: [1, 1.05, 1] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        onClick={() => withAuth(() => setIsScanning(!isScanning))}
+                      >
+                        <span className="font-bold text-xs md:text-sm tracking-widest uppercase">{isScanning ? 'SCANNING' : 'START SCAN'}</span>
+                        <div className="text-2xl md:text-3xl mt-1">📶</div>
+                      </motion.div>
+                    </div>
+                  </div>
+                  <div className="mt-10 w-full space-y-4">
+                    <h3 className={`text-[10px] uppercase tracking-widest font-bold text-center ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Nearby Discoveries ({onlineUsers.filter(u => u.displayName.toLowerCase().includes(marketSearch.toLowerCase())).length})
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3">
+                      {onlineUsers
+                        .filter(u => u.displayName.toLowerCase().includes(marketSearch.toLowerCase()))
+                        .length > 0 ? (
+                        onlineUsers
+                          .filter(u => u.displayName.toLowerCase().includes(marketSearch.toLowerCase()))
+                          .map((u) => (
+                            <motion.div 
+                              key={u.uid} 
+                              initial={{ opacity: 0, x: -20 }} 
+                              animate={{ opacity: 1, x: 0 }} 
+                              className={`flex items-center gap-4 p-3 rounded-2xl border transition-all hover:border-[#1877F2] group ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-gray-100 shadow-sm'}`} 
+                              onClick={() => withAuth(() => sendPairRequest(u))}
+                            >
+                              <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 overflow-hidden">
+                                {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <UserIcon className="w-5 h-5 text-gray-400" />}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-bold">{u.displayName}</div>
+                                <div className="text-[10px] text-[#1877F2] font-bold uppercase">Tap to Pair</div>
+                              </div>
+                              <UserPlus className="w-5 h-5 text-gray-400 group-hover:text-[#1877F2]" />
+                            </motion.div>
+                          ))
+                      ) : (
+                        <div className="text-center py-10 opacity-30 uppercase tracking-widest text-[10px] font-bold">No one discovered nearby</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         );
-      case 'monetization':
+      case 'groups':
         return (
-          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center space-y-4 opacity-50 relative">
+            <button onClick={() => setActiveTab('home')} className="absolute top-4 left-4 p-2 rounded-full hover:bg-black/5 transition-colors">
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <Users className="w-16 h-16 text-accent" />
+            <h2 className="text-xl font-bold uppercase tracking-widest">Groups coming soon</h2>
+            <p className="text-xs text-text-dim text-center max-w-xs">We are building a powerful group system for community interactions.</p>
+          </div>
+        );
+      case 'pages':
+        return (
+          <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center space-y-4 opacity-50 relative">
+            <button onClick={() => setActiveTab('home')} className="absolute top-4 left-4 p-2 rounded-full hover:bg-black/5 transition-colors">
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <LayoutDashboard className="w-16 h-16 text-accent" />
+            <h2 className="text-xl font-bold uppercase tracking-widest">Pages coming soon</h2>
+            <p className="text-xs text-text-dim text-center max-w-xs">Create and manage your professional pages on PORSHI.</p>
+          </div>
+        );
+      case 'events':
+        return (
+          <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center space-y-4 opacity-50 relative">
+            <button onClick={() => setActiveTab('home')} className="absolute top-4 left-4 p-2 rounded-full hover:bg-black/5 transition-colors">
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <Calendar className="w-16 h-16 text-accent" />
+            <h2 className="text-xl font-bold uppercase tracking-widest">Events coming soon</h2>
+            <p className="text-xs text-text-dim text-center max-w-xs">Stay tuned for local and global events happening near you.</p>
+          </div>
+        );
+      case 'monetization':
+        if (!user) return renderLoginRequiredCard('MONETIZATION', 'মনিটাইজেশন পারফরম্যান্স দেখতে দয়া করে লগইন করুন।');
+        if (!user?.isMonetized) {
+          return (
+            <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col items-center">
+              <div className="w-full max-w-md flex justify-start mb-4">
+                <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 font-bold text-sm">
+                  <ArrowLeft className="w-5 h-5" /> Home
+                </button>
+              </div>
+              <div className="max-w-md w-full geometric-card p-10 text-center space-y-6">
+                <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto border border-accent/20">
+                  <DollarSign className="w-10 h-10 text-accent animate-bounce" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-black tracking-tighter uppercase">মনিটাইজেশন এলিজিবিলিটি</h2>
+                  <p className="text-text-dim text-xs uppercase tracking-widest leading-relaxed">
+                    আপনার প্রোফাইল এখনো মনিটাইজেশনের জন্য উপযুক্ত নয়। মনিটাইজেশন পেতে দয়া করে আরও বেশি কোয়ালিটি কন্টেন্ট শেয়ার করুন এবং ফলোয়ার বাড়ান।
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 py-6 border-y border-border-custom/30 text-left">
+                  <div className="space-y-1">
+                    <div className="text-[8px] uppercase font-black text-text-dim">ফলোয়ার রিকোয়ারমেন্ট</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-bold">{user?.followersCount || 0}/১০০০</div>
+                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent" style={{ width: `${Math.min(((user?.followersCount || 0) / 1000) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[8px] uppercase font-black text-text-dim">এনগেজমেন্ট রিকোয়ারমেন্ট</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-bold">৭৮%</div>
+                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent w-[78%]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">অ্যাডমিন আপনার প্রোফাইল রিভিউ করার পর মনিটাইজেশন অন করে দিতে পারবেন।</p>
+                <Button className="geometric-btn w-full" disabled>আবেদন করুন (Coming Soon)</Button>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar bg-white dark:bg-[#18191A]">
             <div className="max-w-4xl mx-auto space-y-6">
+              <div className="flex items-center gap-3 mb-2">
+                <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 font-bold text-sm text-[#1877F2] dark:text-accent">
+                  <ArrowLeft className="w-5 h-5" /> পরশি হোম
+                </button>
+              </div>
               <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
                 <div className="flex justify-between items-center mb-8">
                   <div>
@@ -1441,62 +2655,166 @@ export default function App() {
             </div>
           </div>
         );
+      case 'ads':
+        if (!user) return renderLoginRequiredCard('ADS MANAGER', 'বিজ্ঞাপন ম্যানেজ করতে দয়া করে লগইন করুন।');
+        return renderAdsContent();
       case 'profile':
+        const profileUid = selectedUserUid || user?.uid;
+        if (!profileUid) return renderLoginRequiredCard('PROFILE', 'আপনার প্রোফাইল দেখতে দয়া করে লগইন করুন।');
+        
+        // Find user data for the profile we are viewing
+        const profileUser = profileUid === user?.uid ? user : viewingProfileUser;
+
         return (
-          <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
-            <div className="max-w-2xl mx-auto space-y-8">
-              <div className="geometric-card p-8 items-center text-center space-y-6">
-                <div className="relative group">
-                  <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-surface border-4 border-accent/20 overflow-hidden shadow-[0_0_40px_rgba(0,209,255,0.2)]">
-                    {isUploadingPhoto ? (
-                      <div className="w-full h-full flex items-center justify-center bg-bg-dark/50"><Loader2 className="w-8 h-8 text-accent animate-spin" /></div>
-                    ) : user?.photoURL ? (
-                      <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-16 h-16 text-text-dim" /></div>
+          <div className="flex-1 p-0 overflow-y-auto custom-scrollbar bg-[#F0F2F5] dark:bg-[#18191A]">
+            <div className="max-w-4xl mx-auto space-y-4 pb-20">
+              {/* Back Button for sub-navigation */}
+              <div className="px-4 pt-4 flex items-center justify-between lg:hidden">
+                <button 
+                  onClick={() => selectedUserUid ? setSelectedUserUid(null) : setActiveTab('home')}
+                  className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 p-2 rounded-xl bg-white dark:bg-[#242526] shadow-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Back to Home
+                </button>
+              </div>
+
+              {/* Profile Cover & Basic Info */}
+              <div className="bg-white dark:bg-[#242526] rounded-b-xl shadow-sm overflow-hidden">
+                <div className="h-48 md:h-64 bg-gradient-to-r from-[#00D1FF] to-[#0070FF] relative">
+                   {selectedUserUid && (
+                     <button 
+                       onClick={() => setSelectedUserUid(null)}
+                       className="absolute top-4 left-4 p-2 bg-black/20 rounded-full text-white hover:bg-black/40 transition-colors"
+                     >
+                       <ArrowLeft className="w-5 h-5" />
+                     </button>
+                   )}
+                </div>
+                <div className="px-4 pb-4 -mt-12 md:-mt-16 flex flex-col md:flex-row items-center md:items-end gap-4 relative z-10">
+                  <div className="relative group">
+                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white dark:bg-[#242526] border-4 border-white dark:border-[#242526] overflow-hidden shadow-lg">
+                      {isUploadingPhoto && profileUid === user?.uid ? (
+                        <div className="w-full h-full flex items-center justify-center bg-bg-dark/50"><Loader2 className="w-8 h-8 text-accent animate-spin" /></div>
+                      ) : profileUser?.photoURL ? (
+                        <img src={profileUser.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#3A3B3C]"><UserIcon className="w-16 h-16 text-text-dim" /></div>
+                      )}
+                    </div>
+                    {profileUid === user?.uid && (
+                      <button onClick={handleProfilePictureClick} className="absolute bottom-2 right-2 p-2.5 bg-gray-100 dark:bg-[#3A3B3C] rounded-full shadow-md text-foreground hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors">
+                        <CameraIcon className="w-5 h-5" />
+                      </button>
                     )}
                   </div>
-                  <button onClick={handleProfilePictureClick} className="absolute bottom-2 right-2 p-3 bg-accent text-bg-dark rounded-full shadow-lg hover:scale-110 transition-transform">
-                    <CameraIcon className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-bold uppercase tracking-tighter">{user?.displayName}</h2>
-                  <p className="text-accent text-[10px] uppercase font-bold tracking-[4px]">Verified User</p>
-                </div>
-                <div className="grid grid-cols-3 gap-8 w-full border-t border-border-custom pt-6">
-                  <div><div className="text-xl font-bold">{posts.filter(p => p.authorUid === user?.uid).length}</div><div className="text-[8px] text-text-dim uppercase">পোস্ট</div></div>
-                  <div><div className="text-xl font-bold">{user?.followersCount || 0}</div><div className="text-[8px] text-text-dim uppercase">ফলোয়ার</div></div>
-                  <div><div className="text-xl font-bold">{user?.followingCount || 0}</div><div className="text-[8px] text-text-dim uppercase">ফলোইং</div></div>
+                  <div className="flex-1 text-center md:text-left pb-4">
+                    <h2 className="text-3xl font-black uppercase tracking-tighter">{profileUser?.displayName}</h2>
+                    <p className="text-text-dim text-sm font-medium">{profileUser?.bio || 'No bio yet.'}</p>
+                    <div className="flex items-center justify-center md:justify-start gap-4 mt-3">
+                      <div className="text-sm"><span className="font-bold">{profileUser?.followersCount || 0}</span> <span className="text-text-dim">Followers</span></div>
+                      <div className="text-sm"><span className="font-bold">{profileUser?.followingCount || 0}</span> <span className="text-text-dim">Following</span></div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pb-4">
+                    {profileUid === user?.uid ? (
+                      <Button onClick={() => {}} className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]">
+                         <PenLine className="w-4 h-4 mr-2" /> Edit profile
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          onClick={() => withAuth(() => followingUids.includes(profileUid) ? unfollowUser(profileUid) : followUser(profileUid))}
+                          className={`${followingUids.includes(profileUid) ? 'bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground' : 'bg-[#1877F2] text-white hover:bg-[#166FE5]'} font-bold text-xs h-9 px-6 rounded-md transition-all`}
+                        >
+                          {followingUids.includes(profileUid) ? 'Unfollow' : 'Follow'}
+                        </Button>
+                        <Button 
+                          onClick={() => withAuth(() => {
+                            setActiveChat({
+                              id: profileUser?.uid || '',
+                              partnerId: profileUser?.uid || '',
+                              partnerName: profileUser?.displayName || ''
+                            });
+                            setCurrentApp('porsh');
+                          })}
+                          className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]"
+                        >
+                           <MessageSquare className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="geometric-card p-6 space-y-4">
-                <h3 className="text-[10px] uppercase tracking-widest text-text-dim">প্রোফাইল এডিট করুন</h3>
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[8px] uppercase text-text-dim ml-1">ডিসপ্লে নাম</label>
-                    <input type="text" value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder={user?.displayName} className="w-full bg-surface border border-border-custom rounded-xl p-3 text-sm focus:border-accent transition-colors" />
+
+              {/* Activity Section */}
+              <div className="px-2">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* Left Column (Info) */}
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="bg-white dark:bg-[#242526] p-4 rounded-xl shadow-sm space-y-4">
+                      <h3 className="text-lg font-bold">Intro</h3>
+                      {profileUser?.bio && <div className="text-center text-sm py-2">{profileUser.bio}</div>}
+                      <Button className="w-full bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs rounded-md shadow-none hover:bg-gray-200 dark:hover:bg-[#4E4F50]">Edit bio</Button>
+                      
+                      {profileUid === user?.uid && (
+                        <div className="pt-4 border-t border-gray-100 dark:border-[#3E4042] space-y-3">
+                           <div className="flex items-center gap-3 text-sm text-text-dim"><Globe className="w-5 h-5" /> Profile · Public</div>
+                           {user?.role === 'admin' && (
+                             <button onClick={() => setActiveTab('admin')} className="w-full p-2.5 rounded-lg bg-accent/10 text-accent font-bold text-xs flex items-center justify-center gap-2">
+                               <Activity className="w-4 h-4" /> Admin Panel
+                             </button>
+                           )}
+                           <button onClick={logout} className="w-full p-2.5 rounded-lg bg-red-400/5 text-red-500 font-bold text-xs flex items-center justify-center gap-2 border border-red-500/10 hover:bg-red-500/10 transition-colors">
+                             <LogOut className="w-4 h-4" /> Logout
+                           </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <Button onClick={(e) => handleProfileUpdate(e as any)} disabled={isUpdatingProfile || !newDisplayName.trim()} className="w-full bg-accent text-bg-dark font-bold uppercase text-[10px] tracking-widest h-12">
-                    {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : 'তথ্য আপডেট করুন'}
-                  </Button>
-                  
-                  <div className="pt-4 mt-4 border-t border-border-custom space-y-2">
-                    {user?.role === 'admin' && (
-                      <Button 
-                        onClick={() => setActiveTab('admin')} 
-                        className="w-full bg-accent/20 text-accent border border-accent/40 font-bold uppercase text-[10px] tracking-widest h-12 hover:bg-accent/30"
+
+                  {/* Right Column (Posts) */}
+                  <div className="md:col-span-3 space-y-4">
+                    <div className="bg-white dark:bg-[#242526] p-4 rounded-xl shadow-sm flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
+                        {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                      </div>
+                      <button 
+                        onClick={() => withAuth(() => setIsPostCreationModalOpen(true))}
+                        className="flex-1 h-10 rounded-full px-4 text-left text-sm bg-[#F0F2F5] dark:bg-[#3A3B3C] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors"
                       >
-                        <Activity className="w-4 h-4 mr-2" /> অ্যাডমিন প্যানেল
-                      </Button>
-                    )}
-                    <Button 
-                      variant="ghost" 
-                      onClick={logout} 
-                      className="w-full text-red-400 hover:text-red-500 hover:bg-red-400/10 font-bold uppercase text-[10px] tracking-widest h-12 border border-red-400/20"
-                    >
-                      লগআউট (LOGOUT)
-                    </Button>
+                         What's on your mind?
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {posts.filter(p => p.authorUid === profileUid).map(post => (
+                        <PostCard 
+                          key={post.id}
+                          post={post}
+                          ads={ads}
+                          theme={theme}
+                          onLike={() => withAuth(() => likePost(post.id))}
+                          onReact={(type) => withAuth(() => reactToPost(post.id, type))}
+                          onComment={() => withAuth(() => setCommentingPostId(post.id))}
+                          onFollow={() => withAuth(() => followUser(post.authorUid))}
+                          onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
+                          onEdit={(p) => { 
+                            setEditingPost(p); 
+                            setPostInput(p.content); 
+                            setPostPrivacy(p.privacy || 'public');
+                            setIsPostCreationModalOpen(true); 
+                          }}
+                          onDelete={deletePost}
+                          onUserClick={navigateToProfile}
+                          isFollowing={user ? followingUids.includes(post.authorUid) : false}
+                          currentUserId={user?.uid}
+                        />
+                      ))}
+                      {posts.filter(p => p.authorUid === profileUid).length === 0 && (
+                        <div className="p-20 text-center opacity-20 uppercase font-black tracking-widest text-xs">No posts yet</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1525,17 +2843,53 @@ export default function App() {
           announcement: '',
           themeColor: '#00D1FF',
           cloudinaryCloudName: 'dozmbxvo5',
-          cloudinaryUploadPreset: 'porshi_preset'
+          cloudinaryUploadPreset: 'porshi_preset',
+          adPaidMode: true,
+          adPaymentNumber: '01650074073'
         };
         setAppConfig(defaultConfig);
-        // Only an admin could initialize this if we really wanted to, but we'll let it be null for now if not exists
       }
     });
 
+    // 2. Public Content Listeners (No Auth Required)
+    const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(postsLimit));
+    const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
+      const postsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post))
+        .filter(p => !p.privacy || p.privacy === 'public' || p.authorUid === user?.uid);
+      setPosts(postsList);
+      setHasMorePosts(snapshot.docs.length >= postsLimit);
+      setIsLoadingMore(false);
+    });
+
+    const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
+    const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
+      const storiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
+      setStories(storiesList);
+    });
+
+    const adsQuery = query(collection(db, 'ads'), where('status', '==', 'active'));
+    const unsubscribeAds = onSnapshot(adsQuery, (snapshot) => {
+      setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Advertisement)));
+    });
+
+    // 3. Selective User Profile Listener
+    let userUnsubscribe: () => void = () => {};
+    if (selectedUserUid && selectedUserUid !== user?.uid) {
+      userUnsubscribe = onSnapshot(doc(db, 'users', selectedUserUid), (doc) => {
+        if (doc.exists()) {
+          setViewingProfileUser({ uid: doc.id, ...doc.data() } as AppUser);
+        }
+      });
+    }
+
     return () => {
       configUnsubscribe();
+      unsubscribePosts();
+      unsubscribeStories();
+      unsubscribeAds();
+      userUnsubscribe();
     };
-  }, []);
+  }, [postsLimit, selectedUserUid, user?.uid]);
 
   useEffect(() => {
     if (user?.role !== 'admin') {
@@ -1544,69 +2898,148 @@ export default function App() {
     }
     const q = collection(db, 'users');
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setAllUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
+      setAllUsers(snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          ...data,
+          uid: doc.id,
+          id: doc.id 
+        } as any;
+      }));
     });
     return () => unsubscribe();
   }, [user]);
 
   // Auth Listener
   useEffect(() => {
-    addLog('সিস্টেম প্রস্তুত (System Ready)');
+    addLog('পড়শি সিস্টেম প্রস্তুত (PORSHI System Ready)');
+    let userUnsubscribe: (() => void) | null = null;
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
         if (currentUser) {
           addLog(`ইউজার পাওয়া গেছে: ${currentUser.uid.slice(0, 6)}...`);
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           
-          if (userDoc.exists()) {
-            addLog('প্রোফাইল লোড হচ্ছে...');
-            const userData = userDoc.data() as AppUser;
-            // Bootstrap admin if email matches
-            if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
-              await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
-              userData.role = 'admin';
-            }
-            if (!userData.role && currentUser.email === "salman1000790@gmail.com") {
+          if (userUnsubscribe) userUnsubscribe();
+
+          // Use onSnapshot for the user document to handle offline states and real-time updates
+          userUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
+            if (docSnap.exists()) {
+              addLog('পড়শি প্রোফাইল লোড হচ্ছে...');
+              const userData = { ...docSnap.data(), uid: docSnap.id } as any;
+              
+              // Bootstrap admin if email matches
+              if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
+                await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
                 userData.role = 'admin';
+              }
+              
+              setUser(userData);
+              addLog('পড়শি লগইন সফল! (Login Verified)');
+            } else {
+              addLog('নতুন প্রোফাইল তৈরি করা হচ্ছে...');
+              // New User Registration Handling
+              const name = registrationData.current?.name || currentUser.displayName || 'Porshi User';
+              const phone = registrationData.current?.phone || '';
+              
+              const newUser: AppUser = {
+                uid: currentUser.uid,
+                displayName: name,
+                phoneNumber: phone,
+                photoURL: currentUser.photoURL || '',
+                isOnline: true,
+                lastSeen: serverTimestamp(),
+                role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
+              };
+              
+              await setDoc(doc(db, 'users', currentUser.uid), newUser);
+              addLog('প্রোফাইল তৈরি সম্পন্ন (Profile Created)');
+              setUser(newUser);
             }
-            setUser(userData);
-            addLog('লগইন সফল! (Login Verified)');
-          } else {
-            addLog('নতুন প্রোফাইল তৈরি করা হচ্ছে...');
-            // New User Registration Handling
-            const name = registrationData.current?.name || currentUser.displayName || 'Porshi User';
-            const phone = registrationData.current?.phone || '';
-            
-            const newUser: AppUser = {
-              uid: currentUser.uid,
-              displayName: name,
-              phoneNumber: phone,
-              photoURL: currentUser.photoURL || '',
-              isOnline: true,
-              lastSeen: serverTimestamp(),
-              role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
-            };
-            
-            await setDoc(doc(db, 'users', currentUser.uid), newUser);
-            addLog('প্রোফাইল তৈরি সম্পন্ন (Profile Created)');
-            setUser(newUser);
-          }
+            setIsAuthReady(true);
+            setIsAuthLoading(false);
+          }, (error) => {
+            console.error('User doc snapshot error:', error);
+            // If snapshot fails, it might be a permissions issue or truly offline
+            if (error.message.includes('offline')) {
+              addLog('অফলাইন মোডে আছে (Working Offline)');
+            } else {
+              addLog(`ডাটা এরর: ${error.message}`);
+            }
+            setIsAuthReady(true);
+            setIsAuthLoading(false);
+          });
         } else {
           addLog('ইউজার লগআউট অবস্থায় আছে (Logged Out)');
+          if (userUnsubscribe) userUnsubscribe();
           setUser(null);
+          setIsAuthReady(true);
+          setIsAuthLoading(false);
         }
       } catch (error: any) {
         console.error('Auth Listener Error:', error);
         addLog(`ক্রিটিক্যাল এরর: ${error.message}`);
         setErrorMessage(`সিস্টেম এরর: ${error.message}`);
-      } finally {
         setIsAuthReady(true);
         setIsAuthLoading(false);
+      } finally {
         registrationData.current = null; // Clear after use
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (userUnsubscribe) userUnsubscribe();
+    };
   }, []);
+
+  // Auth Actions
+  const login = async () => {
+    setIsAuthLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setShowAuthModal(false);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      setErrorMessage(error.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await auth.signOut();
+      setUser(null);
+      setActiveTab('home');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const followUser = async (targetUid: string) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'following', targetUid), {
+        timestamp: serverTimestamp()
+      });
+      await setDoc(doc(db, 'users', targetUid, 'followers', user.uid), {
+        timestamp: serverTimestamp()
+      });
+    } catch (error: any) {
+      console.error('Follow error:', error);
+    }
+  };
+
+  const unfollowUser = async (targetUid: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'following', targetUid));
+      await deleteDoc(doc(db, 'users', targetUid, 'followers', user.uid));
+    } catch (error: any) {
+      console.error('Unfollow error:', error);
+    }
+  };
 
   // Following Listener
   useEffect(() => {
@@ -1621,256 +3054,112 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Play sound when new user comes online
-  useEffect(() => {
-    if (!isInitialOnlineLoad.current && onlineUsers.length > prevOnlineCount.current) {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
-      audio.volume = 0.4;
-      audio.play().catch(() => {});
-    }
-    if (isInitialOnlineLoad.current && onlineUsers.length > 0) {
-      isInitialOnlineLoad.current = false;
-    }
-    prevOnlineCount.current = onlineUsers.length;
-  }, [onlineUsers]);
-
-  // Comments Listener
-  useEffect(() => {
-    if (!commentingPostId) {
-      setPostComments([]);
+  const sendPairRequest = async (targetUser: any) => {
+    if (!user) {
+      setShowAuthModal(true);
       return;
     }
-    const q = query(
-      collection(db, 'posts', commentingPostId, 'comments'),
-      orderBy('timestamp', 'asc')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPostComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `posts/${commentingPostId}/comments`));
-    return () => unsubscribe();
-  }, [commentingPostId]);
-
-  // Real-time Listeners
-  useEffect(() => {
-    if (!user || !isAuthReady) return;
-
-    // 1. Listen for Online Users
-    const usersQuery = query(collection(db, 'users'), where('isOnline', '==', true));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const usersList = snapshot.docs
-        .map(doc => doc.data() as AppUser)
-        .filter(u => u.uid !== user.uid);
-      setOnlineUsers(usersList);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
-
-    // 2. Listen for Stories
-    const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
-    const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
-      const storiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
-      setStories(storiesList);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'stories'));
-
-    // 4. Listen for Incoming Pair Requests
-    const requestsQuery = query(
-      collection(db, 'requests'), 
-      where('toUid', '==', user.uid), 
-      where('status', '==', 'pending')
-    );
-    const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
-      if (!snapshot.empty) {
-        const data = snapshot.docs[0].data();
-        const reqData: PairRequest = { 
-          id: snapshot.docs[0].id, 
-          fromUid: data.fromUid,
-          fromName: data.fromName,
-          toUid: data.toUid,
-          toName: data.toName,
-          status: data.status,
-          timestamp: data.timestamp
-        };
-        setIncomingRequest(reqData);
-        showNotification('নতুন পেয়ার রিকোয়েস্ট!', `${reqData.fromName} আপনার সাথে কানেক্ট হতে চায়।`);
-      } else {
-        setIncomingRequest(null);
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
-
-    // 3. Listen for Accepted Requests (Incoming)
-    const incomingAcceptedQuery = query(
-      collection(db, 'requests'), 
-      where('toUid', '==', user.uid), 
-      where('status', '==', 'accepted')
-    );
-    const unsubscribeIncomingAccepted = onSnapshot(incomingAcceptedQuery, (snapshot) => {
-      if (!snapshot.empty) {
-        // Sort by timestamp in memory to avoid composite index requirement
-        const docs = [...snapshot.docs].sort((a, b) => {
-          const tA = a.data().timestamp?.toMillis() || 0;
-          const tB = b.data().timestamp?.toMillis() || 0;
-          return tB - tA;
-        });
-        const data = docs[0].data();
-        if (!activeChat || activeChat.id !== docs[0].id) {
-          setActiveChat({ id: docs[0].id, partnerId: data.fromUid, partnerName: data.fromName });
-          setActiveTab('chat');
-        }
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
-
-    // 4. Listen for Accepted Requests (Outgoing)
-    const outgoingAcceptedQuery = query(
-      collection(db, 'requests'), 
-      where('fromUid', '==', user.uid), 
-      where('status', '==', 'accepted')
-    );
-    const unsubscribeOutgoingAccepted = onSnapshot(outgoingAcceptedQuery, (snapshot) => {
-      if (!snapshot.empty) {
-        // Sort by timestamp in memory to avoid composite index requirement
-        const docs = [...snapshot.docs].sort((a, b) => {
-          const tA = a.data().timestamp?.toMillis() || 0;
-          const tB = b.data().timestamp?.toMillis() || 0;
-          return tB - tA;
-        });
-        const data = docs[0].data();
-        if (!activeChat || activeChat.id !== docs[0].id) {
-          setActiveChat({ id: docs[0].id, partnerId: data.toUid, partnerName: data.toName });
-          setActiveTab('chat');
-        }
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'requests'));
-
-    return () => {
-      unsubscribeUsers();
-      unsubscribeStories();
-      unsubscribeRequests();
-      unsubscribeIncomingAccepted();
-      unsubscribeOutgoingAccepted();
-    };
-  }, [user, isAuthReady]);
-
-  // 2. Listen for Posts (Paginated & Real-time)
-  useEffect(() => {
-    if (!user || !isAuthReady) return;
-
-    // We fetch a global limit of posts and filter them in the UI for the "Following" tab
-    const q = query(
-      collection(db, 'posts'),
-      orderBy('timestamp', 'desc'),
-      limit(postsLimit)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const postsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-      setPosts(postsList);
-      
-      // If we got fewer results than the limit, we reached the end
-      if (snapshot.docs.length < postsLimit) {
-        setHasMorePosts(false);
-      } else {
-        setHasMorePosts(true);
-      }
-      setIsLoadingMore(false);
-    }, (error) => {
-      console.error('Posts Listener Error:', error);
-      setIsLoadingMore(false);
-    });
-
-    return () => unsubscribe();
-  }, [user?.uid, isAuthReady, postsLimit]);
-
-  // Chat Messages Listener
-  useEffect(() => {
-    if (!activeChat) return;
-    const messagesQuery = query(
-      collection(db, 'chats', activeChat.id, 'messages'),
-      orderBy('timestamp', 'asc')
-    );
-    
-    let isInitialLoad = true;
-    
-    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-      const newMessagesData: ChatMessage[] = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          senderUid: data.senderUid,
-          text: data.text,
-          timestamp: data.timestamp,
-          isRead: data.isRead
-        };
-      });
-      
-      // Handle notifications using docChanges
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === 'added' && !isInitialLoad) {
-          const data = change.doc.data();
-          if (data.senderUid !== user?.uid) {
-            // Logic to determine if user should be notified
-            const isNotVisible = !isAppActive || document.hidden || activeTab !== 'chat';
-            if (isNotVisible) {
-              showNotification(`${activeChat.partnerName}`, data.text);
-            }
-          }
-        }
-      });
-      
-      isInitialLoad = false;
-      
-      // Mark incoming messages as read if chat is active and tab is 'chat'
-      if (activeTab === 'chat' && user) {
-        snapshot.docs.forEach(async (d) => {
-          const data = d.data();
-          if (data.senderUid !== user.uid && !data.isRead) {
-            try {
-              await updateDoc(doc(db, 'chats', activeChat.id, 'messages', d.id), { isRead: true });
-            } catch (e) {
-              // Ignore errors for read receipts
-            }
-          }
-        });
-      }
-      
-      setMessages(newMessagesData);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, `chats/${activeChat.id}/messages`));
-
-    return () => unsubscribeMessages();
-  }, [activeChat?.id, user?.uid, isAppActive, activeTab]);
-
-  // Typing Indicator Listener
-  useEffect(() => {
-    if (!activeChat || !user) return;
-    const typingDoc = doc(db, 'chats', activeChat.id, 'typing', activeChat.partnerId);
-    const unsubscribeTyping = onSnapshot(typingDoc, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        // Only show typing if it was updated in the last 4 seconds
-        const isRecent = data.timestamp && (Date.now() - data.timestamp.toMillis() < 4000);
-        setIsPartnerTyping(data.isTyping && isRecent);
-      } else {
-        setIsPartnerTyping(false);
-      }
-    });
-    return () => unsubscribeTyping();
-  }, [activeChat, user]);
-
-  // Scroll to bottom on new message
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const login = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      // User is handled by onAuthStateChanged
-    } catch (error: any) {
-      console.error('Login error:', error);
-      if (error.code === 'auth/popup-blocked') {
-        setErrorMessage('পপআপ ব্লক করা হয়েছে। দয়া করে পপআপ এলাউ করুন।');
-      } else {
-        setErrorMessage('লগইন করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
-      }
-      setTimeout(() => setErrorMessage(null), 3000);
+      setIsScanning(true);
+      await addDoc(collection(db, 'requests'), {
+        fromUid: user.uid,
+        fromName: user.displayName,
+        toUid: targetUser.uid,
+        toName: targetUser.displayName,
+        status: 'pending',
+        timestamp: serverTimestamp()
+      });
+      await sendNotification({
+        toUid: targetUser.uid,
+        fromUid: user.uid,
+        fromName: user.displayName,
+        fromPhoto: user.photoURL,
+        type: 'pair_request',
+        title: 'নতুন পেয়ার রিকোয়েস্ট!',
+        message: `${user.displayName} আপনার সাথে পেয়ার হতে রিকোয়েস্ট পাঠিয়েছেন।`
+      });
+    } catch (error) {
+      console.error('Pair request error:', error);
+      setErrorMessage('রিকোয়েস্ট পাঠাতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
+    } finally {
+      setTimeout(() => setIsScanning(false), 2000);
     }
+  };
+
+  const respondToRequest = async (requestId: string, status: 'accepted' | 'declined') => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'requests', requestId), { status });
+      if (status === 'accepted') {
+        const reqDoc = await getDoc(doc(db, 'requests', requestId));
+        if (reqDoc.exists()) {
+          const data = reqDoc.data();
+          setActiveChat({ id: requestId, partnerId: data.fromUid, partnerName: data.fromName });
+          setActiveTab('chat');
+
+          await sendNotification({
+            toUid: data.fromUid,
+            fromUid: user.uid,
+            fromName: user.displayName,
+            fromPhoto: user.photoURL,
+            type: 'pair_request',
+            title: 'রিকোয়েস্ট গ্রহণ করা হয়েছে!',
+            message: `${user.displayName} আপনার পেয়ার রিকোয়েস্ট গ্রহণ করেছেন।`
+          });
+        }
+      }
+      setIncomingRequest(null);
+    } catch (error) {
+      console.error('Respond error:', error);
+    }
+  };
+
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !activeChat || !user) return;
+    try {
+      await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
+        senderUid: user.uid,
+        text: messageInput,
+        timestamp: serverTimestamp(),
+        pairId: activeChat.id,
+        isRead: false
+      });
+      setMessageInput('');
+      
+      await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
+        isTyping: false,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+    }
+  };
+
+  const handleTyping = async (text: string) => {
+    setMessageInput(text);
+    if (!activeChat || !user) return;
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    try {
+      await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
+        isTyping: text.length > 0,
+        timestamp: serverTimestamp()
+      });
+
+      if (text.length > 0) {
+        typingTimeoutRef.current = setTimeout(async () => {
+          try {
+            await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
+              isTyping: false,
+              timestamp: serverTimestamp()
+            });
+          } catch (e) {}
+        }, 3000);
+      }
+    } catch (e) {}
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -1889,7 +3178,8 @@ export default function App() {
 
     setIsAuthLoading(true);
     setErrorMessage(null);
-    const email = `${authPhone.trim()}@porshi.app`;
+    const input = authPhone.trim();
+    const email = input.includes('@') ? input : `${input}@porshi.app`;
     const password = authPassword.trim();
     
     if (password.length < 6) {
@@ -1911,17 +3201,14 @@ export default function App() {
         }
 
         addLog(`রেজিস্ট্রেশন শুরু: ${phone}`);
-        // Store for listener to use
         registrationData.current = { name, phone };
         setAuthProcessingStep('অ্যাকাউন্ট তৈরি হচ্ছে...');
 
         const result = await createUserWithEmailAndPassword(auth, email, password);
         if (result.user) {
-          addLog('সার্ভার রেসপন্স: সাকসেস (Auth Success)');
+          addLog('সার্ভার রেসপন্স: সফল (Success)');
           setAuthSuccessMessage('রেজিস্ট্রেশন সফল!');
-          setAuthPhone('');
-          setAuthPassword('');
-          setAuthName('');
+          setShowAuthModal(false);
         }
       } else {
         addLog(`লগইন চেষ্টা: ${authPhone.trim()}`);
@@ -1929,6 +3216,7 @@ export default function App() {
         await signInWithEmailAndPassword(auth, email, password);
         addLog('সার্ভার রেসপন্স: ভেরিফাইড (Login Success)');
         setAuthSuccessMessage('লগইন সফল!');
+        setShowAuthModal(false);
       }
     } catch (error: any) {
       setIsAuthLoading(false);
@@ -1941,341 +3229,117 @@ export default function App() {
       if (error.code === 'auth/invalid-email') msg = 'সঠিক ফোন নাম্বার দিন।';
       if (error.code === 'auth/wrong-password') msg = 'ভুল পাসওয়ার্ড।';
       if (error.code === 'auth/user-not-found') msg = 'অ্যাকাউন্ট পাওয়া যায়নি।';
-      if (error.code === 'auth/network-request-failed') msg = 'ইন্টারনেট সমস্যা। আবার চেষ্টা করুন।';
       
       setErrorMessage(msg);
+      setTimeout(() => setErrorMessage(null), 3000);
     }
   };
 
-  const logout = async () => {
-    if (user) {
-      await updateDoc(doc(db, 'users', user.uid), { isOnline: false });
-      setFollowingUids([]);
-      await auth.signOut();
-    }
-  };
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const followUser = async (targetUid: string) => {
-    if (!user || user.uid === targetUid) return;
-    try {
-      const batch = writeBatch(db);
-      const now = serverTimestamp();
-      batch.set(doc(db, 'users', user.uid, 'following', targetUid), {
-        followerUid: user.uid,
-        followedUid: targetUid,
-        timestamp: now
-      });
-      batch.set(doc(db, 'users', targetUid, 'followers', user.uid), {
-        followerUid: user.uid,
-        followedUid: targetUid,
-        timestamp: now
-      });
-      batch.update(doc(db, 'users', user.uid), { followingCount: increment(1) });
-      batch.update(doc(db, 'users', targetUid), { followersCount: increment(1) });
-      await batch.commit();
-    } catch (err) {
-      console.error('Follow error:', err);
-    }
-  };
-
-  const unfollowUser = async (targetUid: string) => {
-    if (!user) return;
-    try {
-      const batch = writeBatch(db);
-      batch.delete(doc(db, 'users', user.uid, 'following', targetUid));
-      batch.delete(doc(db, 'users', targetUid, 'followers', user.uid));
-      batch.update(doc(db, 'users', user.uid), { followingCount: increment(-1) });
-      batch.update(doc(db, 'users', targetUid), { followersCount: increment(-1) });
-      await batch.commit();
-    } catch (err) {
-      console.error('Unfollow error:', err);
-    }
-  };
-
-  const sendPairRequest = async (targetUser: any) => {
-    if (!user) return;
-    try {
-      setIsScanning(true);
-      await addDoc(collection(db, 'requests'), {
-        fromUid: user.uid,
-        fromName: user.displayName,
-        toUid: targetUser.uid,
-        toName: targetUser.displayName,
-        status: 'pending',
-        timestamp: serverTimestamp()
-      });
-      // UI will wait for outgoing listener to trigger chat
-    } catch (error) {
-      console.error('Pair request error:', error);
-      setErrorMessage('রিকোয়েস্ট পাঠাতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      handleFirestoreError(error, OperationType.CREATE, 'requests');
-    } finally {
-      setTimeout(() => setIsScanning(false), 2000);
-    }
-  };
-
-  const respondToRequest = async (requestId: string, status: 'accepted' | 'declined') => {
-    try {
-      await updateDoc(doc(db, 'requests', requestId), { status });
-      if (status === 'accepted') {
-        const reqDoc = await getDoc(doc(db, 'requests', requestId));
-        if (reqDoc.exists()) {
-          const data = reqDoc.data();
-          setActiveChat({ id: requestId, partnerId: data.fromUid, partnerName: data.fromName });
-          setActiveTab('chat');
-        }
-      }
-      setIncomingRequest(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `requests/${requestId}`);
-    }
-  };
-
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim() || !activeChat || !user) return;
-    try {
-      await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
-        senderUid: user.uid,
-        text: messageInput,
-        timestamp: serverTimestamp(),
-        pairId: activeChat.id,
-        isRead: false
-      });
-      setMessageInput('');
-      // Reset typing status
-      await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
-        isTyping: false,
-        timestamp: serverTimestamp()
-      });
-    } catch (error) {
-      console.error('Send message error:', error);
-      setErrorMessage('মেসেজ পাঠাতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      handleFirestoreError(error, OperationType.CREATE, `chats/${activeChat.id}/messages`);
-    }
-  };
-
-  const handleTyping = async (text: string) => {
-    setMessageInput(text);
-    if (!activeChat || !user) return;
-    
-    // Clear existing timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    try {
-      await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
-        isTyping: text.length > 0,
-        timestamp: serverTimestamp()
-      });
-
-      // Set timeout to stop typing indicator after 3 seconds of inactivity
-      if (text.length > 0) {
-        typingTimeoutRef.current = setTimeout(async () => {
-          try {
-            await setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), {
-              isTyping: false,
-              timestamp: serverTimestamp()
-            });
-          } catch (e) {}
-        }, 3000);
-      }
-    } catch (e) {
-      // Silent fail for typing
-    }
-  };
-
-  if (!isAuthReady) return <div className="min-h-screen bg-bg-dark flex items-center justify-center text-accent uppercase tracking-widest animate-pulse">Initializing...</div>;
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-bg-dark text-text-main flex items-center justify-center p-4 font-sans relative overflow-hidden">
-        {/* Full Screen Loading Overlay */}
-        <AnimatePresence>
-          {isAuthLoading && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[500] bg-bg-dark/90 backdrop-blur-xl flex flex-col items-center justify-center space-y-6"
+  const renderAuthModal = () => (
+    <AnimatePresence>
+      {showAuthModal && (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[1000] bg-bg-dark/80 backdrop-blur-xl flex items-center justify-center p-4"
+        >
+          <div className="relative w-full max-w-md">
+            <button 
+              onClick={() => setShowAuthModal(false)}
+              className="absolute -top-12 right-0 p-2 text-white/50 hover:text-white transition-colors"
             >
-              <div className="relative">
-                <div className="w-24 h-24 border-4 border-accent/20 rounded-full animate-spin border-t-accent shadow-[0_0_30px_rgba(0,209,255,0.2)]"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 bg-accent rounded-full animate-pulse blur-sm"></div>
+              <X className="w-6 h-6" />
+            </button>
+            
+            <Card className="bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative">
+              <CardHeader className="text-center">
+                <div className="w-20 h-20 mx-auto mb-4 relative overflow-hidden border-2 border-accent/30 bg-surface">
+                  <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" alt="Logo" className="w-full h-full object-contain p-2" />
                 </div>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <p className="text-accent font-black uppercase tracking-[0.3em] text-sm">{authProcessingStep}</p>
-                <div className="flex gap-1">
-                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-1 bg-accent rounded-full" />
-                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 h-1 bg-accent rounded-full" />
-                  <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 h-1 bg-accent rounded-full" />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <Card className="max-w-md w-full bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative z-10">
-            <CardHeader className="text-center">
-              <div className="w-32 h-32 mx-auto mb-6 relative overflow-hidden border-2 border-accent/30 bg-surface">
-                <img 
-                  src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
-                  alt="Porshi Logo" 
-                  className="w-full h-full object-contain p-2"
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = 'https://picsum.photos/seed/porshi/200/200';
-                  }}
-                />
-              </div>
-              <CardTitle className="text-4xl font-extrabold tracking-tighter uppercase mb-1 text-accent flex items-center justify-center gap-2">
-                PORSHI 
-                <span className="text-[8px] bg-accent/20 text-accent px-2 py-1 rounded-full animate-pulse border border-accent/30 font-black">v5 SUCCESS-READY</span>
-              </CardTitle>
-              <CardTitle className="text-2xl font-bold tracking-widest mb-4 text-white">পড়শি</CardTitle>
-              <CardDescription className="text-text-dim text-sm">
-                আশেপাশে থাকা মানুষের সাথে কানেক্ট করুন এবং কথা বলুন।
-              </CardDescription>
-            </CardHeader>
-          <CardContent className="space-y-6">
-            {authSuccessMessage && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }}
-                className="p-4 bg-green-500/10 border border-green-500/30 rounded-2xl flex items-center gap-3 text-green-400"
-              >
-                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-xs font-black uppercase tracking-widest leading-none mb-1">সফল (SUCCESS)</div>
-                  <div className="text-[10px] opacity-80 font-bold uppercase">{authSuccessMessage}</div>
-                </div>
-              </motion.div>
-            )}
-            <form onSubmit={handleEmailAuth} className="space-y-4">
-              <div className="flex gap-2 p-1 bg-bg-dark border border-border-custom rounded-xl mb-4">
-                <button 
-                  type="button"
-                  onClick={() => setAuthView('login')}
-                  className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'login' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
-                >
-                  লগইন (LOGIN)
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => setAuthView('register')}
-                  className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'register' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
-                >
-                  রেজিস্ট্রেশন (JOIN)
-                </button>
-              </div>
-
-              {authView === 'register' && (
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">আপনার নাম</Label>
-                  <Input 
-                    placeholder="উদা: মাসুম বিল্লাহ" 
-                    value={authName}
-                    onChange={(e) => setAuthName(e.target.value)}
-                    className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">ফোন নাম্বার</Label>
-                <Input 
-                  placeholder="উদা: 017XXXXXXXX" 
-                  type="tel"
-                  value={authPhone}
-                  onChange={(e) => setAuthPhone(e.target.value)}
-                  className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-text-dim ml-1">পাসওয়ার্ড</Label>
-                <Input 
-                  placeholder="••••••••" 
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  className="bg-bg-dark border-border-custom h-12 focus:border-accent transition-colors"
-                />
-              </div>
-              <Button 
-                type="submit" 
-                className="w-full h-14 bg-accent hover:bg-accent/90 text-bg-dark font-black text-lg rounded-none transition-all shadow-[0_0_20px_rgba(0,209,255,0.2)]"
-                disabled={isAuthLoading}
-              >
-                {isAuthLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  authView === 'login' ? 'লগইন করুন (SIGN IN)' : 'অ্যাকউন্ট তৈরি করুন (JOIN)'
-                )}
-              </Button>
-            </form>
-
-            <div className="text-center pt-2">
-              <p className="text-[10px] text-text-dim uppercase tracking-tighter font-bold">
-                {authView === 'login' ? 'ফোন নম্বর ও পাসওয়ার্ড দিয়ে প্রবেশ করুন' : 'আপনার সঠিক তথ্য দিয়ে নতুন অ্যাকাউন্ট খুলুন'}
-              </p>
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border-custom/30" />
-              </div>
-              <div className="relative flex justify-center text-[10px] items-center">
-                <span className="bg-[#1A1A1C] px-2 text-text-dim uppercase font-bold tracking-widest">বা</span>
-              </div>
-            </div>
-
-            <div className="space-y-3 mt-4">
-              <Button 
-                type="button"
-                className="w-full h-12 bg-surface border border-border-custom hover:border-accent hover:text-accent text-text-dim transition-all rounded-xl font-bold uppercase tracking-widest text-[10px] flex gap-2"
-                onClick={login}
-              >
-                <Globe className="w-4 h-4" />
-                গুগল দিয়ে লগইন (GOOGLE)
-              </Button>
-            </div>
-
-            {/* System Debug Logs */}
-            <div className="mt-8 pt-4 border-t border-border-custom/20">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] uppercase font-black text-text-dim tracking-widest">সিস্টেম স্ট্যাটাস (System Logs)</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></div>
-              </div>
-              <div className="bg-bg-dark/50 rounded-lg p-3 font-mono text-[9px] text-accent/70 space-y-1 min-h-[80px]">
-                {authLogs.length > 0 ? authLogs.map((log, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="opacity-40 animate-pulse">{'>'}</span>
-                    <span>{log}</span>
-                  </div>
-                )) : (
-                  <div className="flex gap-2 opacity-30 italic">
-                    <span className="">{'>'}</span>
-                    <span>সিস্টেম লোড হচ্ছে...</span>
+                <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSHI - SIGN IN</CardTitle>
+                <CardDescription className="text-text-dim text-xs">
+                  পড়শিতে কোনো কিছু করতে হলে দয়া করে লগইন করুন।
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {authSuccessMessage && (
+                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-xs font-bold text-center">
+                    {authSuccessMessage}
                   </div>
                 )}
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="justify-center">
-            <p className="text-[10px] text-text-dim uppercase tracking-widest">Secure Real-time Infrastructure</p>
-          </CardFooter>
-        </Card>
+                
+                <div className="flex gap-2 p-1 bg-bg-dark border border-border-custom rounded-xl mb-4">
+                  <button 
+                    type="button"
+                    onClick={() => setAuthView('login')}
+                    className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'login' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
+                  >
+                    লগইন
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setAuthView('register')}
+                    className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'register' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
+                  >
+                    রেজিস্ট্রেশন
+                  </button>
+                </div>
+
+                <form onSubmit={handleEmailAuth} className="space-y-3">
+                  {authView === 'register' && (
+                    <Input placeholder="আপনার নাম" value={authName} onChange={e => setAuthName(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                  )}
+                  <Input placeholder="ফোন নাম্বার" value={authPhone} onChange={e => setAuthPhone(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                  <Input placeholder="পাসওয়ার্ড" type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                  <Button type="submit" disabled={isAuthLoading} className="w-full bg-accent text-bg-dark font-black h-12 text-[10px] uppercase tracking-[4px]">
+                    {isAuthLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto text-bg-dark" /> : (authView === 'login' ? 'লগইন (LOGIN)' : 'নিবন্ধন (JOIN)')}
+                  </Button>
+                </form>
+
+                <div className="text-center">
+                  <span className="text-[10px] text-text-dim uppercase font-bold tracking-widest">বা</span>
+                </div>
+                
+                <Button onClick={login} className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px]">
+                  <Globe className="w-4 h-4" /> গুগল দিয়ে লগইন
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  if (!isAuthReady) return (
+    <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center space-y-8">
+      {/* branded splash */}
+      <motion.div 
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-40 h-40 relative overflow-hidden border-4 border-accent shadow-[0_0_50px_rgba(0,209,255,0.3)] bg-surface flex items-center justify-center"
+      >
+        <img 
+          src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
+          alt="PORSHI" 
+          className="w-full h-full object-contain p-4"
+          referrerPolicy="no-referrer"
+        />
+      </motion.div>
+      <div className="text-center space-y-2">
+        <h1 className="text-5xl font-black text-white tracking-tighter uppercase">PORSHI</h1>
+        <div className="flex items-center justify-center gap-2">
+           <div className="w-2 h-2 rounded-full bg-accent animate-ping"></div>
+           <span className="text-accent text-[10px] font-black uppercase tracking-[0.5em]">System Starting...</span>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-bg-dark text-text-main' : 'bg-gray-50 text-gray-900'} font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
@@ -2306,24 +3370,41 @@ export default function App() {
         </div>
         
           <nav className="flex-1 space-y-2">
-            {[
-              { id: 'home', icon: Home, label: 'হোম' },
-              { id: 'scan', icon: Search, label: 'ডিসকভারি' },
-              { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
-              { id: 'monetization', icon: LayoutDashboard, label: 'মনিটাইজেশন' },
-              { id: 'notifications', icon: Bell, label: 'নটিফিকেশন' },
-              { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
-              ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, label: 'অ্যাডমিন' }] : []),
-            ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-accent text-bg-dark font-bold' : 'text-text-dim hover:bg-surface hover:text-white'}`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="text-sm uppercase tracking-tighter">{item.label}</span>
-            </button>
-          ))}
+        {[
+          { id: 'home', icon: Home, label: 'হোম' },
+          { id: 'scan', icon: Store, label: 'মার্কেটপ্লেস' },
+          { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
+          { id: 'groups', icon: Users, label: 'গ্রুপ' },
+          { id: 'pages', icon: LayoutDashboard, label: 'পেজ' },
+          { id: 'events', icon: Calendar, label: 'ইভেন্ট' },
+          { id: 'monetization', icon: DollarSign, label: 'মনিটাইজেশন' },
+          { id: 'ads', icon: Megaphone, label: 'বিজ্ঞাপন' },
+          { id: 'notifications', icon: Bell, label: 'নটিফিকেশন', badge: unreadNotificationsCount },
+          { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
+          ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, label: 'অ্যাডমিন' }] : []),
+        ].map(item => (
+        <button
+          key={item.id}
+          onClick={() => {
+            if (['chat', 'monetization', 'ads', 'notifications', 'profile', 'admin'].includes(item.id)) {
+              withAuth(() => setActiveTab(item.id as any));
+            } else {
+              setActiveTab(item.id as any);
+            }
+          }}
+          className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-accent text-bg-dark font-bold' : 'text-text-dim hover:bg-surface hover:text-white'}`}
+        >
+          <div className="flex items-center gap-4">
+            <item.icon className="w-5 h-5" />
+            <span className="text-sm uppercase tracking-tighter">{item.label}</span>
+          </div>
+          {item.badge && item.badge > 0 && (
+            <span className="bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+              {item.badge}
+            </span>
+          )}
+        </button>
+      ))}
         </nav>
 
         <div className="mt-auto pt-6 border-t border-border-custom">
@@ -2334,66 +3415,96 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <header className={`lg:hidden w-full p-4 flex justify-between items-center border-b ${theme === 'dark' ? 'border-border-custom bg-bg-dark/80' : 'border-gray-200 bg-white/80'} backdrop-blur-md sticky top-0 z-40`}>
-        <div className="flex flex-col">
-          <div className="text-xl font-black tracking-widest text-accent">{currentApp === 'porshi' ? 'PORSHI' : 'PORSH'}</div>
-          <button 
-            onClick={() => setCurrentApp(currentApp === 'porshi' ? 'porsh' : 'porshi')}
-            className="text-[8px] font-bold uppercase text-accent/60 flex items-center gap-1"
-          >
-            Switch to {currentApp === 'porshi' ? 'Porsh' : 'Porshi'}
-            <Minimize2 className="w-2 h-2" />
-          </button>
-        </div>
+      {/* Mobile Header (Facebook Style) */}
+      <header className={`lg:hidden w-full px-4 pt-3 pb-2 flex justify-between items-center ${theme === 'dark' ? 'bg-[#242526] text-white border-b border-[#3E4042]' : 'bg-white text-[#1877F2] border-b border-[#E4E6EB]'} sticky top-0 z-50`}>
         <div className="flex items-center gap-2">
+          <button onClick={() => setIsMobileDrawerOpen(true)} className="p-1">
+            <Menu className={`w-6 h-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
+          </button>
+          <h1 className={`text-xl font-black tracking-widest uppercase flex items-center ${theme === 'dark' ? 'text-accent' : 'text-[#1877F2]'}`}>
+            {currentApp === 'porshi' ? 'PORSHI' : 'PORSH'}
+          </h1>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-2">
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 rounded-full hover:bg-accent/10 transition-colors"
+            className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
           >
-            {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-500" />}
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-600" />}
           </button>
-          <Button variant="ghost" size="icon" className="text-text-dim"><Search className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="icon" className="text-text-dim"><Bell className="w-5 h-5" /></Button>
           <button 
-            onClick={logout}
-            className="p-2 rounded-full hover:bg-red-400/10 text-red-500 transition-colors ml-2"
+            onClick={() => setIsMobileCreateMenuOpen(true)}
+            className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
           >
-            <LogOut className="w-5 h-5" />
+            <Plus className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+          </button>
+          <button 
+            onClick={() => setIsMobileSearchOpen(true)}
+            className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
+          >
+            <Search className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+          </button>
+          <button onClick={() => withAuth(() => setCurrentApp('porsh'))} className={`p-2 rounded-full relative ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+            <MessageCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+            <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">9+</span>
           </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 w-full max-w-2xl lg:ml-64 flex flex-col min-h-screen">
-        {renderContent()}
-      </main>
-
-      {/* Mobile Bottom Bar */}
-      <nav className={`lg:hidden fixed bottom-0 left-0 w-full ${theme === 'dark' ? 'bg-surface/80 border-border-custom' : 'bg-white/80 border-gray-200'} backdrop-blur-2xl border-t flex justify-around items-center p-3 z-50`}>
+      {/* Facebook Style Mobile Tabs */}
+      <nav className={`lg:hidden w-full flex justify-around items-center border-b ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'} overflow-x-auto no-scrollbar`}>
         {[
-          { id: 'home', icon: Home, app: 'porshi' },
-          { id: 'scan', icon: Search, app: 'porshi' },
-          { id: 'messenger', icon: MessageSquare, app: 'porsh' },
-          { id: 'monetization', icon: LayoutDashboard, app: 'porshi' },
-          ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, app: 'porshi' }] : [{ id: 'profile', icon: UserIcon, app: 'porshi' }]),
+          { id: 'home', icon: Home },
+          { id: 'scan', icon: Store },
+          { id: 'video', icon: PlayCircle }, // Rename id to video for clarity
+          { id: 'notifications', icon: Bell, badge: unreadNotificationsCount },
+          { id: 'profile', icon: UserCircle },
         ].map(item => (
           <button
             key={item.id}
             onClick={() => {
-              if (item.app === 'porsh') {
-                setCurrentApp('porsh');
+              setCurrentApp('porshi');
+              if (['notifications', 'profile'].includes(item.id)) {
+                withAuth(() => setActiveTab(item.id));
               } else {
-                setCurrentApp('porshi');
                 setActiveTab(item.id);
               }
             }}
-            className={`p-2 rounded-xl transition-all ${(activeTab === item.id && currentApp === item.app) || (item.app === 'porsh' && currentApp === 'porsh') ? 'text-accent scale-110' : 'text-text-dim'}`}
+            className={`flex-1 py-3 flex flex-col items-center justify-center relative ${activeTab === item.id && currentApp === 'porshi' ? 'text-[#1877F2]' : 'text-gray-500'}`}
           >
-            <item.icon className="w-6 h-6" />
+            <item.icon className={`w-6 h-6 ${activeTab === item.id && currentApp === 'porshi' ? 'fill-current' : ''}`} />
+            {activeTab === item.id && currentApp === 'porshi' && (
+              <div className="absolute bottom-0 left-0 w-full h-[3px] bg-[#1877F2]" />
+            )}
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className="absolute top-2 right-1/4 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center shadow-sm">
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
+        <button 
+          onClick={() => {
+             setCurrentApp('porshi');
+             withAuth(() => setActiveTab('profile'));
+          }}
+          className="flex-1 py-3 flex items-center justify-center text-gray-500"
+        >
+           <div className={`w-7 h-7 rounded-full overflow-hidden border ${activeTab === 'profile' ? 'border-[#1877F2] p-[1px]' : 'border-gray-300'}`}>
+              {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover rounded-full" /> : <UserIcon className="w-full h-full p-1" />}
+           </div>
+        </button>
       </nav>
+
+      {/* Main Content */}
+      <main className="flex-1 w-full max-w-2xl lg:ml-64 flex flex-col min-h-screen overflow-x-hidden">
+        {renderContent()}
+      </main>
+
+      {/* Mobile Bottom Bar (Hidden as we used top tabs now) */}
+      {/* <nav className={`lg:hidden fixed bottom-0 left-0 w-full ${theme === 'dark' ? 'bg-surface/80 border-border-custom' : 'bg-white/80 border-gray-200'} backdrop-blur-2xl border-t flex justify-around items-center p-3 z-50`}>
+        ...
+      </nav> */}
 
       {/* Story Modal */}
       <AnimatePresence>
@@ -2422,6 +3533,162 @@ export default function App() {
                 </div>
                 <button onClick={() => setActiveStory(null)} className="text-white p-2 hover:bg-white/10 rounded-full"><X className="w-6 h-6" /></button>
               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Drawer (Facebook Style Menu) */}
+      <AnimatePresence>
+        {isMobileDrawerOpen && (
+          <motion.div 
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed inset-0 z-[100] flex flex-col w-full h-full ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}
+          >
+            <div className={`p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
+              <h2 className="text-xl font-bold">Menu</h2>
+              <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/10 transition-colors">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pt-4 custom-scrollbar">
+               {/* Profile Shortcut */}
+               <motion.div 
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { withAuth(() => setActiveTab('profile')); setIsMobileDrawerOpen(false); }}
+                 className={`p-3 rounded-xl flex items-center gap-3 shadow-sm ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}
+               >
+                  <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
+                    {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                  </div>
+                  <div>
+                    <div className="font-bold">{user?.displayName || 'Guest User'}</div>
+                    <div className="text-xs text-text-dim uppercase tracking-widest font-bold">See your profile</div>
+                  </div>
+               </motion.div>
+
+               <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Marketplace', icon: Store, tab: 'scan', color: 'text-orange-500' },
+                    { label: 'Video', icon: PlayCircle, tab: 'video', color: 'text-[#1877F2]' },
+                    { label: 'Monetization', icon: DollarSign, tab: 'monetization', color: 'text-green-500' },
+                    { label: 'Ads Manager', icon: Megaphone, tab: 'ads', color: 'text-[#1877F2]' },
+                    { label: 'Groups', icon: Users, tab: 'profile', color: 'text-blue-400' },
+                    { label: 'Saved', icon: Bell, tab: 'notifications', color: 'text-purple-500' },
+                    { label: 'Pages', icon: LayoutDashboard, tab: 'profile', color: 'text-orange-600' },
+                    { label: 'Events', icon: Calendar, tab: 'profile', color: 'text-red-500' },
+                  ].map((item, i) => (
+                    <motion.button
+                      key={i}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => { 
+                        if (['monetization', 'ads', 'notifications', 'profile'].includes(item.tab)) {
+                          withAuth(() => setActiveTab(item.tab as any));
+                        } else {
+                          setActiveTab(item.tab as any);
+                        }
+                        setIsMobileDrawerOpen(false); 
+                      }}
+                      className={`p-4 rounded-xl flex flex-col gap-2 items-start text-left shadow-sm ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}
+                    >
+                       <item.icon className={`w-6 h-6 ${item.color}`} />
+                       <span className="text-xs font-bold uppercase tracking-tighter">{item.label}</span>
+                    </motion.button>
+                  ))}
+               </div>
+
+               {user ? (
+                 <Button 
+                  variant="ghost" 
+                  onClick={logout}
+                  className="w-full h-12 rounded-xl flex items-center justify-center gap-2 text-red-500 bg-red-400/10 border border-red-400/20 font-bold uppercase text-[10px]"
+                 >
+                   <LogOut className="w-4 h-4" /> Log out
+                 </Button>
+               ) : (
+                 <Button 
+                   onClick={() => { setShowAuthModal(true); setIsMobileDrawerOpen(false); }}
+                   className="w-full h-12 rounded-xl flex items-center justify-center gap-2 bg-accent text-bg-dark font-black uppercase text-[10px]"
+                 >
+                   <UserIcon className="w-4 h-4" /> Login / Signup
+                 </Button>
+               )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {renderPostCreationModal()}
+
+      {/* Mobile Create Menu Backdrop */}
+      <AnimatePresence>
+        {isMobileCreateMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileCreateMenuOpen(false)}
+            className="fixed inset-0 z-[110] bg-black/60 flex items-end justify-center"
+          >
+            <motion.div 
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full p-4 rounded-t-3xl pb-10 ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}
+            >
+              <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-6" />
+              <h3 className="text-center font-bold text-lg mb-6">Create</h3>
+              <div className="grid grid-cols-1 gap-4">
+                 <button onClick={() => { setIsMobileCreateMenuOpen(false); withAuth(() => { setPostInput(''); setActiveTab('home'); }); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-black/5 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center"><PenLine className="w-6 h-6" /></div>
+                    <div className="text-left font-bold">Post</div>
+                 </button>
+                 <button onClick={() => { setIsMobileCreateMenuOpen(false); withAuth(createStory); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-black/5 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-[#E7F3FF] flex items-center justify-center"><PlayCircle className="w-6 h-6 text-[#1877F2]" /></div>
+                    <div className="text-left font-bold">Story</div>
+                 </button>
+                 <button onClick={() => { setIsMobileCreateMenuOpen(false); withAuth(() => { setActiveTab('video'); }); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-black/5 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-[#FCE8F3] flex items-center justify-center"><VideoIcon className="w-6 h-6 text-[#E91E63]" /></div>
+                    <div className="text-left font-bold">Reel</div>
+                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Search Overlay */}
+      <AnimatePresence>
+        {isMobileSearchOpen && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className={`fixed inset-0 z-[120] p-4 flex flex-col ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <button onClick={() => setIsMobileSearchOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <div className={`flex-1 flex items-center gap-3 h-10 px-4 rounded-full ${theme === 'dark' ? 'bg-[#242526]' : 'bg-gray-200'}`}>
+                <Search className="w-4 h-4 text-gray-400" />
+                <input autoFocus placeholder="Search..." className="bg-transparent border-none outline-none text-sm w-full" />
+              </div>
+            </div>
+            
+            <div className="flex-1 space-y-4">
+               <div className="flex justify-between items-center px-2">
+                  <h3 className="font-bold text-sm">Recent</h3>
+                  <button className="text-[#1877F2] text-sm">See all</button>
+               </div>
+               <div className="text-center py-20 opacity-30 uppercase text-[10px] font-bold tracking-widest">
+                  No recent searches
+               </div>
             </div>
           </motion.div>
         )}
@@ -2595,6 +3862,8 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {renderAdPaymentModal()}
 
       {/* Error Message */}
       <AnimatePresence>

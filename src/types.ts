@@ -5,11 +5,13 @@ export interface AppUser {
   displayName: string;
   phoneNumber?: string;
   photoURL: string;
+  bio?: string;
   isOnline: boolean;
   lastSeen: any;
   followersCount?: number;
   followingCount?: number;
   role?: 'admin' | 'user';
+  isMonetized?: boolean;
 }
 
 export interface Follow {
@@ -39,6 +41,9 @@ export interface Post {
   };
   timestamp: any;
   isLiked?: boolean;
+  isMonetized?: boolean;
+  privacy?: 'public' | 'followers' | 'private';
+  isEdited?: boolean;
 }
 
 export interface Story {
@@ -90,6 +95,44 @@ export interface AppConfig {
   themeColor: string;
   cloudinaryCloudName?: string;
   cloudinaryUploadPreset?: string;
+  adPaidMode: boolean;
+  adPaymentNumber: string;
+}
+
+export interface Advertisement {
+  id: string;
+  advertiserUid: string;
+  advertiserName: string;
+  title: string;
+  description: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  objective: 'views' | 'likes' | 'comments' | 'followers' | 'sales' | 'website_views';
+  location: string;
+  audience: string;
+  websiteUrl?: string;
+  durationDays: number;
+  budget: number;
+  status: 'pending' | 'active' | 'completed' | 'paused';
+  paymentStatus: 'unpaid' | 'paid';
+  timestamp: any;
+  expiresAt: any;
+  reach: number;
+  clicks: number;
+}
+
+export interface AppNotification {
+  id: string;
+  toUid: string | 'all';
+  fromUid?: string;
+  fromName?: string;
+  fromPhoto?: string;
+  type: 'like' | 'comment' | 'follow' | 'system' | 'link' | 'event' | 'message' | 'pair_request';
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  timestamp: any;
 }
 
 declare global {

@@ -11,7 +11,9 @@
         "isOnline": { "type": "boolean" },
         "lastSeen": { "type": "string", "format": "date-time" },
         "followersCount": { "type": "number" },
-        "followingCount": { "type": "number" }
+        "followingCount": { "type": "number" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "isMonetized": { "type": "boolean" }
       },
       "required": ["uid", "displayName", "isOnline"]
     },
@@ -86,7 +88,8 @@
             "angry": { "type": "number" }
           }
         },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "timestamp": { "type": "string", "format": "date-time" },
+        "isMonetized": { "type": "boolean" }
       },
       "required": ["authorUid", "authorName", "content", "timestamp"]
     },
@@ -152,8 +155,36 @@
         "minVersion": { "type": "string" },
         "contactEmail": { "type": "string" },
         "announcement": { "type": "string" },
-        "themeColor": { "type": "string" }
+        "themeColor": { "type": "string" },
+        "adPaidMode": { "type": "boolean" },
+        "adPaymentNumber": { "type": "string" }
       }
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "Ad campaign details",
+      "type": "object",
+      "properties": {
+        "advertiserUid": { "type": "string" },
+        "advertiserName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "objective": { "type": "string", "enum": ["views", "likes", "comments", "followers", "sales", "website_views"] },
+        "location": { "type": "string" },
+        "audience": { "type": "string" },
+        "websiteUrl": { "type": "string" },
+        "durationDays": { "type": "number" },
+        "budget": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "active", "completed", "paused"] },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "paid"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "reach": { "type": "number" },
+        "clicks": { "type": "number" }
+      },
+      "required": ["advertiserUid", "title", "status", "paymentStatus"]
     }
   },
   "firestore": {
@@ -204,6 +235,10 @@
     "/appConfig/{configId}": {
       "schema": "AppConfig",
       "description": "Dynamic app remote configuration"
+    },
+    "/ads/{adId}": {
+      "schema": "Advertisement",
+      "description": "Advertisement campaigns"
     }
   }
 }
