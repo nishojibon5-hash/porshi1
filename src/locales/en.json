@@ -1,0 +1,21 @@
+{
+  "app_name": "Porshi",
+  "tagline": "Earn Money, Discovery & Social Ecosystem",
+  "welcome": "Welcome to Porshi",
+  "description": "The modern social platform where you can share photos and videos to earn (Monetize). Real-time friend discovery, ad creation, and modern NFC features.",
+  "get_started": "Get Started",
+  "login": "Login",
+  "logout": "Logout",
+  "find_friends": "Find Friends",
+  "monetize": "Monetize Content",
+  "share_post": "What's on your mind?",
+  "language": "Language",
+  "search": "Search...",
+  "notifications": "Notifications",
+  "settings": "Settings",
+  "home": "Home",
+  "chat": "Chat",
+  "discovery": "Discovery",
+  "nfc_sync": "NFC Sync",
+  "create_ad": "Create Ad"
+}

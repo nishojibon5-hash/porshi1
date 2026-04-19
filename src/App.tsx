@@ -69,6 +69,8 @@ import {
   ThumbsUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -135,6 +137,7 @@ interface ActiveChat {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [user, setUser] = useState<AppUser | null>(null);
   const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -3367,21 +3370,18 @@ export default function App() {
           >
             {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-500" />}
           </button>
+          <LanguageSwitcher />
         </div>
         
           <nav className="flex-1 space-y-2">
         {[
-          { id: 'home', icon: Home, label: 'হোম' },
-          { id: 'scan', icon: Store, label: 'মার্কেটপ্লেস' },
-          { id: 'chat', icon: MessageCircle, label: 'মেসেজ' },
-          { id: 'groups', icon: Users, label: 'গ্রুপ' },
-          { id: 'pages', icon: LayoutDashboard, label: 'পেজ' },
-          { id: 'events', icon: Calendar, label: 'ইভেন্ট' },
-          { id: 'monetization', icon: DollarSign, label: 'মনিটাইজেশন' },
-          { id: 'ads', icon: Megaphone, label: 'বিজ্ঞাপন' },
-          { id: 'notifications', icon: Bell, label: 'নটিফিকেশন', badge: unreadNotificationsCount },
-          { id: 'profile', icon: UserIcon, label: 'প্রোফাইল' },
-          ...(user?.role === 'admin' ? [{ id: 'admin', icon: Activity, label: 'অ্যাডমিন' }] : []),
+          { id: 'home', icon: Home, label: t('home') },
+          { id: 'scan', icon: Store, label: t('discovery') },
+          { id: 'chat', icon: MessageCircle, label: t('chat') },
+          { id: 'monetization', icon: DollarSign, label: t('monetize') },
+          { id: 'ads', icon: Megaphone, label: t('create_ad') },
+          { id: 'notifications', icon: Bell, label: t('notifications'), badge: unreadNotificationsCount },
+          { id: 'profile', icon: UserIcon, label: t('settings') },
         ].map(item => (
         <button
           key={item.id}
@@ -3410,7 +3410,7 @@ export default function App() {
         <div className="mt-auto pt-6 border-t border-border-custom">
           <button onClick={logout} className="w-full flex items-center gap-4 p-3 text-red-500 hover:bg-red-400/10 rounded-xl transition-all border border-red-500/20">
             <LogOut className="w-5 h-5" />
-            <span className="text-sm uppercase font-black">লগআউট (LOGOUT)</span>
+            <span className="text-sm uppercase font-black">{t('logout')}</span>
           </button>
         </div>
       </aside>
@@ -3426,6 +3426,7 @@ export default function App() {
           </h1>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
+          <LanguageSwitcher />
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
