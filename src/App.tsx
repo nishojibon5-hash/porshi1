@@ -3189,30 +3189,25 @@ export default function App() {
 
   // Auth Actions
   const login = async () => {
-    // Attempt standard GIS login to avoid Firebase Bridge redirection feeling
+    // Completely bypass Firebase's bridge domain by using direct GSI authentication
     if (typeof window.google !== 'undefined' && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
-      window.google.accounts.id.createButton(
-        document.getElementById("google-login-btn")!,
-        { theme: "outline", size: "large", width: "100%" }
-      );
-      // For immediate action, we still use the standard popup but with improved domain hint
       setIsAuthLoading(true);
       try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ 
-          prompt: 'select_account',
-          login_hint: user?.email || ''
+        // This triggers the native GSI account chooser popup directly on porshi.vercel.app 
+        // without bouncing to gen-lang-client...firebaseapp.com
+        window.google.accounts.id.prompt((notification: any) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // If One Tap prompt is hidden/skipped, we fallback to a more explicit GSI trigger
+            // (The button rendered below handles this)
+            setIsAuthLoading(false);
+          }
         });
-        await signInWithPopup(auth, provider);
-        setShowAuthModal(false);
       } catch (error: any) {
-        console.error('Login error:', error);
-        setErrorMessage(error.message);
-      } finally {
+        console.error('GIS Prompt Error:', error);
         setIsAuthLoading(false);
       }
     } else {
-      // Fallback
+      // Emergency fallback for other environments
       setIsAuthLoading(true);
       try {
         await signInWithPopup(auth, googleProvider);
