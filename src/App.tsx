@@ -3054,8 +3054,11 @@ export default function App() {
                         <div className="pt-4 border-t border-gray-100 dark:border-[#3E4042] space-y-3">
                            <div className="flex items-center gap-3 text-sm text-text-dim"><Globe className="w-5 h-5" /> Profile · Public</div>
                            {user?.role === 'admin' && (
-                             <button onClick={() => setActiveTab('admin')} className="w-full p-2.5 rounded-lg bg-accent/10 text-accent font-bold text-xs flex items-center justify-center gap-2">
-                               <Activity className="w-4 h-4" /> Admin Panel
+                             <button 
+                               onClick={() => setActiveTab('admin')} 
+                               className="w-full p-4 rounded-xl bg-accent text-bg-dark font-black text-sm flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:scale-[1.02] transition-all uppercase tracking-widest"
+                             >
+                               <LayoutDashboard className="w-5 h-5" /> Admin Dashboard
                              </button>
                            )}
                            <button onClick={logout} className="w-full p-2.5 rounded-lg bg-red-400/5 text-red-500 font-bold text-xs flex items-center justify-center gap-2 border border-red-500/10 hover:bg-red-500/10 transition-colors">
@@ -3222,7 +3225,7 @@ export default function App() {
               const userData = { ...docSnap.data(), uid: docSnap.id } as any;
               
               // Bootstrap admin if email matches
-              if (currentUser.email === "salman1000790@gmail.com" && userData.role !== 'admin') {
+              if (currentUser.email?.toLowerCase() === "salman1000790@gmail.com" && userData.role !== 'admin') {
                 await updateDoc(doc(db, 'users', currentUser.uid), { role: 'admin' });
                 userData.role = 'admin';
               }
@@ -3242,7 +3245,7 @@ export default function App() {
                 photoURL: currentUser.photoURL || '',
                 isOnline: true,
                 lastSeen: serverTimestamp(),
-                role: currentUser.email === "salman1000790@gmail.com" ? 'admin' : 'user'
+                role: currentUser.email?.toLowerCase() === "salman1000790@gmail.com" ? 'admin' : 'user'
               };
               
               await setDoc(doc(db, 'users', currentUser.uid), newUser);
