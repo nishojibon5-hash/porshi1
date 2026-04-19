@@ -3673,7 +3673,7 @@ export default function App() {
             <div className={`p-4 border-b flex justify-between items-center ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
               <h2 className="text-xl font-bold">Menu</h2>
               <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/10 transition-colors">
-                <ArrowLeft className="w-6 h-6" />
+                <X className="w-6 h-6" />
               </button>
             </div>
             
@@ -3681,8 +3681,15 @@ export default function App() {
                {/* Profile Shortcut */}
                <motion.div 
                  whileTap={{ scale: 0.98 }}
-                 onClick={() => { withAuth(() => setActiveTab('profile')); setIsMobileDrawerOpen(false); }}
-                 className={`p-3 rounded-xl flex items-center gap-3 shadow-sm ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}
+                 onClick={() => { 
+                   if (!user) {
+                     setShowAuthModal(true);
+                   } else {
+                     setActiveTab('profile'); 
+                   }
+                   setIsMobileDrawerOpen(false); 
+                 }}
+                 className={`p-3 rounded-xl flex items-center gap-3 shadow-sm cursor-pointer ${theme === 'dark' ? 'bg-[#242526]' : 'bg-white'}`}
                >
                   <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
                     {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
@@ -3708,7 +3715,7 @@ export default function App() {
                       key={i}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => { 
-                        if (['monetization', 'ads', 'notifications', 'profile'].includes(item.tab)) {
+                        if (['monetization', 'ads', 'notifications', 'profile', 'groups', 'pages', 'events', 'scan'].includes(item.tab)) {
                           withAuth(() => setActiveTab(item.tab as any));
                         } else {
                           setActiveTab(item.tab as any);
@@ -4028,6 +4035,7 @@ export default function App() {
       </AnimatePresence>
 
       {renderAdPaymentModal()}
+      {renderAuthModal()}
 
       {/* Error Message */}
       <AnimatePresence>
