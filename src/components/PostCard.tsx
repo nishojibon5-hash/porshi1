@@ -7,12 +7,52 @@ import {
   MessageCircle, 
   Share2, 
   X,
-  Globe
+  Globe,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Post, Advertisement } from '../types';
 import { db } from '../firebase';
 import { doc, updateDoc, increment } from 'firebase/firestore';
+import { useInView } from 'react-intersection-observer';
+import { VideoPlayer } from './VideoPlayer';
+
+const ImageWithTracking: React.FC<{ post: Post, theme: string, currentUserId?: string, onLike: (id: string) => void }> = ({ post, theme, currentUserId, onLike }) => {
+  const { ref, inView } = useInView({ threshold: 0.5, triggerOnce: true });
+  const reachTracked = React.useRef(false);
+
+  React.useEffect(() => {
+    if (inView && !reachTracked.current) {
+      reachTracked.current = true;
+      updateDoc(doc(db, 'posts', post.id), {
+        reachCount: increment(1),
+        viewsCount: increment(1)
+      }).catch(console.error);
+    }
+  }, [inView, post.id]);
+
+  return (
+    <div 
+      ref={ref}
+      onClick={() => !currentUserId && onLike(post.id)}
+      className="relative w-full bg-gray-100 dark:bg-black flex items-center justify-center border-t border-b border-gray-100 dark:border-[#3E4042] cursor-pointer group"
+    >
+      <img 
+        src={post.imageUrl} 
+        alt="" 
+        className="w-full object-cover max-h-[500px]" 
+        referrerPolicy="no-referrer"
+        loading="lazy"
+      />
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-[10px] font-black text-white uppercase tracking-widest">
+            <Eye className="w-3 h-3 text-accent" />
+            {post.viewsCount || 0}
+         </div>
+      </div>
+    </div>
+  );
+};
 
 interface PostCardProps {
   post: Post;
@@ -206,33 +246,9 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Post Media */}
       {post.mediaType === 'video' && post.videoUrl ? (
-        <div className="w-full bg-black flex items-center justify-center">
-          <video 
-            onClick={(e) => {
-              if (!currentUserId) {
-                e.preventDefault();
-                onLike(post.id); // Triggers withAuth through onLike
-              }
-            }}
-            src={post.videoUrl} 
-            controls 
-            className="w-full max-h-[500px] outline-none"
-            playsInline
-          />
-        </div>
+        <VideoPlayer post={post} ads={ads} currentUserId={currentUserId} theme={theme} />
       ) : post.imageUrl && (
-        <div 
-          onClick={() => !currentUserId && onLike(post.id)}
-          className="w-full bg-gray-100 dark:bg-black flex items-center justify-center border-t border-b border-gray-100 dark:border-[#3E4042] cursor-pointer"
-        >
-          <img 
-            src={post.imageUrl} 
-            alt="" 
-            className="w-full object-cover max-h-[500px]" 
-            referrerPolicy="no-referrer"
-            loading="lazy"
-          />
-        </div>
+        <ImageWithTracking post={post} theme={theme} currentUserId={currentUserId} onLike={onLike} />
       )}
 
       {/* Ad Section */}

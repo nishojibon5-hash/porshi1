@@ -53,6 +53,9 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  Eye,
+  Zap,
+  Play,
   Star,
   Moon,
   Sun,
@@ -185,7 +188,9 @@ export default function App() {
     audience: '',
     websiteUrl: '',
     durationDays: 5,
-    budget: 100
+    budget: 100,
+    adType: 'banner',
+    videoAdUrl: ''
   });
   const [isCreatingAd, setIsCreatingAd] = useState(false);
   const [showAdPaymentModal, setShowAdPaymentModal] = useState(false);
@@ -997,6 +1002,34 @@ export default function App() {
     }
   };
 
+  const selectVideoAd = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setIsUploadingPhoto(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', appConfig?.cloudinaryUploadPreset || 'porshi_preset');
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${appConfig?.cloudinaryCloudName || 'dxpux998n'}/video/upload`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        setAdForm(prev => ({ ...prev, videoAdUrl: data.secure_url, adType: 'video_skippable' }));
+        setErrorMessage('ভিডিও এড আপলোড হয়েছে!');
+      } catch (err) {
+        setErrorMessage('ভিডিও আপলোড ব্যর্থ হয়েছে।');
+      } finally {
+        setIsUploadingPhoto(false);
+      }
+    };
+    input.click();
+  };
+
   const handleToggleMaintenance = async () => {
     try {
       const currentVal = appConfig?.maintenanceMode || false;
@@ -1389,6 +1422,8 @@ export default function App() {
         audience: adForm.audience || 'All Audience',
         durationDays: adForm.durationDays,
         budget: adForm.budget,
+        adType: adForm.adType as any,
+        videoAdUrl: adForm.videoAdUrl,
         status: 'pending',
         paymentStatus: appConfig?.adPaidMode ? 'unpaid' : 'paid',
         timestamp: serverTimestamp(),
@@ -1539,6 +1574,17 @@ export default function App() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">বিজ্ঞাপনের ধরণ (Ad Type)</Label>
+                      <select 
+                        value={adForm.adType}
+                        onChange={(e) => setAdForm({...adForm, adType: e.target.value as any})}
+                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-3 text-xs outline-none focus:border-accent"
+                      >
+                        <option value="banner">ব্যানার অ্যাড (Standard)</option>
+                        <option value="video_skippable">ভিডিও অ্যাড (Skippable)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
                       <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লক্ষ্য (Objective)</Label>
                       <select 
                         value={adForm.objective}
@@ -1552,8 +1598,35 @@ export default function App() {
                         <option value="sales">সেলস / অর্ডার</option>
                       </select>
                     </div>
+                  </div>
+
+                  {adForm.adType === 'video_skippable' && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2">
+                       <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">ভিডিও বিজ্ঞাপন ফাইল</Label>
+                       <div 
+                         onClick={selectVideoAd}
+                         className={`w-full h-24 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${adForm.videoAdUrl ? 'border-accent bg-accent/5' : 'border-border-custom hover:border-accent/40'}`}
+                       >
+                          {isUploadingPhoto ? (
+                             <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                          ) : adForm.videoAdUrl ? (
+                             <>
+                               <div className="text-accent text-[10px] font-black uppercase">Video Uploaded!</div>
+                               <div className="text-[8px] text-text-dim mt-1 truncate max-w-[200px]">{adForm.videoAdUrl}</div>
+                             </>
+                          ) : (
+                             <>
+                               <VideoIcon className="w-6 h-6 text-text-dim mb-1" />
+                               <span className="text-[8px] uppercase font-bold text-text-dim">ভিডিও আপলোড করুন</span>
+                             </>
+                          )}
+                       </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লোকেশন</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লোকেশন (Location)</Label>
                       <Input 
                         placeholder="e.g. Dhaka, Bangladesh" 
                         value={adForm.location}
@@ -1561,16 +1634,15 @@ export default function App() {
                         className="bg-bg-dark/50 border-border-custom text-xs h-12"
                       />
                     </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">অডিয়েন্স ও ইন্টারেস্ট</Label>
-                    <Input 
-                      placeholder="e.g. Students, Tech Enthusiasts" 
-                      value={adForm.audience}
-                      onChange={(e) => setAdForm({...adForm, audience: e.target.value})}
-                      className="bg-bg-dark/50 border-border-custom text-xs h-12"
-                    />
+                    <div className="space-y-1">
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">অডিয়েন্স (Audience)</Label>
+                      <Input 
+                        placeholder="e.g. Students, Tech Lovers" 
+                        value={adForm.audience}
+                        onChange={(e) => setAdForm({...adForm, audience: e.target.value})}
+                        className="bg-bg-dark/50 border-border-custom text-xs h-12"
+                      />
+                    </div>
                   </div>
 
                   {adForm.objective === 'website_views' && (
@@ -2115,258 +2187,310 @@ export default function App() {
                 </div>
               </div>
 
-              {/* System Overview Dashboard */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in slide-in-from-top duration-700">
-                <div className="geometric-card p-6 bg-accent/5 border-accent/20 flex flex-col justify-between h-32">
-                  <Users className="w-5 h-5 text-accent" />
-                  <div>
-                    <div className="text-2xl font-black">{allUsers.length}</div>
-                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট ইউজার</div>
-                  </div>
-                </div>
-                <div className="geometric-card p-6 bg-green-500/5 border-green-500/20 flex flex-col justify-between h-32">
-                  <Activity className="w-5 h-5 text-green-500" />
-                  <div>
-                    <div className="text-2xl font-black">{onlineUsers.length}</div>
-                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">অনলাইন ইউজার</div>
-                  </div>
-                </div>
-                <div className="geometric-card p-6 bg-yellow-500/5 border-yellow-500/20 flex flex-col justify-between h-32">
-                  <Megaphone className="w-5 h-5 text-yellow-500" />
-                  <div>
-                    <div className="text-2xl font-black">{allAds.filter(a => a.status === 'pending').length}</div>
-                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">পেন্ডিং বিজ্ঞাপন</div>
-                  </div>
-                </div>
-                <div className="geometric-card p-6 bg-purple-500/5 border-purple-500/20 flex flex-col justify-between h-32">
-                  <LayoutDashboard className="w-5 h-5 text-purple-500" />
-                  <div>
-                    <div className="text-2xl font-black">{appConfig?.maintenanceMode ? 'ON' : 'OFF'}</div>
-                    <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মেইনটেন্যান্স মোড</div>
-                  </div>
-                </div>
-              </div>
+              {/* Admin Management Tabs */}
+              <Tabs defaultValue="overview" className="space-y-8">
+                <TabsList className="bg-bg-dark border border-border-custom w-full max-w-2xl mx-auto h-14 p-1">
+                  <TabsTrigger value="overview" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">সারসংক্ষেপ (Overview)</TabsTrigger>
+                  <TabsTrigger value="ads" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">অ্যাড ম্যানেজার (Ads)</TabsTrigger>
+                  <TabsTrigger value="monetization" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">মনিটাইজেশন (Insights)</TabsTrigger>
+                </TabsList>
 
-              {/* Ads Management & Settings */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <Megaphone className="w-4 h-4" /> গেটওয়ে ও পেমেন্ট সেটিংস
-                  </h2>
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
-                      <div>
-                        <div className="text-sm font-bold uppercase">Paid Ad Mode</div>
-                        <div className="text-[8px] text-text-dim uppercase">বিজ্ঞাপন লাইভ করতে পেমেন্ট বাধ্যতামূলক করা</div>
-                      </div>
-                      <button 
-                        id="paid-mode-toggle"
-                        onClick={handleTogglePaidMode}
-                        className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.adPaidMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
-                      >
-                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.adPaidMode ? 'right-1' : 'left-1'}`} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">Payment Bkash/Nagad Number</label>
-                      <Input 
-                        id="payment-number-input"
-                        defaultValue={appConfig?.adPaymentNumber} 
-                        onBlur={(e) => handleUpdateAdNumber(e.target.value)}
-                        className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <Target className="w-4 h-4" /> বিজ্ঞাপন ম্যানেজমেন্ট
-                  </h2>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
-                      <div className="text-[8px] text-text-dim uppercase font-bold">সচল বিজ্ঞাপন</div>
-                      <div className="text-xl font-black text-green-500">{allAds.filter(a => a.status === 'active').length}</div>
-                    </div>
-                    <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
-                      <div className="text-[8px] text-text-dim uppercase font-bold">মোট বাজেট</div>
-                      <div className="text-xl font-black text-accent">৳{allAds.reduce((acc, a) => acc + (a.budget || 0), 0)}</div>
-                    </div>
-                  </div>
-                  <Tabs defaultValue="pending" className="w-full">
-                    <TabsList className="bg-bg-dark border border-border-custom w-full">
-                      <TabsTrigger value="pending" className="flex-1 uppercase text-[8px] font-black tracking-widest">পেন্ডিং</TabsTrigger>
-                      <TabsTrigger value="active" className="flex-1 uppercase text-[8px] font-black tracking-widest">সচল</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="pending" className="mt-4 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                      {allAds.filter(ad => ad.status === 'pending').map(ad => (
-                        <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom space-y-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="text-xs font-bold uppercase text-white">{ad.title}</div>
-                              <div className="text-[8px] text-text-dim uppercase">Advertiser: {ad.advertiserName}</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-black text-accent">৳{ad.budget}</div>
-                              <div className="text-[8px] text-text-dim uppercase">{ad.durationDays} Days</div>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'active', paymentStatus: 'paid' })}
-                              className="flex-1 bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20 text-[8px] font-black uppercase tracking-widest"
-                            >
-                              Approve
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => deleteDoc(doc(db, 'ads', ad.id))}
-                              className="flex-1 bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20 text-[8px] font-black uppercase tracking-widest"
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      {allAds.filter(ad => ad.status === 'pending').length === 0 && (
-                        <div className="text-center py-10 opacity-20 uppercase tracking-widest text-[8px]">কোনো পেন্ডিং বিজ্ঞাপন নেই</div>
-                      )}
-                    </TabsContent>
-                    <TabsContent value="active" className="mt-4 space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                      {allAds.filter(ad => ad.status === 'active').map(ad => (
-                        <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex justify-between items-center">
+                <TabsContent value="overview" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="geometric-card p-8 space-y-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                        <LayoutDashboard className="w-4 h-4" /> অ্যাপ সেটিংস
+                      </h2>
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
                           <div>
-                            <div className="text-xs font-bold uppercase text-white">{ad.title}</div>
-                            <div className="text-[8px] text-text-dim uppercase">Clicks: {ad.clicks || 0} | Reach: {ad.reach || 0}</div>
+                            <div className="text-sm font-bold uppercase">Maintenance Mode</div>
+                            <div className="text-[8px] text-text-dim uppercase">ইউজারদের জন্য অ্যাপ বন্ধ রাখা</div>
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'paused' })}
-                            className="text-yellow-500 hover:bg-yellow-500/10 text-[8px] font-black uppercase"
+                          <button 
+                            id="maintenance-mode-toggle-admin"
+                            onClick={handleToggleMaintenance}
+                            className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.maintenanceMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
                           >
-                            Pause
-                          </Button>
+                            <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.maintenanceMode ? 'right-1' : 'left-1'}`} />
+                          </button>
                         </div>
-                      ))}
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </div>
 
-              {/* App Configuration Settings */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <LayoutDashboard className="w-4 h-4" /> অ্যাপ সেটিংস
-                  </h2>
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
-                      <div>
-                        <div className="text-sm font-bold uppercase">Maintenance Mode</div>
-                        <div className="text-[8px] text-text-dim uppercase">ইউজারদের জন্য অ্যাপ বন্ধ রাখা</div>
-                      </div>
-                      <button 
-                        id="maintenance-mode-toggle"
-                        onClick={handleToggleMaintenance}
-                        className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.maintenanceMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
-                      >
-                        <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.maintenanceMode ? 'right-1' : 'left-1'}`} />
-                      </button>
-                    </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[8px] uppercase text-text-dim ml-1">Welcome Message</label>
+                            <Input 
+                              defaultValue={appConfig?.welcomeMessage || ''} 
+                              onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { welcomeMessage: e.target.value })}
+                              className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[8px] uppercase text-text-dim ml-1">App Version</label>
+                            <Input 
+                              defaultValue={appConfig?.appVersion || '1.0.0'} 
+                              onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { appVersion: e.target.value })}
+                              className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-[8px] uppercase text-text-dim ml-1">Announcement</label>
+                          <textarea 
+                            defaultValue={appConfig?.announcement || ''} 
+                            onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { announcement: e.target.value })}
+                            className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
+                          />
+                        </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">Welcome Message</label>
-                      <Input 
-                        defaultValue={appConfig?.welcomeMessage || ''} 
-                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { welcomeMessage: e.target.value })}
-                        className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">Announcement</label>
-                      <textarea 
-                        defaultValue={appConfig?.announcement || ''} 
-                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { announcement: e.target.value })}
-                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">App Version</label>
-                        <Input 
-                          defaultValue={appConfig?.appVersion || '1.0.0'} 
-                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { appVersion: e.target.value })}
-                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">Contact Email</label>
-                        <Input 
-                          defaultValue={appConfig?.contactEmail || ''} 
-                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { contactEmail: e.target.value })}
-                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <label className="text-[8px] uppercase text-text-dim ml-1">Contact Email</label>
+                             <Input 
+                               defaultValue={appConfig?.contactEmail || ''} 
+                               onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { contactEmail: e.target.value })}
+                               className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <label className="text-[8px] uppercase text-text-dim ml-1">Support Phone</label>
+                             <Input 
+                               defaultValue={appConfig?.themeColor || ''} 
+                               placeholder="e.g. 017..."
+                               onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { themeColor: e.target.value })}
+                               className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                             />
+                           </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">Min. Required Version</label>
-                        <Input 
-                          defaultValue={appConfig?.minVersion || '1.0.0'} 
-                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { minVersion: e.target.value })}
-                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                        />
+                    <div className="space-y-8">
+                      <div className="geometric-card p-8 space-y-6">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                          <Megaphone className="w-4 h-4" /> গেটওয়ে ও পেমেন্ট সেটিংস
+                        </h2>
+                        <div className="space-y-6">
+                          <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
+                            <div>
+                              <div className="text-sm font-bold uppercase">Paid Ad Mode</div>
+                              <div className="text-[8px] text-text-dim uppercase">পেমেন্ট বাধ্যতামূলক করা</div>
+                            </div>
+                            <button 
+                              id="paid-mode-toggle-admin-2"
+                              onClick={handleTogglePaidMode}
+                              className={`w-14 h-8 rounded-full transition-all relative cursor-pointer z-10 ${appConfig?.adPaidMode ? 'bg-[#00D1FF] shadow-[0_0_15px_rgba(0,209,255,0.5)]' : 'bg-surface-light border border-border-custom'}`}
+                            >
+                              <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${appConfig?.adPaidMode ? 'right-1' : 'left-1'}`} />
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-[8px] uppercase text-text-dim ml-1">Bkash/Nagad Number</label>
+                            <Input 
+                              defaultValue={appConfig?.adPaymentNumber} 
+                              onBlur={(e) => handleUpdateAdNumber(e.target.value)}
+                              className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">Support Phone</label>
-                        <Input 
-                          defaultValue={appConfig?.themeColor || ''} // Reusing themeColor field for phone as proxy correctly
-                          placeholder="e.g. 016500..."
-                          onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { themeColor: e.target.value })}
-                          className="bg-bg-dark/50 border-border-custom text-xs h-12 text-white"
-                        />
+
+                      <div className="geometric-card p-8 space-y-6">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4" /> মিডিয়া স্টোরেজ (Ultimate Mode)
+                        </h2>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label className="text-[8px] uppercase tracking-widest text-text-dim">Cloudinary Cloud Name</Label>
+                            <Input 
+                              placeholder="e.g. porshi-media" 
+                              defaultValue={appConfig?.cloudinaryCloudName || ''}
+                              onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryCloudName: e.target.value })}
+                              className="bg-bg-dark/50 border-border-custom text-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[8px] uppercase tracking-widest text-text-dim">Upload Preset</Label>
+                            <Input 
+                              placeholder="e.g. ml_default" 
+                              defaultValue={appConfig?.cloudinaryUploadPreset || ''}
+                              onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryUploadPreset: e.target.value })}
+                              className="bg-bg-dark/50 border-border-custom text-white"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                </TabsContent>
 
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <LayoutDashboard className="w-4 h-4" /> মিডিয়া স্টোরেজ (Ultimate Mode)
-                  </h2>
-                  <div className="space-y-4">
-                    <p className="text-[10px] text-text-dim uppercase leading-relaxed">
-                      ফায়ারবেস বিলিং ছাড়াই আনলিমিটেড বড় ভিডিও এবং ছবি আপলোড করতে ক্লাউডিনারি (Cloudinary) ব্যবহার করুন।
-                    </p>
-                    <div className="space-y-2">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim">Cloudinary Cloud Name</Label>
-                      <Input 
-                        placeholder="e.g. porshi-media" 
-                        defaultValue={appConfig?.cloudinaryCloudName || ''}
-                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryCloudName: e.target.value })}
-                        className="bg-bg-dark/50 border-border-custom text-white"
-                      />
+                <TabsContent value="ads" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="geometric-card p-8 space-y-6">
+                      <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                        <Target className="w-4 h-4" /> পেন্ডিং ও সচল বিজ্ঞাপন
+                      </h2>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
+                          <div className="text-[8px] text-text-dim uppercase font-bold">সচল ভিডিও অ্যাডস</div>
+                          <div className="text-xl font-black text-green-500">{allAds.filter(a => a.status === 'active' && a.adType === 'video_skippable').length}</div>
+                        </div>
+                        <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
+                          <div className="text-[8px] text-text-dim uppercase font-bold">মোট ব্যানার</div>
+                          <div className="text-xl font-black text-accent">{allAds.filter(a => a.status === 'active' && a.adType !== 'video_skippable').length}</div>
+                        </div>
+                      </div>
+                      <Tabs defaultValue="pending_ads_list" className="w-full">
+                        <TabsList className="bg-bg-dark border border-border-custom w-full">
+                          <TabsTrigger value="pending_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">পেন্ডিং</TabsTrigger>
+                          <TabsTrigger value="active_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">সচল</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="pending_ads_list" className="mt-4 space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                          {allAds.filter(ad => ad.status === 'pending').map(ad => (
+                            <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom space-y-3">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="text-xs font-bold uppercase text-white flex items-center gap-2">
+                                    {ad.title}
+                                    {ad.adType === 'video_skippable' && <VideoIcon className="w-3 h-3 text-accent" />}
+                                  </div>
+                                  <div className="text-[8px] text-text-dim uppercase">Advertiser: {ad.advertiserName}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-black text-accent">৳{ad.budget}</div>
+                                  <div className="text-[8px] text-text-dim uppercase">{ad.durationDays} Days</div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'active', paymentStatus: 'paid' })}
+                                  className="flex-1 bg-green-500 text-bg-dark font-black uppercase text-[8px]"
+                                >
+                                  Approve
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => deleteDoc(doc(db, 'ads', ad.id))}
+                                  className="flex-1 bg-red-500/10 text-red-500 font-black uppercase text-[8px]"
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </TabsContent>
+                        <TabsContent value="active_ads_list" className="mt-4 space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                           {allAds.filter(ad => ad.status === 'active').map(ad => (
+                             <div key={ad.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex justify-between items-center group">
+                               <div>
+                                 <div className="text-xs font-bold uppercase text-white flex items-center gap-2">
+                                   {ad.title}
+                                   {ad.adType === 'video_skippable' && <VideoIcon className="w-3 h-3 text-accent animate-pulse" />}
+                                 </div>
+                                 <div className="text-[8px] text-text-dim uppercase">Clicks: {ad.clicks || 0} | Reach: {ad.reach || 0}</div>
+                               </div>
+                               <Button variant="ghost" size="sm" onClick={() => updateDoc(doc(db, 'ads', ad.id), { status: 'paused' })} className="text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity">Pause</Button>
+                             </div>
+                           ))}
+                        </TabsContent>
+                      </Tabs>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim">Unsigned Upload Preset (Default: ml_default)</Label>
-                      <Input 
-                        placeholder="e.g. ml_default" 
-                        defaultValue={appConfig?.cloudinaryUploadPreset || ''}
-                        onBlur={(e) => updateDoc(doc(db, 'appConfig', 'remote-settings'), { cloudinaryUploadPreset: e.target.value })}
-                        className="bg-bg-dark/50 border-border-custom text-white"
-                      />
+
+                    <div className="geometric-card p-8 space-y-6">
+                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                         <Zap className="w-4 h-4" /> সিস্টেম বিজ্ঞাপন (System Ads)
+                       </h2>
+                       <p className="text-[10px] text-text-dim uppercase leading-relaxed">
+                         মনিটাইজ করা ভিডিওতে এই বিজ্ঞাপনগুলো স্বয়ংক্রিয়ভাবে চালানো হবে। স্কিপেবল ভিডিও বিজ্ঞাপন তৈরি করতে নিচের বাটন ব্যবহার করুন।
+                       </p>
+                       <Button 
+                         onClick={() => setActiveTab('ads')} 
+                         className="w-full h-12 bg-surface border border-accent/30 text-accent font-black uppercase tracking-widest text-[10px]"
+                       >
+                         নতুন সিস্টেম অ্যাড ড্রাফট করুন
+                       </Button>
                     </div>
                   </div>
-                </div>
+                </TabsContent>
 
+                <TabsContent value="monetization" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="space-y-8">
+                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="geometric-card p-6 bg-accent/5 border-accent/20">
+                           <Eye className="w-5 h-5 text-accent mb-2" />
+                           <div className="text-3xl font-black">{posts.reduce((acc, p) => acc + (p.viewsCount || 0), 0)}</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট কন্টেন্ট ভিউ</div>
+                        </div>
+                        <div className="geometric-card p-6 bg-green-500/5 border-green-500/20">
+                           <Activity className="w-5 h-5 text-green-500 mb-2" />
+                           <div className="text-3xl font-black">{posts.reduce((acc, p) => acc + (p.reachCount || 0), 0)}</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট কন্টেন্ট রিচ</div>
+                        </div>
+                        <div className="geometric-card p-6 bg-yellow-500/5 border-yellow-500/20">
+                           <Zap className="w-5 h-5 text-yellow-500 mb-2" />
+                           <div className="text-3xl font-black">{allUsers.filter(u => u.isMonetized).length}</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মনিটাইজড ক্রিয়েটর</div>
+                        </div>
+                     </div>
+
+                     <div className="geometric-card p-8">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent mb-6 flex items-center gap-2">
+                           <Play className="w-4 h-4" /> মনিটাইজড কন্টেন্ট পারফরম্যান্স (Real-time)
+                        </h2>
+                        <div className="space-y-4">
+                           {posts.filter(p => p.isMonetized).map(p => (
+                              <div key={p.id} className="p-4 bg-bg-dark/40 rounded-2xl border border-border-custom/50 flex flex-col md:flex-row gap-6 hover:border-accent/40 transition-all">
+                                 <div className="w-full md:w-32 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface">
+                                    {p.mediaType === 'video' ? (
+                                       <div className="w-full h-full relative">
+                                          <video src={p.videoUrl} className="w-full h-full object-cover" />
+                                          <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Play className="w-6 h-6 text-white" /></div>
+                                       </div>
+                                    ) : (
+                                       <img src={p.imageUrl} className="w-full h-full object-cover" />
+                                    )}
+                                 </div>
+                                 <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                       <span className="text-[10px] font-bold text-accent uppercase">Creator: {p.authorName}</span>
+                                       <span className="text-[8px] text-text-dim uppercase">• {p.timestamp?.toDate().toLocaleDateString()}</span>
+                                    </div>
+                                    <h4 className="text-sm font-bold text-white line-clamp-1">{p.content}</h4>
+                                    <div className="flex gap-4">
+                                       <div className="flex items-center gap-1">
+                                          <Eye className="w-3 h-3 text-accent" />
+                                          <span className="text-sm font-black">{p.viewsCount || 0}</span>
+                                          <span className="text-[8px] text-text-dim uppercase font-bold ml-1">Views</span>
+                                       </div>
+                                       <div className="flex items-center gap-1">
+                                          <Activity className="w-3 h-3 text-green-400" />
+                                          <span className="text-sm font-black">{p.reachCount || 0}</span>
+                                          <span className="text-[8px] text-text-dim uppercase font-bold ml-1">Reach</span>
+                                       </div>
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center gap-2 md:border-l border-border-custom/30 md:pl-6">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => handleUpdateUserMonetization(allUsers.find(u => u.uid === p.authorUid))}
+                                      className="border-red-500/20 text-red-500 text-[8px] font-black uppercase hover:bg-red-500/10"
+                                    >
+                                      Disable Monetization
+                                    </Button>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="geometric-card p-8 space-y-6">
                   <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                     <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
@@ -2383,135 +2507,110 @@ export default function App() {
                             <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
                           </div>
                         </div>
-                          <div className="flex items-center gap-2">
-                            {user.role === 'admin' && (
-                              <button 
-                                id={`monetization-toggle-${u.uid}`}
-                                onClick={() => handleUpdateUserMonetization(u)}
-                                className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark shadow-[0_0_10px_rgba(0,209,255,0.3)]' : 'bg-surface-light text-text-dim hover:text-accent'}`}
-                                title="Toggle Monetization"
-                              >
-                                <DollarSign className="w-4 h-4" />
-                              </button>
-                            )}
-                            {u.role !== 'admin' && (
-                            <button 
-                              onClick={async () => {
-                                if (window.confirm(`${u.displayName} কে অ্যাডমিন করতে চান?`)) {
-                                  await updateDoc(doc(db, 'users', u.uid), { role: 'admin' });
-                                }
-                              }}
-                              className="p-2 hover:bg-accent/10 text-accent rounded-lg transition-colors"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </button>
-                          )}
+                        <div className="flex items-center gap-2">
                           <button 
-                            onClick={async () => {
-                              if (window.confirm(`${u.displayName} কে ডিলিট করতে চান?`)) {
-                                await deleteDoc(doc(db, 'users', u.uid));
-                              }
-                            }}
-                            className="p-2 hover:bg-red-400/10 text-red-400 rounded-lg transition-colors"
+                            onClick={() => handleUpdateUserMonetization(u)}
+                            className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark' : 'bg-surface-light text-text-dim hover:text-accent'}`}
+                            title="Toggle Monetization"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <DollarSign className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-              
-              <div className="geometric-card p-8 space-y-6">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                  <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
-                    <button 
-                      onClick={() => setIsAdminNoticeAll(false)}
-                      className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark' : 'text-text-dim'}`}
-                    >
-                      সিঙ্গেল ইউজার
-                    </button>
-                    <button 
-                      onClick={() => setIsAdminNoticeAll(true)}
-                      className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim'}`}
-                    >
-                      সকল ইউজার
-                    </button>
-                  </div>
+
+                <div className="geometric-card p-8 space-y-6">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                    <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
+                  </h2>
+                  <div className="space-y-4">
+                    <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
+                      <button 
+                        onClick={() => setIsAdminNoticeAll(false)}
+                        className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark font-black' : 'text-text-dim hover:text-white'}`}
+                      >
+                        সিঙ্গেল ইউজার
+                      </button>
+                      <button 
+                        onClick={() => setIsAdminNoticeAll(true)}
+                        className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark font-black shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim hover:text-white'}`}
+                      >
+                        সকল ইউজার
+                      </button>
+                    </div>
 
                     {!isAdminNoticeAll && (
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
-                      <select 
-                        value={adminNoticeTargetUid}
-                        onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
-                        className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none"
-                      >
-                        <option value="">সিলেক্ট ইউজার</option>
-                        {allUsers.map(u => (
-                          <option key={u.uid || u.id} value={u.uid || u.id}>{u.displayName} ({u.role || 'user'})</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
+                        <select 
+                          value={adminNoticeTargetUid}
+                          onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
+                          className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
+                        >
+                          <option value="" className="bg-bg-dark">সিলেক্ট ইউজার</option>
+                          {allUsers.map(u => (
+                            <option key={u.uid || u.id} value={u.uid || u.id} className="bg-bg-dark">{u.displayName} ({u.role || 'user'})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
-                      <select 
-                        value={adminNoticeType}
-                        onChange={(e) => setAdminNoticeType(e.target.value as any)}
-                        className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none"
-                      >
-                        <option value="system">সিস্টেম বার্তা</option>
-                        <option value="link">লিংক/ইউআরএল</option>
-                        <option value="event">ইভেন্ট/অফার</option>
-                        <option value="message">ব্যক্তিগত মেসেজ</option>
-                      </select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
+                        <select 
+                          value={adminNoticeType}
+                          onChange={(e) => setAdminNoticeType(e.target.value as any)}
+                          className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
+                        >
+                          <option value="system" className="bg-bg-dark">সিস্টেম বার্তা</option>
+                          <option value="link" className="bg-bg-dark">লিংক/ইউআরএল</option>
+                          <option value="event" className="bg-bg-dark">ইভেন্ট/অফার</option>
+                          <option value="message" className="bg-bg-dark">ব্যক্তিগত মেসেজ</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
+                        <Input 
+                          value={adminNoticeTitle}
+                          onChange={(e) => setAdminNoticeTitle(e.target.value)}
+                          placeholder="যেমন: নতুন আপডেট"
+                          className="bg-bg-dark/50 border-border-custom text-white font-black"
+                        />
+                      </div>
                     </div>
+
                     <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
-                      <Input 
-                        value={adminNoticeTitle}
-                        onChange={(e) => setAdminNoticeTitle(e.target.value)}
-                        placeholder="যেমন: নতুন আপডেট"
-                        className="bg-bg-dark/50 border-border-custom text-white"
+                      <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
+                      <textarea 
+                        value={adminNoticeMessage}
+                        onChange={(e) => setAdminNoticeMessage(e.target.value)}
+                        placeholder="আপনার বার্তাটি এখানে লিখুন..."
+                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
                       />
                     </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
-                    <textarea 
-                      value={adminNoticeMessage}
-                      onChange={(e) => setAdminNoticeMessage(e.target.value)}
-                      placeholder="আপনার বার্তাটি এখানে লিখুন..."
-                      className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
-                    />
-                  </div>
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
+                      <Input 
+                        value={adminNoticeLink}
+                        onChange={(e) => setAdminNoticeLink(e.target.value)}
+                        placeholder="https://example.com"
+                        className="bg-bg-dark/50 border-border-custom text-white font-black"
+                      />
+                    </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
-                    <Input 
-                      value={adminNoticeLink}
-                      onChange={(e) => setAdminNoticeLink(e.target.value)}
-                      placeholder="https://example.com"
-                      className="bg-bg-dark/50 border-border-custom text-white"
-                    />
+                    <Button 
+                      onClick={handleSendAdminNotice}
+                      disabled={isSendingNotice}
+                      className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
+                    >
+                      {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
+                      নটিফিকেশন পাঠান
+                    </Button>
                   </div>
-
-                  <Button 
-                    onClick={handleSendAdminNotice}
-                    disabled={isSendingNotice}
-                    className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
-                  >
-                    {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
-                    নটিফিকেশন পাঠান
-                  </Button>
                 </div>
               </div>
 

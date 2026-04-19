@@ -42,6 +42,8 @@ export interface Post {
   timestamp: any;
   isLiked?: boolean;
   isMonetized?: boolean;
+  viewsCount?: number;
+  reachCount?: number;
   privacy?: 'public' | 'followers' | 'private';
   isEdited?: boolean;
 }
@@ -110,6 +112,8 @@ export interface Advertisement {
   objective: 'views' | 'likes' | 'comments' | 'followers' | 'sales' | 'website_views';
   location: string;
   audience: string;
+  adType?: 'banner' | 'video_skippable';
+  videoAdUrl?: string;
   websiteUrl?: string;
   durationDays: number;
   budget: number;

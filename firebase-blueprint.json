@@ -94,7 +94,11 @@
           }
         },
         "timestamp": { "type": "string", "format": "date-time" },
-        "isMonetized": { "type": "boolean" }
+        "isMonetized": { "type": "boolean" },
+        "viewsCount": { "type": "number" },
+        "reachCount": { "type": "number" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "videoUrl": { "type": "string" }
       },
       "required": ["authorUid", "authorName", "content", "timestamp"]
     },
@@ -179,6 +183,8 @@
         "objective": { "type": "string", "enum": ["views", "likes", "comments", "followers", "sales", "website_views"] },
         "location": { "type": "string" },
         "audience": { "type": "string" },
+        "adType": { "type": "string", "enum": ["banner", "video_skippable"] },
+        "videoAdUrl": { "type": "string" },
         "websiteUrl": { "type": "string" },
         "durationDays": { "type": "number" },
         "budget": { "type": "number" },
