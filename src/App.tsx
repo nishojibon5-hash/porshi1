@@ -227,6 +227,10 @@ export default function App() {
 
   const navigateToProfile = (uid: string) => {
     if (!uid) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     setSelectedUserUid(uid);
     setActiveTab('profile');
   };
@@ -1887,7 +1891,10 @@ export default function App() {
             {/* Create Post Section (Facebook Style) */}
             <div className={`p-4 border-b ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
+                <div 
+                  onClick={() => withAuth(() => navigateToProfile(user?.uid || ''))}
+                  className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface cursor-pointer"
+                >
                   {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
                 </div>
                 <button 
@@ -1942,7 +1949,7 @@ export default function App() {
                 <motion.div 
                   key={story.id} 
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveStory(story)}
+                  onClick={() => withAuth(() => setActiveStory(story))}
                   className="relative flex-shrink-0 w-[100px] h-full rounded-xl overflow-hidden cursor-pointer group"
                 >
                   <img 
@@ -3507,7 +3514,7 @@ export default function App() {
         <button
           key={item.id}
           onClick={() => {
-            if (['chat', 'monetization', 'ads', 'notifications', 'profile', 'admin'].includes(item.id)) {
+            if (item.id !== 'home') {
               withAuth(() => setActiveTab(item.id as any));
             } else {
               setActiveTab(item.id as any);
@@ -3539,7 +3546,7 @@ export default function App() {
       {/* Mobile Header (Facebook Style) */}
       <header className={`lg:hidden w-full px-4 pt-3 pb-2 flex justify-between items-center ${theme === 'dark' ? 'bg-[#242526] text-white border-b border-[#3E4042]' : 'bg-white text-[#1877F2] border-b border-[#E4E6EB]'} sticky top-0 z-50`}>
         <div className="flex items-center gap-2">
-          <button onClick={() => setIsMobileDrawerOpen(true)} className="p-1">
+          <button onClick={() => withAuth(() => setIsMobileDrawerOpen(true))} className="p-1">
             <Menu className={`w-6 h-6 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} />
           </button>
           <h1 className={`text-xl font-black tracking-widest uppercase flex items-center ${theme === 'dark' ? 'text-accent' : 'text-[#1877F2]'}`}>
@@ -3555,13 +3562,13 @@ export default function App() {
             {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-600" />}
           </button>
           <button 
-            onClick={() => setIsMobileCreateMenuOpen(true)}
+            onClick={() => withAuth(() => setIsMobileCreateMenuOpen(true))}
             className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
           >
             <Plus className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
           </button>
           <button 
-            onClick={() => setIsMobileSearchOpen(true)}
+            onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
             className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
           >
             <Search className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
@@ -3586,7 +3593,7 @@ export default function App() {
             key={item.id}
             onClick={() => {
               setCurrentApp('porshi');
-              if (['notifications', 'profile'].includes(item.id)) {
+              if (item.id !== 'home') {
                 withAuth(() => setActiveTab(item.id));
               } else {
                 setActiveTab(item.id);
@@ -3607,8 +3614,10 @@ export default function App() {
         ))}
         <button 
           onClick={() => {
-             setCurrentApp('porshi');
-             withAuth(() => setActiveTab('profile'));
+             withAuth(() => {
+               setCurrentApp('porshi');
+               setActiveTab('profile');
+             });
           }}
           className="flex-1 py-3 flex items-center justify-center text-gray-500"
         >
