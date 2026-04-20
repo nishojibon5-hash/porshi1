@@ -247,6 +247,23 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Post Media */}
       {post.mediaType === 'video' && (post.videoUrl || post.youtubeUrl) ? (
         <VideoPlayer post={post} ads={ads} currentUserId={currentUserId} theme={theme} />
+      ) : post.mediaType === 'link' && post.linkUrl ? (
+        <a 
+          href={post.linkUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={`mx-3 my-2 p-4 rounded-xl border flex items-center gap-4 hover:opacity-80 transition-all ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}
+        >
+          <div className="w-12 h-12 rounded-full bg-[#1877F2]/10 flex items-center justify-center flex-shrink-0 border border-[#1877F2]/20">
+            <Globe className="w-6 h-6 text-[#1877F2]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] uppercase font-black text-[#1877F2] tracking-widest mb-1">External Link</div>
+            <div className="text-sm font-bold truncate text-foreground">{post.linkUrl}</div>
+            <div className="text-xs text-sidebar-foreground/50 font-medium">Click to visit website</div>
+          </div>
+          <Share2 className="w-4 h-4 text-gray-500" />
+        </a>
       ) : post.imageUrl && (
         <ImageWithTracking post={post} theme={theme} currentUserId={currentUserId} onLike={onLike} />
       )}

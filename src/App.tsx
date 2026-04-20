@@ -823,7 +823,16 @@ export default function App() {
       try {
         let imageUrl = '';
         let videoUrl = '';
-        let mediaType: 'image' | 'video' | undefined = undefined;
+        let linkUrl = '';
+        let mediaType: 'image' | 'video' | 'text' | 'link' = 'text';
+
+        // Extract first link if any
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const foundLinks = currentInput.match(urlRegex);
+        if (foundLinks && foundLinks.length > 0) {
+          linkUrl = foundLinks[0];
+          // Don't auto-set mediaType to 'link' yet, let image/video take priority
+        }
 
         if (currentImage) {
           mediaType = 'image';
@@ -852,7 +861,10 @@ export default function App() {
           videoUrl = await uploadToCloudinary(currentVideo, 'video');
           addLog('ভিডিও প্রসেস সফল!');
         } else if (currentYoutubeUrl) {
-          mediaType = 'video';
+          mediaType = currentYoutubeUrl.includes('youtube.com') || currentYoutubeUrl.includes('youtu.be') ? 'video' : 'link';
+        } else if (foundLinks && foundLinks.length > 0) {
+          linkUrl = foundLinks[0];
+          mediaType = 'link';
         }
 
         addLog('ডাটাবেজে সেভ হচ্ছে...');
@@ -865,6 +877,7 @@ export default function App() {
           imageUrl,
           videoUrl,
           youtubeUrl: currentYoutubeUrl,
+          linkUrl,
           likesCount: 0,
           commentsCount: 0,
           timestamp: serverTimestamp(),
@@ -1916,11 +1929,11 @@ export default function App() {
 
              <div className="mt-2 space-y-3">
                <div className="flex items-center gap-2 text-[10px] font-black text-accent uppercase tracking-widest bg-accent/5 p-2 rounded-lg border border-accent/10">
-                 <VideoIcon className="w-3 h-3" />
-                 <span>ইউটিউব ভিডিও যোগ করুন (ঐচ্ছিক)</span>
+                 <LinkIcon className="w-3 h-3" />
+                 <span>লিংক বা ভিডিও যোগ করুন (ঐচ্ছিক)</span>
                </div>
                <Input 
-                 placeholder="Paste YouTube Link here..."
+                 placeholder="লিংক বা ইউটিউব লিংক এখানে দিন..."
                  value={postYoutubeUrl}
                  onChange={(e) => setPostYoutubeUrl(e.target.value)}
                  className="bg-gray-50 dark:bg-[#3A3B3C] border-none text-xs h-10 rounded-xl focus:ring-1 focus:ring-accent transition-all"

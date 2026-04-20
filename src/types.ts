@@ -33,10 +33,11 @@ export interface Post {
   authorName: string;
   authorPhoto: string;
   content: string;
-  mediaType?: 'image' | 'video';
+  mediaType?: 'image' | 'video' | 'text' | 'link';
   imageUrl?: string;
   videoUrl?: string;
   youtubeUrl?: string;
+  linkUrl?: string;
   likesCount: number;
   commentsCount: number;
   reactions?: {
