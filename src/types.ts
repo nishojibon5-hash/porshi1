@@ -5,7 +5,14 @@ export interface AppUser {
   displayName: string;
   phoneNumber?: string;
   photoURL: string;
+  coverPhotoURL?: string;
   bio?: string;
+  hometown?: string;
+  currentCity?: string;
+  education?: string;
+  work?: string;
+  relationshipStatus?: string;
+  website?: string;
   isOnline: boolean;
   lastSeen: any;
   followersCount?: number;

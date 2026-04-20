@@ -1,6 +1,6 @@
 {
   "name": "Porshi & Porsh",
   "description": "Porshi (Social App) এবং Porsh (Messenger App) - একটি শক্তিশালী রিয়েল-টাইম ডিসকভারি, পেয়ারিং এবং চ্যাটিং ইকোসিস্টেম।",
-  "requestFramePermissions": ["camera", "microphone"],
+  "requestFramePermissions": ["camera", "microphone", "identity-credentials-get"],
   "majorCapabilities": []
 }

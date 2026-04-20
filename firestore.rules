@@ -36,8 +36,9 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          request.auth.token.email == "salman1000790@gmail.com");
+        (request.auth.token.email == "salman1000790@gmail.com" ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'));
     }
 
     function isOwner(userId) {
@@ -57,8 +58,15 @@ service cloud.firestore {
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
              data.isOnline is bool &&
              (!('photoURL' in data) || data.photoURL is string) &&
+             (!('coverPhotoURL' in data) || data.coverPhotoURL is string) &&
              (!('lastSeen' in data) || data.lastSeen is timestamp) &&
              (!('bio' in data) || (data.bio is string && data.bio.size() < 2000)) &&
+             (!('hometown' in data) || data.hometown is string) &&
+             (!('currentCity' in data) || data.currentCity is string) &&
+             (!('education' in data) || data.education is string) &&
+             (!('work' in data) || data.work is string) &&
+             (!('relationshipStatus' in data) || data.relationshipStatus is string) &&
+             (!('website' in data) || data.website is string) &&
              (!('role' in data) || data.role in ['user', 'admin']) &&
              (!('isMonetized' in data) || data.isMonetized is bool) &&
              (!('lastLat' in data) || data.lastLat is number) &&
@@ -82,7 +90,10 @@ service cloud.firestore {
              data.likesCount is number &&
              data.commentsCount is number &&
              data.timestamp is timestamp &&
-             (!('reactions' in data) || data.reactions is map);
+             (!('reactions' in data) || data.reactions is map) &&
+             (!('reachCount' in data) || data.reachCount is number) &&
+             (!('viewsCount' in data) || data.viewsCount is number) &&
+             (!('isMonetized' in data) || data.isMonetized is bool);
     }
 
     function isValidMonetization(data) {
@@ -90,6 +101,16 @@ service cloud.firestore {
              data.reach is number &&
              data.engagement is number &&
              data.followers is number;
+    }
+
+    function isValidAd(data) {
+      return data.creatorId is string &&
+             data.title is string &&
+             data.status in ['pending', 'active', 'rejected', 'paused'] &&
+             data.type in ['banner', 'video', 'interstitial', 'adsense', 'video_skippable'] &&
+             data.timestamp is timestamp &&
+             (!('reach' in data) || data.reach is number) &&
+             (!('clicks' in data) || data.clicks is number);
     }
 
     function isValidComment(data) {
@@ -130,7 +151,7 @@ service cloud.firestore {
           (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isMonetized'])) || isMasterAdmin()
         )) ||
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasAny(['followersCount', 'followingCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount'])
       ) && isValidUser(request.resource.data);
     }
 
@@ -149,13 +170,27 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidPost(request.resource.data);
       allow update: if isAuthenticated() && 
                     (isOwner(resource.data.authorUid) || 
-                     request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'commentsCount', 'reactions']));
+                     request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'commentsCount', 'reactions', 'reachCount', 'viewsCount']));
       allow delete: if isOwner(resource.data.authorUid);
     }
 
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidAd(request.resource.data);
+      allow update: if isAdmin() || (isAuthenticated() && (
+        resource.data.creatorId == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks'])
+      ));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
+    }
+
     match /monetization/{uid} {
-      allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && isValidMonetization(request.resource.data);
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidMonetization(request.resource.data);
+      allow update: if isAuthenticated() && (
+        isOwner(uid) || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalEarnings', 'engagement'])
+      ) && isValidMonetization(request.resource.data);
     }
 
     match /posts/{postId}/comments/{commentId} {

@@ -46,6 +46,9 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   Smile,
+  MapPin,
+  Briefcase,
+  GraduationCap,
   Globe,
   Lock,
   UserCheck,
@@ -147,6 +150,7 @@ export default function App() {
   const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [adminActiveTab, setAdminActiveTab] = useState('overview');
   const [onlineUsers, setOnlineUsers] = useState<AppUser[]>([]);
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [isPostCreationModalOpen, setIsPostCreationModalOpen] = useState(false);
@@ -252,7 +256,7 @@ export default function App() {
           cancel_on_tap_outside: true,
         });
         
-        if (!user) {
+        if (!user && window.self === window.top) {
           window.google.accounts.id.prompt();
         }
         setGoogleOneTapLoaded(true);
@@ -332,8 +336,22 @@ export default function App() {
   const postImageInputRef = useRef<HTMLInputElement>(null);
   const storyImageInputRef = useRef<HTMLInputElement>(null);
   const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const coverImageInputRef = useRef<HTMLInputElement>(null);
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isEditProfileLoading, setIsEditProfileLoading] = useState(false);
+  const [editProfileData, setEditProfileData] = useState({
+    displayName: '',
+    bio: '',
+    hometown: '',
+    currentCity: '',
+    education: '',
+    work: '',
+    relationshipStatus: '',
+    website: ''
+  });
   const [followingUids, setFollowingUids] = useState<string[]>([]);
   const [homeFeedTab, setHomeFeedTab] = useState<'all' | 'following'>('all');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -428,72 +446,6 @@ export default function App() {
     setPostInput(prev => prev + emoji);
     setIsEmojiPickerOpen(false);
   };
-
-  // One Tap Login Implementation
-  useEffect(() => {
-    if (user || isAuthReady === false) return; // Wait for auth state to be checked
-
-    const clientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID || '435191884841-2sedo4n3d14i6q45nvolqgf08ompsnrg.apps.googleusercontent.com';
-
-    const handleOneTapResponse = async (response: any) => {
-      try {
-        const credential = GoogleAuthProvider.credential(response.credential);
-        await signInWithCredential(auth, credential);
-      } catch (error: any) {
-        console.error('One Tap Auth Error:', error);
-        setErrorMessage('গুগল লগইন সফল হয়নি। দয়া করে আবার চেষ্টা করুন।');
-        setTimeout(() => setErrorMessage(null), 5000);
-      }
-    };
-
-    const initializeOneTap = () => {
-      if (!window.google) return;
-      
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleOneTapResponse,
-          auto_select: true,
-          cancel_on_tap_outside: false,
-          use_fedcm_for_prompt: true, // Modern approach
-          allowed_parent_origin: window.location.origin
-        });
-
-        // Prompt the one tap UI
-        window.google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed()) {
-            console.log('One Tap prompt not displayed:', notification.getNotDisplayedReason());
-          }
-          if (notification.isSkippedMoment()) {
-            console.log('One Tap prompt skipped:', notification.getSkippedReason());
-          }
-        });
-
-        // Also render a button as fallback in the login screen if it's visible
-        const loginButtonDiv = document.getElementById('google-login-button');
-        if (loginButtonDiv) {
-          window.google.accounts.id.renderButton(loginButtonDiv, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            width: 280
-          });
-        }
-      } catch (err) {
-        console.error('GIS Init Error:', err);
-      }
-    };
-
-    // Check for GSI script every 500ms
-    const checkGSI = setInterval(() => {
-      if (window.google?.accounts?.id) {
-        clearInterval(checkGSI);
-        initializeOneTap();
-      }
-    }, 500);
-
-    return () => clearInterval(checkGSI);
-  }, [user, isAuthReady]);
 
   const requestBrowserPermission = () => {
     if (canShowBrowserNotifications) {
@@ -760,6 +712,80 @@ export default function App() {
         setIsUploadingPhoto(false);
       }
     });
+  };
+
+  const uploadCoverPicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    
+    handleFileSelect(e, async (base64Data) => {
+      setIsUploadingCover(true);
+      try {
+        addLog('কভার ফটো প্রসেস হচ্ছে...');
+        let coverPhotoURL = '';
+        
+        if (appConfig?.cloudinaryCloudName) {
+          addLog('কভার ফটো আলটিমেট মোডে আপলোড হচ্ছে...');
+          coverPhotoURL = await uploadToCloudinary(base64Data, 'image');
+        } else {
+          coverPhotoURL = await compressImage(base64Data, 1280, 0.6);
+        }
+        
+        await updateDoc(doc(db, 'users', user.uid), {
+          coverPhotoURL: coverPhotoURL
+        });
+        
+        setUser({ ...user, coverPhotoURL: coverPhotoURL });
+        addLog('কভার ফটো আপডেট সফল!');
+        setErrorMessage('কভার ফটো আপডেট হয়েছে!');
+        setTimeout(() => setErrorMessage(null), 3000);
+      } catch (error: any) {
+        console.error('Cover photo error:', error);
+        addLog(`কভার ফটো এরর: ${error.message}`);
+        setErrorMessage('কভার ফটো আপডেট করতে সমস্যা হয়েছে।');
+        setTimeout(() => setErrorMessage(null), 4000);
+      } finally {
+        setIsUploadingCover(false);
+      }
+    });
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    setIsEditProfileLoading(true);
+    try {
+      addLog('প্রোফাইল আপডেট হচ্ছে...');
+      await updateDoc(doc(db, 'users', user.uid), {
+        ...editProfileData,
+        lastSeen: serverTimestamp()
+      });
+      setUser({ ...user, ...editProfileData });
+      setIsEditProfileModalOpen(false);
+      addLog('প্রোফাইল আপডেট সফল!');
+      setErrorMessage('প্রোফাইল আপডেট সফল হয়েছে!');
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Update profile error:', error);
+      addLog(`প্রোফাইল এরর: ${error.message}`);
+      setErrorMessage('প্রোফাইল আপডেট করতে সমস্যা হয়েছে।');
+      setTimeout(() => setErrorMessage(null), 4000);
+    } finally {
+      setIsEditProfileLoading(false);
+    }
+  };
+
+  const openEditProfile = () => {
+    if (!user) return;
+    setEditProfileData({
+      displayName: user.displayName || '',
+      bio: user.bio || '',
+      hometown: user.hometown || '',
+      currentCity: user.currentCity || '',
+      education: user.education || '',
+      work: user.work || '',
+      relationshipStatus: user.relationshipStatus || '',
+      website: user.website || ''
+    });
+    setIsEditProfileModalOpen(true);
   };
 
   const createPost = async (e: React.FormEvent) => {
@@ -2270,77 +2296,108 @@ export default function App() {
            return null;
         }
         return (
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-            <div className="max-w-6xl mx-auto space-y-12 pb-24">
-              <div className="flex items-center gap-4 mb-8">
-                <Button variant="ghost" size="icon" onClick={() => setActiveTab('home')} className="rounded-full">
-                  <ArrowLeft className="w-6 h-6" />
-                </Button>
-                <div className="space-y-4">
-                  <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Admin Dashboard</h1>
-                  <p className="text-text-dim text-xs uppercase tracking-[4px]">পড়শি অ্যাপ কন্ট্রোল সেন্টার</p>
+          <div className="flex-1 h-full flex flex-col lg:flex-row overflow-hidden bg-bg-dark">
+            {/* Navigation Drawer / Sidebar */}
+            <div className="lg:w-72 bg-surface/50 backdrop-blur-xl border-r border-border-custom flex flex-col p-6 space-y-10 overflow-y-auto no-scrollbar flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h1 className="text-3xl font-black italic tracking-tighter text-accent uppercase">ADMIN</h1>
+                  <p className="text-[8px] text-text-dim uppercase tracking-[3px]">পড়শি অ্যাপ কন্ট্রোল সিস্টেম</p>
                 </div>
+                <Button variant="ghost" size="icon" onClick={() => setActiveTab('home')} className="lg:hidden text-accent h-10 w-10">
+                   <ArrowLeft className="w-6 h-6" />
+                </Button>
               </div>
 
-              {/* Admin Management Tabs */}
-              <Tabs defaultValue="overview" className="space-y-8">
-                <TabsList className="bg-bg-dark border border-border-custom w-full max-w-4xl mx-auto h-14 p-1">
-                  <TabsTrigger value="overview" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">সারসংক্ষেপ (Overview)</TabsTrigger>
-                  <TabsTrigger value="ads" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">অ্যাড ম্যানেজার (Ads)</TabsTrigger>
-                  <TabsTrigger value="users" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">ইউজার (Users)</TabsTrigger>
-                  <TabsTrigger value="monetization" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">রোজগার (Insights)</TabsTrigger>
-                  <TabsTrigger value="notifs" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">নটিফিকেশন (Alerts)</TabsTrigger>
-                </TabsList>
+              <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 no-scrollbar">
+                {[
+                  { id: 'overview', name: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'ads', name: 'অ্যাড ম্যানেজার', icon: Megaphone },
+                  { id: 'users', name: 'ইউজার লিস্ট', icon: Users },
+                  { id: 'monetization', name: 'রোজগার', icon: DollarSign },
+                  { id: 'notifs', name: 'নটিফিকেশন', icon: Bell },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setAdminActiveTab(item.id)}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl transition-all whitespace-nowrap lg:min-w-0 ${adminActiveTab === item.id ? 'bg-accent text-bg-dark font-black shadow-[0_4px_20px_rgba(0,209,255,0.4)] scale-[1.02]' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{item.name}</span>
+                  </button>
+                ))}
+              </nav>
 
-                <TabsContent value="overview" className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
-                  <div className="geometric-card p-8 space-y-6">
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                       <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
-                    </h2>
-                    
-                    {/* Quick Navigation Buttons */}
-                    <div className="grid grid-cols-3 gap-3">
-                       <TabsTrigger value="ads" asChild>
-                         <button className="flex flex-col items-center justify-center p-4 bg-accent/10 border border-accent/30 rounded-2xl group hover:bg-accent hover:text-bg-dark transition-all cursor-pointer">
-                            <Target className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
-                            <span className="text-[10px] font-black uppercase">Ads</span>
-                         </button>
-                       </TabsTrigger>
-                       <TabsTrigger value="users" asChild>
-                         <button className="flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl group hover:bg-yellow-500 hover:text-bg-dark transition-all cursor-pointer">
-                            <Users className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
-                            <span className="text-[10px] font-black uppercase">Users</span>
-                         </button>
-                       </TabsTrigger>
-                       <TabsTrigger value="monetization" asChild>
-                         <button className="flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/30 rounded-2xl group hover:bg-green-500 hover:text-bg-dark transition-all cursor-pointer">
-                            <DollarSign className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
-                            <span className="text-[10px] font-black uppercase">Pay</span>
-                         </button>
-                       </TabsTrigger>
-                    </div>
+              <div className="mt-auto pt-6 border-t border-border-custom/20 hidden lg:block">
+                <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full flex justify-start items-center gap-4 text-text-dim hover:text-accent font-black uppercase text-[10px] tracking-widest">
+                  <ArrowLeft className="w-5 h-5" /> Exit Dashboard
+                </Button>
+              </div>
+            </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                          <div className="text-3xl font-black text-accent">{allUsers.length}</div>
-                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
-                       </div>
-                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                          <div className="text-3xl font-black text-accent">{posts.length}</div>
-                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Posts</div>
-                       </div>
-                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                          <div className="text-3xl font-black text-accent">{onlineUsers.length}</div>
-                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Live Online</div>
-                       </div>
-                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                          <div className="text-3xl font-black text-accent">{allUsers.filter(u => u.role === 'admin').length}</div>
-                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
-                       </div>
-                    </div>
-                  </div>
+            {/* Main Content Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-10 relative bg-bg-dark">
+              <div className="max-w-5xl mx-auto pb-24">
+                <AnimatePresence mode="wait">
+                  {adminActiveTab === 'overview' && (
+                    <motion.div 
+                      key="overview"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="geometric-card p-8 space-y-6">
+                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                           <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
+                        </h2>
+                        
+                        {/* Quick Navigation Buttons */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <button 
+                            onClick={() => setAdminActiveTab('ads')}
+                            className="flex flex-col items-center justify-center p-4 bg-accent/10 border border-accent/30 rounded-2xl group hover:bg-accent hover:text-bg-dark transition-all cursor-pointer"
+                          >
+                             <Target className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                             <span className="text-[10px] font-black uppercase">Ads</span>
+                          </button>
+                          <button 
+                            onClick={() => setAdminActiveTab('users')}
+                            className="flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl group hover:bg-yellow-500 hover:text-bg-dark transition-all cursor-pointer"
+                          >
+                             <Users className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                             <span className="text-[10px] font-black uppercase">Users</span>
+                          </button>
+                          <button 
+                            onClick={() => setAdminActiveTab('monetization')}
+                            className="flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/30 rounded-2xl group hover:bg-green-500 hover:text-bg-dark transition-all cursor-pointer"
+                          >
+                             <DollarSign className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                             <span className="text-[10px] font-black uppercase">Pay</span>
+                          </button>
+                        </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                           <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                              <div className="text-3xl font-black text-accent">{allUsers.length}</div>
+                              <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
+                           </div>
+                           <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                              <div className="text-3xl font-black text-accent">{posts.length}</div>
+                              <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Posts</div>
+                           </div>
+                           <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                              <div className="text-3xl font-black text-accent">{onlineUsers.length}</div>
+                              <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Live Online</div>
+                           </div>
+                           <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                              <div className="text-3xl font-black text-accent">{allUsers.filter(u => u.role === 'admin').length}</div>
+                              <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="geometric-card p-8 space-y-6">
                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                         <LayoutDashboard className="w-4 h-4" /> অ্যাপ সেটিংস
@@ -2468,10 +2525,18 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                </TabsContent>
+                </motion.div>
+              )}
 
-                <TabsContent value="ads" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {adminActiveTab === 'ads' && (
+                    <motion.div 
+                      key="ads"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="geometric-card p-8 space-y-6">
                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                         <Target className="w-4 h-4" /> পেন্ডিং ও সচল বিজ্ঞাপন
@@ -2662,11 +2727,19 @@ export default function App() {
                        </div>
                     </div>
                   </div>
-                </TabsContent>
+                </motion.div>
+              )}
 
-                <TabsContent value="monetization" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="space-y-8">
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {adminActiveTab === 'monetization' && (
+                    <motion.div 
+                      key="monetization"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="space-y-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="geometric-card p-6 bg-accent/5 border-accent/20">
                            <Eye className="w-5 h-5 text-accent mb-2" />
                            <div className="text-3xl font-black">{posts.reduce((acc, p) => acc + (p.viewsCount || 0), 0)}</div>
@@ -2733,12 +2806,20 @@ export default function App() {
                               </div>
                            ))}
                         </div>
-                     </div>
-                  </div>
-                </TabsContent>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-                <TabsContent value="users" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="geometric-card p-8 space-y-6">
+                  {adminActiveTab === 'users' && (
+                    <motion.div 
+                      key="users"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="geometric-card p-8 space-y-6">
                     <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                       <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
                     </h2>
@@ -2766,11 +2847,19 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                </TabsContent>
+                      </div>
+                    </motion.div>
+                  )}
 
-                <TabsContent value="notifs" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="max-w-2xl mx-auto geometric-card p-8 space-y-6">
+                  {adminActiveTab === 'notifs' && (
+                    <motion.div 
+                      key="notifs"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="space-y-8"
+                    >
+                      <div className="max-w-2xl mx-auto geometric-card p-8 space-y-6">
                     <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                       <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
                     </h2>
@@ -2860,9 +2949,11 @@ export default function App() {
                         নটিফিকেশন পাঠান
                       </Button>
                     </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         );
@@ -3187,81 +3278,122 @@ export default function App() {
         return (
           <div className="flex-1 p-0 overflow-y-auto custom-scrollbar bg-[#F0F2F5] dark:bg-[#18191A]">
             <div className="max-w-4xl mx-auto space-y-4 pb-20">
-              {/* Back Button for sub-navigation */}
-              <div className="px-4 pt-4 flex items-center justify-between lg:hidden">
-                <button 
-                  onClick={() => selectedUserUid ? setSelectedUserUid(null) : setActiveTab('home')}
-                  className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 p-2 rounded-xl bg-white dark:bg-[#242526] shadow-sm"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to Home
-                </button>
-              </div>
-
-              {/* Profile Cover & Basic Info */}
-              <div className="bg-white dark:bg-[#242526] rounded-b-xl shadow-sm overflow-hidden">
-                <div className="h-48 md:h-64 bg-gradient-to-r from-[#00D1FF] to-[#0070FF] relative">
-                   {selectedUserUid && (
-                     <button 
-                       onClick={() => setSelectedUserUid(null)}
-                       className="absolute top-4 left-4 p-2 bg-black/20 rounded-full text-white hover:bg-black/40 transition-colors"
-                     >
-                       <ArrowLeft className="w-5 h-5" />
-                     </button>
-                   )}
+              {/* Profile Cover & Header Section (Facebook Style) */}
+              <div className="bg-white dark:bg-[#242526] shadow-sm overflow-hidden">
+                {/* Cover Photo */}
+                <div className="relative aspect-[16/6] md:aspect-[16/5] bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-900 group">
+                  {isUploadingCover && profileUid === user?.uid ? (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20">
+                      <Loader2 className="w-8 h-8 text-[#1877F2] animate-spin" />
+                    </div>
+                  ) : profileUser?.coverPhotoURL ? (
+                    <img src={profileUser?.coverPhotoURL} alt="Cover" className="w-full h-full object-cover" />
+                  ) : null}
+                  
+                  {profileUid === user?.uid && (
+                    <button 
+                      onClick={() => coverImageInputRef.current?.click()}
+                      className="absolute bottom-4 right-4 z-20 px-3 py-2 bg-white dark:bg-[#3A3B3C] rounded-md shadow-md flex items-center gap-2 text-xs font-bold hover:bg-gray-100 dark:hover:bg-[#4E4F50] transition-colors"
+                    >
+                      <CameraIcon className="w-4 h-4" />
+                      <span className="hidden sm:inline">Edit Cover Photo</span>
+                    </button>
+                  )}
+                  {selectedUserUid && (
+                    <button 
+                      onClick={() => setSelectedUserUid(null)}
+                      className="absolute top-4 left-4 z-20 p-2 bg-black/30 rounded-full text-white hover:bg-black/50 transition-colors sm:hidden"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
-                <div className="px-4 pb-4 -mt-12 md:-mt-16 flex flex-col md:flex-row items-center md:items-end gap-4 relative z-10">
-                  <div className="relative group">
-                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white dark:bg-[#242526] border-4 border-white dark:border-[#242526] overflow-hidden shadow-lg">
-                      {isUploadingPhoto && profileUid === user?.uid ? (
-                        <div className="w-full h-full flex items-center justify-center bg-bg-dark/50"><Loader2 className="w-8 h-8 text-accent animate-spin" /></div>
-                      ) : profileUser?.photoURL ? (
-                        <img src={profileUser.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#3A3B3C]"><UserIcon className="w-16 h-16 text-text-dim" /></div>
+
+                {/* Profile Info Overlay Panel */}
+                <div className="px-4 pb-4">
+                  <div className="flex flex-col md:flex-row items-center md:items-end gap-4 -mt-16 md:-mt-20 relative z-10">
+                    <div className="relative group">
+                      <div className="w-40 h-40 md:w-44 md:h-44 rounded-full bg-[#F0F2F5] dark:bg-[#18191A] border-4 border-white dark:border-[#242526] overflow-hidden shadow-lg">
+                        {isUploadingPhoto && profileUid === user?.uid ? (
+                          <div className="w-full h-full flex items-center justify-center bg-black/5">
+                            <Loader2 className="w-8 h-8 animate-spin text-[#1877F2]" />
+                          </div>
+                        ) : profileUser?.photoURL ? (
+                          <img src={profileUser?.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-[#3A3B3C] text-gray-400">
+                             <UserIcon className="w-20 h-20" />
+                          </div>
+                        )}
+                      </div>
+                      {profileUid === user?.uid && (
+                        <button 
+                          onClick={handleProfilePictureClick} 
+                          className="absolute bottom-3 right-3 p-2 bg-gray-100 dark:bg-[#3A3B3C] rounded-full shadow-md text-foreground hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-all border border-white dark:border-[#242526]"
+                        >
+                          <CameraIcon className="w-5 h-5" />
+                        </button>
                       )}
                     </div>
-                    {profileUid === user?.uid && (
-                      <button onClick={handleProfilePictureClick} className="absolute bottom-2 right-2 p-2.5 bg-gray-100 dark:bg-[#3A3B3C] rounded-full shadow-md text-foreground hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors">
-                        <CameraIcon className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex-1 text-center md:text-left pb-4">
-                    <h2 className="text-3xl font-black uppercase tracking-tighter">{profileUser?.displayName}</h2>
-                    <p className="text-text-dim text-sm font-medium">{profileUser?.bio || 'No bio yet.'}</p>
-                    <div className="flex items-center justify-center md:justify-start gap-4 mt-3">
-                      <div className="text-sm"><span className="font-bold">{profileUser?.followersCount || 0}</span> <span className="text-text-dim">Followers</span></div>
-                      <div className="text-sm"><span className="font-bold">{profileUser?.followingCount || 0}</span> <span className="text-text-dim">Following</span></div>
+
+                    <div className="flex-1 text-center md:text-left pb-4 md:mb-2">
+                       <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">{profileUser?.displayName}</h1>
+                       <p className="text-gray-500 font-bold mt-1 uppercase text-xs tracking-widest">{profileUser?.followersCount || 0} followers • {profileUser?.followingCount || 0} following</p>
+                    </div>
+
+                    <div className="flex gap-2 pb-4 md:mb-2">
+                      {profileUid === user?.uid ? (
+                        <>
+                          <Button 
+                            onClick={() => setIsPostCreationModalOpen(true)}
+                            className="bg-[#1877F2] text-white font-bold text-xs h-9 px-4 rounded-md shadow-sm hover:bg-[#166FE5]"
+                          >
+                             <Plus className="w-4 h-4 mr-2" /> Add to Story
+                          </Button>
+                          <Button 
+                            onClick={openEditProfile}
+                            className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]"
+                          >
+                             <PenLine className="w-4 h-4 mr-2" /> Edit profile
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button 
+                            onClick={() => withAuth(() => followingUids.includes(profileUid) ? unfollowUser(profileUid) : followUser(profileUid))}
+                            className={`${followingUids.includes(profileUid) ? 'bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground' : 'bg-[#1877F2] text-white hover:bg-[#166FE5]'} font-bold text-xs h-9 px-6 rounded-md transition-all`}
+                          >
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            {followingUids.includes(profileUid) ? 'Unfollow' : 'Follow'}
+                          </Button>
+                          <Button 
+                            onClick={() => withAuth(() => {
+                              setActiveChat({
+                                id: profileUser?.uid || '',
+                                partnerId: profileUser?.uid || '',
+                                partnerName: profileUser?.displayName || ''
+                              });
+                              setCurrentApp('porsh');
+                            })}
+                            className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]"
+                          >
+                             <MessageSquare className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-2 pb-4">
-                    {profileUid === user?.uid ? (
-                      <Button onClick={() => {}} className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]">
-                         <PenLine className="w-4 h-4 mr-2" /> Edit profile
-                      </Button>
-                    ) : (
-                      <>
-                        <Button 
-                          onClick={() => withAuth(() => followingUids.includes(profileUid) ? unfollowUser(profileUid) : followUser(profileUid))}
-                          className={`${followingUids.includes(profileUid) ? 'bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground' : 'bg-[#1877F2] text-white hover:bg-[#166FE5]'} font-bold text-xs h-9 px-6 rounded-md transition-all`}
-                        >
-                          {followingUids.includes(profileUid) ? 'Unfollow' : 'Follow'}
-                        </Button>
-                        <Button 
-                          onClick={() => withAuth(() => {
-                            setActiveChat({
-                              id: profileUser?.uid || '',
-                              partnerId: profileUser?.uid || '',
-                              partnerName: profileUser?.displayName || ''
-                            });
-                            setCurrentApp('porsh');
-                          })}
-                          className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]"
-                        >
-                           <MessageSquare className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
+
+                  {/* Facebook Style Tabs bar */}
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar border-t border-gray-100 dark:border-[#3E4042] mt-4 pt-4">
+                     {['Posts', 'About', 'Followers', 'Photos', 'Videos'].map((tab, idx) => (
+                       <button 
+                         key={tab} 
+                         className={`px-4 py-2 text-xs font-bold rounded-md transition-colors ${idx === 0 ? 'text-[#1877F2] bg-[#E7F3FF] dark:bg-[#1877F2]/10' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                       >
+                         {tab}
+                       </button>
+                     ))}
                   </div>
                 </div>
               </div>
@@ -3269,16 +3401,77 @@ export default function App() {
               {/* Activity Section */}
               <div className="px-2">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {/* Left Column (Info) */}
+                  {/* Left Column (Info / Intro) */}
                   <div className="md:col-span-2 space-y-4">
                     <div className="bg-white dark:bg-[#242526] p-4 rounded-xl shadow-sm space-y-4">
-                      <h3 className="text-lg font-bold">Intro</h3>
-                      {profileUser?.bio && <div className="text-center text-sm py-2">{profileUser.bio}</div>}
-                      <Button className="w-full bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs rounded-md shadow-none hover:bg-gray-200 dark:hover:bg-[#4E4F50]">Edit bio</Button>
+                      <h3 className="text-xl font-black uppercase tracking-tighter">Intro</h3>
+                      
+                      {/* Bio */}
+                      <div className="text-center text-sm font-medium py-2 break-words">
+                        {profileUser?.bio || (profileUid === user?.uid ? 'Add a short bio to tell people more about yourself.' : 'No bio yet.')}
+                      </div>
                       
                       {profileUid === user?.uid && (
+                        <Button 
+                          onClick={openEditProfile}
+                          variant="ghost" 
+                          className="w-full bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs rounded-md shadow-none hover:bg-gray-200 dark:hover:bg-[#4E4F50] h-9"
+                        >
+                          Edit bio
+                        </Button>
+                      )}
+
+                      {/* Details */}
+                      <div className="space-y-4 pt-2">
+                         {profileUser?.work && (
+                           <div className="flex items-center gap-3 text-sm font-medium">
+                              <Briefcase className="w-5 h-5 text-gray-500" /> 
+                              <span>Works as <span className="font-bold">{profileUser.work}</span></span>
+                           </div>
+                         )}
+                         {profileUser?.education && (
+                           <div className="flex items-center gap-3 text-sm font-medium">
+                              <GraduationCap className="w-5 h-5 text-gray-500" /> 
+                              <span>Studied at <span className="font-bold">{profileUser.education}</span></span>
+                           </div>
+                         )}
+                         {profileUser?.currentCity && (
+                            <div className="flex items-center gap-3 text-sm font-medium">
+                               <MapPin className="w-5 h-5 text-gray-500" /> 
+                               <span>Lives in <span className="font-bold">{profileUser.currentCity}</span></span>
+                            </div>
+                         )}
+                         {profileUser?.hometown && (
+                            <div className="flex items-center gap-3 text-sm font-medium">
+                               <MapPin className="w-5 h-5 text-gray-500" /> 
+                               <span>From <span className="font-bold">{profileUser.hometown}</span></span>
+                            </div>
+                         )}
+                         {profileUser?.relationshipStatus && (
+                            <div className="flex items-center gap-3 text-sm font-medium">
+                               <Heart className="w-5 h-5 text-gray-500" /> 
+                               <span>{profileUser.relationshipStatus}</span>
+                            </div>
+                         )}
+                         {profileUser?.website && (
+                            <div className="flex items-center gap-3 text-sm font-medium">
+                               <LinkIcon className="w-5 h-5 text-gray-500" /> 
+                               <a href={profileUser.website} target="_blank" rel="noopener noreferrer" className="text-[#1877F2] hover:underline font-bold truncate">
+                                 {profileUser.website.replace('https://', '').replace('http://', '')}
+                               </a>
+                            </div>
+                         )}
+                      </div>
+
+                      {profileUid === user?.uid && (
                         <div className="pt-4 border-t border-gray-100 dark:border-[#3E4042] space-y-3">
-                           <div className="flex items-center gap-3 text-sm text-text-dim"><Globe className="w-5 h-5" /> Profile · Public</div>
+                           <Button onClick={openEditProfile} variant="ghost" className="w-full bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs rounded-md shadow-none hover:bg-gray-200 dark:hover:bg-[#4E4F50] h-9">Edit details</Button>
+                           <div className="flex items-center gap-3 text-xs font-bold text-gray-500 pt-2"><Globe className="w-4 h-4" /> Profile · Public</div>
+                        </div>
+                      )}
+
+                      {profileUid === user?.uid && (
+                        <div className="pt-4 border-t border-gray-100 dark:border-[#3E4042] space-y-4">
                            {user?.role === 'admin' && (
                              <button 
                                onClick={() => setActiveTab('admin')} 
@@ -3287,27 +3480,32 @@ export default function App() {
                                <LayoutDashboard className="w-5 h-5" /> Admin Dashboard
                              </button>
                            )}
-                           <button onClick={logout} className="w-full p-2.5 rounded-lg bg-red-400/5 text-red-500 font-bold text-xs flex items-center justify-center gap-2 border border-red-500/10 hover:bg-red-500/10 transition-colors">
-                             <LogOut className="w-4 h-4" /> Logout
+                           <button onClick={logout} className="w-full p-3 rounded-lg bg-red-500/5 text-red-500 font-bold text-xs flex items-center justify-center gap-2 border border-red-500/10 hover:bg-red-500/20 transition-colors uppercase tracking-widest">
+                             <LogOut className="w-4 h-4" /> Logout from Porshi
                            </button>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Right Column (Posts) */}
+                  {/* Right Column (Posts Flow) */}
                   <div className="md:col-span-3 space-y-4">
-                    <div className="bg-white dark:bg-[#242526] p-4 rounded-xl shadow-sm flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface">
-                        {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                    {profileUid === user?.uid && (
+                      <div className="bg-white dark:bg-[#242526] p-4 rounded-xl shadow-sm flex items-center gap-3">
+                        <div 
+                           onClick={() => setSelectedUserUid(user?.uid || null)}
+                           className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-surface cursor-pointer"
+                        >
+                          {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-text-dim" />}
+                        </div>
+                        <button 
+                          onClick={() => withAuth(() => setIsPostCreationModalOpen(true))}
+                          className="flex-1 h-10 rounded-full px-4 text-left text-sm bg-[#F0F2F5] dark:bg-[#3A3B3C] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors"
+                        >
+                           What's on your mind, {user?.displayName?.split(' ')[0] || 'User'}?
+                        </button>
                       </div>
-                      <button 
-                        onClick={() => withAuth(() => setIsPostCreationModalOpen(true))}
-                        className="flex-1 h-10 rounded-full px-4 text-left text-sm bg-[#F0F2F5] dark:bg-[#3A3B3C] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#4E4F50] transition-colors"
-                      >
-                         What's on your mind?
-                      </button>
-                    </div>
+                    )}
 
                     <div className="space-y-4">
                       {posts.filter(p => p.authorUid === profileUid).map(post => (
@@ -3335,7 +3533,9 @@ export default function App() {
                         />
                       ))}
                       {posts.filter(p => p.authorUid === profileUid).length === 0 && (
-                        <div className="p-20 text-center opacity-20 uppercase font-black tracking-widest text-xs">No posts yet</div>
+                        <div className="p-20 text-center bg-white dark:bg-[#242526] rounded-xl shadow-sm">
+                           <div className="opacity-20 uppercase font-black tracking-widest text-xs">No posts yet to show</div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3518,16 +3718,14 @@ export default function App() {
 
   // Auth Actions
   const login = async () => {
-    // Completely bypass Firebase's bridge domain by using direct GSI authentication
-    if (typeof window.google !== 'undefined' && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+    // Completely bypass Firebase's bridge domain by using direct GSI authentication if in top-level
+    if (window.self === window.top && typeof window.google !== 'undefined' && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
       setIsAuthLoading(true);
       try {
         // This triggers the native GSI account chooser popup directly on porshi.vercel.app 
         // without bouncing to gen-lang-client...firebaseapp.com
         window.google.accounts.id.prompt((notification: any) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // If One Tap prompt is hidden/skipped, we fallback to a more explicit GSI trigger
-            // (The button rendered below handles this)
             setIsAuthLoading(false);
           }
         });
@@ -3536,7 +3734,7 @@ export default function App() {
         setIsAuthLoading(false);
       }
     } else {
-      // Emergency fallback for other environments
+      // Always use popup in iframes (AI Studio preview environment)
       setIsAuthLoading(true);
       try {
         await signInWithPopup(auth, googleProvider);
@@ -3863,6 +4061,188 @@ export default function App() {
     </AnimatePresence>
   );
 
+  const renderEditProfileModal = () => (
+    <AnimatePresence>
+      {isEditProfileModalOpen && (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <motion.div 
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-none shadow-2xl ${theme === 'dark' ? 'bg-[#242526] text-white' : 'bg-white text-black'}`}
+          >
+            <div className={`p-4 border-b flex justify-between items-center sticky top-0 z-10 ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
+              <h2 className="text-xl font-bold uppercase tracking-tighter">Edit Profile</h2>
+              <button 
+                onClick={() => setIsEditProfileModalOpen(false)} 
+                className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-8">
+               {/* Photos Section */}
+               <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                     <h3 className="font-bold text-lg uppercase tracking-tight">Profile Picture</h3>
+                     <Button 
+                       variant="ghost" 
+                       onClick={handleProfilePictureClick} 
+                       className="text-[#1877F2] font-black uppercase text-xs"
+                     >
+                       Edit
+                     </Button>
+                  </div>
+                  <div className="flex justify-center">
+                     <div className="w-44 h-44 rounded-full border-4 border-[#1877F2]/20 overflow-hidden bg-gray-200 shadow-xl">
+                        {isUploadingPhoto ? (
+                          <div className="w-full h-full flex items-center justify-center bg-black/5">
+                            <Loader2 className="w-8 h-8 animate-spin text-[#1877F2]" />
+                          </div>
+                        ) : (
+                          <img src={user?.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        )}
+                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4">
+                     <h3 className="font-bold text-lg uppercase tracking-tight">Cover Photo</h3>
+                     <Button 
+                       variant="ghost" 
+                       onClick={() => coverImageInputRef.current?.click()} 
+                       className="text-[#1877F2] font-black uppercase text-xs"
+                     >
+                       Edit
+                     </Button>
+                  </div>
+                  <div className="w-full aspect-[16/6] rounded-xl border-2 border-dashed border-[#1877F2]/20 overflow-hidden bg-surface relative group">
+                     {isUploadingCover ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                           <Loader2 className="w-8 h-8 animate-spin text-[#1877F2]" />
+                        </div>
+                     ) : (
+                        user?.coverPhotoURL ? (
+                          <img src={user?.coverPhotoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-r from-[#1877F2]/10 to-[#00D1FF]/10 flex flex-col items-center justify-center text-[#1877F2] opacity-50">
+                             <ImageIcon className="w-10 h-10 mb-2" />
+                             <span className="text-[10px] font-bold uppercase tracking-widest">No Cover Photo</span>
+                          </div>
+                        )
+                     )}
+                  </div>
+               </div>
+
+               {/* Bio Section */}
+               <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                     <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Bio / স্লোগান</h3>
+                     <span className="text-[10px] font-bold text-text-dim">{editProfileData.bio.length}/101</span>
+                  </div>
+                  <textarea 
+                    value={editProfileData.bio}
+                    onChange={e => setEditProfileData({...editProfileData, bio: e.target.value})}
+                    placeholder="পড়শিতে আপনার সম্পর্কে কিছু বলুন..."
+                    maxLength={101}
+                    className={`w-full p-4 rounded-xl border-2 resize-none h-24 text-sm font-medium focus:border-[#1877F2] transition-colors outline-none ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}
+                  />
+               </div>
+
+               {/* Info Section */}
+               <div className="space-y-6">
+                  <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Customize your intro</h3>
+                  <div className="grid gap-6">
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Display Name / আপনার নাম</Label>
+                        <Input 
+                          value={editProfileData.displayName} 
+                          onChange={e => setEditProfileData({...editProfileData, displayName: e.target.value})} 
+                          className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                        />
+                     </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">বর্তমান শহর</Label>
+                           <Input 
+                             value={editProfileData.currentCity} 
+                             onChange={e => setEditProfileData({...editProfileData, currentCity: e.target.value})} 
+                             className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                             placeholder="যেমন: ঢাকা, বাংলাদেশ"
+                           />
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">স্থায়ী ঠিকানা</Label>
+                           <Input 
+                             value={editProfileData.hometown} 
+                             onChange={e => setEditProfileData({...editProfileData, hometown: e.target.value})} 
+                             className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                             placeholder="যেমন: চট্টগ্রাম"
+                           />
+                        </div>
+                     </div>
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">কর্মসংস্থান (Work)</Label>
+                        <Input 
+                          value={editProfileData.work} 
+                          onChange={e => setEditProfileData({...editProfileData, work: e.target.value})} 
+                          className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                          placeholder="যেমন: গ্রাফিক ডিজাইনার"
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">শিক্ষা প্রতিষ্ঠান</Label>
+                        <Input 
+                          value={editProfileData.education} 
+                          onChange={e => setEditProfileData({...editProfileData, education: e.target.value})} 
+                          className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                          placeholder="স্কুল বা কলেজ"
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">সম্পর্কের অবস্থা</Label>
+                        <select 
+                          value={editProfileData.relationshipStatus} 
+                          onChange={e => setEditProfileData({...editProfileData, relationshipStatus: e.target.value})}
+                          className={`w-full h-12 p-2.5 rounded-md border-2 font-medium ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}
+                        >
+                           <option value="">Select Status</option>
+                           <option value="Single">Single</option>
+                           <option value="In a relationship">In a relationship</option>
+                           <option value="Married">Married</option>
+                           <option value="Engaged">Engaged</option>
+                           <option value="It's complicated">It's complicated</option>
+                        </select>
+                     </div>
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">ওয়েবসাইট / প্রোফাইল লিংক</Label>
+                        <Input 
+                          value={editProfileData.website} 
+                          onChange={e => setEditProfileData({...editProfileData, website: e.target.value})} 
+                          className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
+                          placeholder="https://..."
+                        />
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <div className={`p-4 border-t flex gap-3 sticky bottom-0 z-10 ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
+               <Button variant="ghost" onClick={() => setIsEditProfileModalOpen(false)} className="flex-1 h-12 font-bold uppercase text-[10px] tracking-widest">Cancel</Button>
+               <Button onClick={handleUpdateProfile} disabled={isEditProfileLoading} className="flex-1 bg-[#1877F2] text-white hover:bg-[#166FE5] h-12 font-black uppercase text-[10px] tracking-widest shadow-[0_4px_14px_rgba(24,119,242,0.4)]">
+                  {isEditProfileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'সব ঠিক আছে (Save)'}
+               </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   if (!isAuthReady) return (
     <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center space-y-8">
       {/* branded splash */}
@@ -3896,6 +4276,7 @@ export default function App() {
         <input type="file" accept="image/*,video/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
         <input type="file" accept="image/*,video/*" ref={storyImageInputRef} onChange={handleStoryImageChange} className="hidden" />
         <input type="file" accept="image/*" ref={profileImageInputRef} onChange={uploadProfilePicture} className="hidden" />
+        <input type="file" accept="image/*" ref={coverImageInputRef} onChange={uploadCoverPicture} className="hidden" />
         <div className="flex items-center justify-between mb-10">
           <button 
             onClick={() => {
@@ -4189,6 +4570,7 @@ export default function App() {
       </AnimatePresence>
 
       {renderPostCreationModal()}
+      {renderEditProfileModal()}
 
       {/* Mobile Create Menu Backdrop */}
       <AnimatePresence>
