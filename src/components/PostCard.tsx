@@ -245,7 +245,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
 
       {/* Post Media */}
-      {post.mediaType === 'video' && post.videoUrl ? (
+      {post.mediaType === 'video' && (post.videoUrl || post.youtubeUrl) ? (
         <VideoPlayer post={post} ads={ads} currentUserId={currentUserId} theme={theme} />
       ) : post.imageUrl && (
         <ImageWithTracking post={post} theme={theme} currentUserId={currentUserId} onLike={onLike} />
@@ -253,22 +253,32 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Ad Section */}
       {post.isMonetized && selectedAd && (
-        <div 
-          onClick={handleAdClick}
-          className={`mx-3 my-2 p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-[#E4E6EB]'}`}
-        >
-          <div className="w-10 h-10 rounded bg-[#1877F2] flex items-center justify-center flex-shrink-0">
-            <Globe className="w-5 h-5 text-white" />
+        selectedAd.adCode ? (
+          <div className="mx-3 my-2 overflow-hidden flex justify-center bg-transparent border-none">
+            <div 
+              className="ad-code-container w-full"
+              dangerouslySetInnerHTML={{ __html: selectedAd.adCode }}
+              onClick={handleAdClick}
+            />
           </div>
-          <div className="flex-1 min-w-0">
-             <div className="text-[10px] font-bold text-[#1877F2] uppercase">Sponsored</div>
-             <div className="text-sm font-bold truncate">{selectedAd.title}</div>
-             <div className="text-xs text-gray-500 truncate">{selectedAd.description}</div>
+        ) : (
+          <div 
+            onClick={handleAdClick}
+            className={`mx-3 my-2 p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-[#E4E6EB]'}`}
+          >
+            <div className="w-10 h-10 rounded bg-[#1877F2] flex items-center justify-center flex-shrink-0">
+              <Globe className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+               <div className="text-[10px] font-bold text-[#1877F2] uppercase">Sponsored</div>
+               <div className="text-sm font-bold truncate">{selectedAd.title}</div>
+               <div className="text-xs text-gray-500 truncate">{selectedAd.description}</div>
+            </div>
+            <Button size="sm" className="bg-[#1877F2] text-white hover:bg-[#166FE5] font-bold text-xs">
+              {selectedAd.objective === 'website_views' ? 'Visit' : 'Learn More'}
+            </Button>
           </div>
-          <Button size="sm" className="bg-[#1877F2] text-white hover:bg-[#166FE5] font-bold text-xs">
-            {selectedAd.objective === 'website_views' ? 'Visit' : 'Learn More'}
-          </Button>
-        </div>
+        )
       )}
 
       {/* Reaction Counts Display */}

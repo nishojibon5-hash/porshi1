@@ -193,7 +193,9 @@
         "timestamp": { "type": "string", "format": "date-time" },
         "expiresAt": { "type": "string", "format": "date-time" },
         "reach": { "type": "number" },
-        "clicks": { "type": "number" }
+        "clicks": { "type": "number" },
+        "vastUrl": { "type": "string" },
+        "vastType": { "type": "string", "enum": ["pre-roll", "mid-roll", "post-roll"] }
       },
       "required": ["advertiserUid", "title", "status", "paymentStatus"]
     }

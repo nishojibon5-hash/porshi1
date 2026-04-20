@@ -28,11 +28,68 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   const [adVideo, setAdVideo] = React.useState<Advertisement | null>(null);
   const [skipTime, setSkipTime] = React.useState(15);
   const [adFinished, setAdFinished] = React.useState(false);
+  const [isVastLoading, setIsVastLoading] = React.useState(false);
+  const [midRollTriggered, setMidRollTriggered] = React.useState(false);
   
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const adVideoRef = React.useRef<HTMLVideoElement>(null);
+  const ytPlayerRef = React.useRef<any>(null);
+  const ytIframeRef = React.useRef<HTMLDivElement>(null);
   const viewTracked = React.useRef(false);
   const reachTracked = React.useRef(false);
+
+  const getYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const youtubeId = post.youtubeUrl ? getYoutubeId(post.youtubeUrl) : null;
+
+  // Initialize YouTube API
+  React.useEffect(() => {
+    if (!youtubeId || ytPlayerRef.current) return;
+
+    const loadYT = () => {
+      if (!(window as any).YT) {
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        (window as any).onYouTubeIframeAPIReady = () => {
+          createPlayer();
+        };
+      } else {
+        createPlayer();
+      }
+    };
+
+    const createPlayer = () => {
+      ytPlayerRef.current = new (window as any).YT.Player('yt-player-' + post.id, {
+        height: '100%',
+        width: '100%',
+        videoId: youtubeId,
+        playerVars: {
+          autoplay: 0,
+          modestbranding: 1,
+          rel: 0,
+          controls: 1,
+          showinfo: 0,
+          mute: isMuted ? 1 : 0
+        },
+        events: {
+          onStateChange: (event: any) => {
+            if (event.data === (window as any).YT.PlayerState.PLAYING) {
+              onVideoPlay();
+            }
+          }
+        }
+      });
+    };
+
+    loadYT();
+  }, [youtubeId, post.id]);
 
   const { ref, inView } = useInView({
     threshold: 0.5,
@@ -51,19 +108,67 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
 
   // Handle Monetized Ads
   React.useEffect(() => {
-    if (post.isMonetized && !adFinished && inView && !adVideo) {
-      const videoAds = ads.filter(ad => ad.status === 'active' && ad.adType === 'video_skippable');
-      if (videoAds.length > 0) {
-        // Prioritize Admin Ads
-        const adminAds = videoAds.filter(ad => ad.isAdminAd);
-        const finalAds = adminAds.length > 0 ? adminAds : videoAds;
-        
-        const randomAd = finalAds[Math.floor(Math.random() * finalAds.length)];
-        setAdVideo(randomAd);
-        setShowAd(true);
+    const fetchAd = async () => {
+      // Trigger ad only when user clicks play and we haven't shown pre-roll yet
+      if (post.isMonetized && !adFinished && isPlaying && !adVideo && !showAd) {
+        // Step 1: Optional API call to get active ad settings (requirement 3)
+        try {
+           await fetch(`/api/vast?videoId=${post.id}`);
+        } catch (e) {
+           console.log("API log only");
+        }
+
+        const videoAds = ads.filter(ad => ad.status === 'active' && (ad.adType === 'video_skippable' || ad.vastUrl));
+        if (videoAds.length > 0) {
+          const adminAds = videoAds.filter(ad => ad.isAdminAd);
+          const finalAds = adminAds.length > 0 ? adminAds : videoAds;
+          const randomAd = finalAds[Math.floor(Math.random() * finalAds.length)];
+          
+          if (randomAd.vastUrl) {
+            setIsVastLoading(true);
+            try {
+              const response = await fetch(randomAd.vastUrl);
+              const xmlText = await response.text();
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+              const mediaFiles = xmlDoc.getElementsByTagName("MediaFile");
+              
+              if (mediaFiles.length > 0) {
+                let mediaUrl = mediaFiles[0].textContent?.trim();
+                // Prefer MP4
+                for (let i = 0; i < mediaFiles.length; i++) {
+                  if (mediaFiles[i].getAttribute("type") === "video/mp4") {
+                    mediaUrl = mediaFiles[i].textContent?.trim();
+                    break;
+                  }
+                }
+                
+                if (mediaUrl) {
+                  setAdVideo({ ...randomAd, videoAdUrl: mediaUrl });
+                  setShowAd(true);
+                  // Pause main players
+                  if (videoRef.current) videoRef.current.pause();
+                  if (youtubeId && ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
+                }
+              }
+            } catch (error) {
+              console.error("VAST load failed", error);
+            } finally {
+              setIsVastLoading(false);
+            }
+          } else {
+            setAdVideo(randomAd);
+            setShowAd(true);
+            // Pause main players
+            if (videoRef.current) videoRef.current.pause();
+            if (youtubeId && ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
+          }
+        }
       }
-    }
-  }, [post.isMonetized, ads, inView, adFinished, adVideo]);
+    };
+
+    fetchAd();
+  }, [post.isMonetized, ads, inView, adFinished, adVideo, post.id, isPlaying, showAd]);
 
   // Skip Timer Logic
   React.useEffect(() => {
@@ -78,8 +183,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
 
   const handleSkip = () => {
     setShowAd(false);
-    setAdFinished(true);
-    if (videoRef.current) {
+    if (!midRollTriggered) {
+      setAdFinished(true);
+    }
+    
+    if (youtubeId && ytPlayerRef.current) {
+      ytPlayerRef.current.playVideo();
+      setIsPlaying(true);
+    } else if (videoRef.current) {
       videoRef.current.play().catch(console.error);
       setIsPlaying(true);
     }
@@ -88,6 +199,35 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
       updateDoc(doc(db, 'ads', adVideo.id), {
         reach: increment(1)
       }).catch(console.error);
+    }
+    setAdVideo(null); // Clear ad state
+  };
+
+  const toggleMute = () => {
+    const newMute = !isMuted;
+    setIsMuted(newMute);
+    if (youtubeId && ytPlayerRef.current) {
+      if (newMute) ytPlayerRef.current.mute();
+      else ytPlayerRef.current.unMute();
+    }
+  };
+
+  const onTimeUpdate = () => {
+    if (!videoRef.current || !post.isMonetized || midRollTriggered) return;
+    
+    // Simple mid-roll at 50%
+    const progress = videoRef.current.currentTime / videoRef.current.duration;
+    if (progress >= 0.5) {
+      const midRollAds = ads.filter(ad => ad.status === 'active' && ad.vastType === 'mid-roll');
+      if (midRollAds.length > 0) {
+        setMidRollTriggered(true);
+        if (videoRef.current) videoRef.current.pause();
+        if (youtubeId && ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
+        const randomAd = midRollAds[Math.floor(Math.random() * midRollAds.length)];
+        setAdVideo(randomAd);
+        setShowAd(true);
+        setSkipTime(15);
+      }
     }
   };
 
@@ -142,7 +282,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
 
             <div className="absolute bottom-4 right-4 flex items-center gap-3">
               <button 
-                onClick={() => setIsMuted(!isMuted)}
+                onClick={toggleMute}
                 className="p-3 bg-black/60 rounded-full text-white border border-white/20 hover:bg-black transition-colors"
               >
                 {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -166,21 +306,33 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
         )}
       </AnimatePresence>
 
-      <video 
-        ref={videoRef}
-        src={post.videoUrl}
-        className="w-full h-full object-contain"
-        onPlay={onVideoPlay}
-        controls={!showAd && isPlaying}
-        muted={isMuted}
-        playsInline
-      />
+      {youtubeId ? (
+        <div className={`w-full h-full ${!isPlaying ? 'hidden' : ''}`}>
+          <div id={`yt-player-${post.id}`} className="w-full h-full"></div>
+        </div>
+      ) : (
+        <video 
+          ref={videoRef}
+          src={post.videoUrl}
+          className="w-full h-full object-contain"
+          onPlay={onVideoPlay}
+          onTimeUpdate={onTimeUpdate}
+          controls={!showAd && isPlaying}
+          muted={isMuted}
+          playsInline
+        />
+      )}
 
       {!isPlaying && !showAd && (
         <button 
           onClick={() => {
-            videoRef.current?.play().catch(console.error);
-            setIsPlaying(true);
+            if (youtubeId && ytPlayerRef.current) {
+              ytPlayerRef.current.playVideo();
+              setIsPlaying(true);
+            } else {
+              videoRef.current?.play().catch(console.error);
+              setIsPlaying(true);
+            }
           }}
           className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/20 transition-all z-20"
         >

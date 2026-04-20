@@ -29,6 +29,7 @@ export interface Post {
   mediaType?: 'image' | 'video';
   imageUrl?: string;
   videoUrl?: string;
+  youtubeUrl?: string;
   likesCount: number;
   commentsCount: number;
   reactions?: {
@@ -124,6 +125,9 @@ export interface Advertisement {
   reach: number;
   clicks: number;
   isAdminAd?: boolean;
+  vastUrl?: string;
+  vastType?: 'pre-roll' | 'mid-roll' | 'post-roll';
+  adCode?: string;
 }
 
 export interface AppNotification {

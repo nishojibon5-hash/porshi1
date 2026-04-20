@@ -174,6 +174,7 @@ export default function App() {
   const [postImage, setPostImage] = useState<string | null>(null);
   const [postVideo, setPostVideo] = useState<File | null>(null);
   const [postVideoPreview, setPostVideoPreview] = useState<string | null>(null);
+  const [postYoutubeUrl, setPostYoutubeUrl] = useState('');
   const [isCreatingPost, setIsCreatingPost] = useState(false);
   const [isPostMonetized, setIsPostMonetized] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -190,7 +191,10 @@ export default function App() {
     durationDays: 5,
     budget: 100,
     adType: 'banner',
-    videoAdUrl: ''
+    videoAdUrl: '',
+    vastUrl: '',
+    vastType: 'pre-roll' as 'pre-roll' | 'mid-roll' | 'post-roll',
+    adCode: ''
   });
   const [isCreatingAd, setIsCreatingAd] = useState(false);
   const [showAdPaymentModal, setShowAdPaymentModal] = useState(false);
@@ -766,12 +770,14 @@ export default function App() {
     const currentInput = postInput.trim();
     const currentImage = postImage;
     const currentVideo = postVideo;
+    const currentYoutubeUrl = postYoutubeUrl;
 
     // Reset inputs immediately to give instant feedback
     setPostInput('');
     setPostImage(null);
     setPostVideo(null);
     setPostVideoPreview(null);
+    setPostYoutubeUrl('');
     setIsCreatingPost(true);
     setUploadProgress(0);
     setErrorMessage('পোস্ট আপলোড হচ্ছে...');
@@ -819,6 +825,8 @@ export default function App() {
 
           videoUrl = await uploadToCloudinary(currentVideo, 'video');
           addLog('ভিডিও প্রসেস সফল!');
+        } else if (currentYoutubeUrl) {
+          mediaType = 'video';
         }
 
         addLog('ডাটাবেজে সেভ হচ্ছে...');
@@ -830,6 +838,7 @@ export default function App() {
           mediaType,
           imageUrl,
           videoUrl,
+          youtubeUrl: currentYoutubeUrl,
           likesCount: 0,
           commentsCount: 0,
           timestamp: serverTimestamp(),
@@ -880,11 +889,13 @@ export default function App() {
       const postRef = doc(db, 'posts', editingPost.id);
       await updateDoc(postRef, {
         content: postInput.trim(),
+        youtubeUrl: postYoutubeUrl,
         isEdited: true,
         privacy: postPrivacy
       });
       setEditingPost(null);
       setPostInput('');
+      setPostYoutubeUrl('');
       setPostPrivacy('public');
       setErrorMessage('পোস্ট আপডেট করা হয়েছে।');
       setTimeout(() => setErrorMessage(null), 3000);
@@ -1057,8 +1068,16 @@ export default function App() {
 
   const handleCreateAdminAd = async () => {
     if (!user || user.role !== 'admin') return;
-    if (!adForm.title.trim() || !adForm.description.trim() || !adForm.videoAdUrl) {
-      setErrorMessage('টাইটেল, ডিসক্রিপশন এবং ভিডিও এড ফাইল দিন।');
+    const isVast = !!adForm.vastUrl.trim();
+    const isAdSense = !!adForm.adCode.trim();
+    
+    if (!adForm.title.trim() && !isAdSense) {
+      setErrorMessage('টাইটেল অথবা এডসেন্স কোড দিন।');
+      return;
+    }
+    
+    if (!isVast && !isAdSense && !adForm.videoAdUrl) {
+      setErrorMessage('ভিডিও, VAST URL অথবা এডসেন্স কোড দিন।');
       return;
     }
 
@@ -1067,15 +1086,18 @@ export default function App() {
       const adData: Omit<Advertisement, 'id'> = {
         advertiserUid: 'admin',
         advertiserName: 'পড়শি টীম (Official)',
-        title: adForm.title.trim(),
-        description: adForm.description.trim(),
-        objective: 'views',
+        title: adForm.title.trim() || 'Google AdSense Banner',
+        description: adForm.description.trim() || 'Third party display advertisement',
+        objective: 'website_views',
         location: 'All Bangladesh',
         audience: 'All Audience',
         durationDays: 365,
         budget: 0,
-        adType: 'video_skippable',
+        adType: isAdSense ? 'banner' : 'video_skippable', 
         videoAdUrl: adForm.videoAdUrl,
+        vastUrl: adForm.vastUrl.trim(),
+        vastType: adForm.vastType as any,
+        adCode: adForm.adCode.trim(),
         status: 'active',
         paymentStatus: 'paid',
         timestamp: serverTimestamp(),
@@ -1087,7 +1109,7 @@ export default function App() {
       };
 
       await addDoc(collection(db, 'ads'), adData);
-      setErrorMessage('সিস্টেম ইন-স্ট্রিম ভিডিও এড সফলভাবে চালু হয়েছে!');
+      setErrorMessage('সিস্টেম এড সফলভাবে চালু হয়েছে!');
       
       setAdForm({
         title: '',
@@ -1099,7 +1121,10 @@ export default function App() {
         durationDays: 5,
         budget: 100,
         adType: 'banner',
-        videoAdUrl: ''
+        videoAdUrl: '',
+        vastUrl: '',
+        vastType: 'pre-roll',
+        adCode: ''
       });
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
@@ -1814,6 +1839,7 @@ export default function App() {
                 setPostImage(null);
                 setPostVideo(null);
                 setPostVideoPreview(null);
+                setPostYoutubeUrl('');
                 setPostPrivacy('public');
               }}
               className="p-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full transition-colors"
@@ -1861,6 +1887,19 @@ export default function App() {
                onChange={(e) => setPostInput(e.target.value)}
                className="w-full bg-transparent text-lg resize-none outline-none min-h-[120px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
              />
+
+             <div className="mt-2 space-y-3">
+               <div className="flex items-center gap-2 text-[10px] font-black text-accent uppercase tracking-widest bg-accent/5 p-2 rounded-lg border border-accent/10">
+                 <VideoIcon className="w-3 h-3" />
+                 <span>ইউটিউব ভিডিও যোগ করুন (ঐচ্ছিক)</span>
+               </div>
+               <Input 
+                 placeholder="Paste YouTube Link here..."
+                 value={postYoutubeUrl}
+                 onChange={(e) => setPostYoutubeUrl(e.target.value)}
+                 className="bg-gray-50 dark:bg-[#3A3B3C] border-none text-xs h-10 rounded-xl focus:ring-1 focus:ring-accent transition-all"
+               />
+             </div>
 
              {/* Media Preview */}
              {postVideoPreview ? (
@@ -2177,6 +2216,7 @@ export default function App() {
                   onEdit={(p) => { 
                     setEditingPost(p); 
                     setPostInput(p.content); 
+                    setPostYoutubeUrl(p.youtubeUrl || '');
                     setPostPrivacy(p.privacy || 'public');
                     setIsPostCreationModalOpen(true); 
                   }}
@@ -2244,13 +2284,39 @@ export default function App() {
 
               {/* Admin Management Tabs */}
               <Tabs defaultValue="overview" className="space-y-8">
-                <TabsList className="bg-bg-dark border border-border-custom w-full max-w-2xl mx-auto h-14 p-1">
+                <TabsList className="bg-bg-dark border border-border-custom w-full max-w-4xl mx-auto h-14 p-1">
                   <TabsTrigger value="overview" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">সারসংক্ষেপ (Overview)</TabsTrigger>
                   <TabsTrigger value="ads" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">অ্যাড ম্যানেজার (Ads)</TabsTrigger>
-                  <TabsTrigger value="monetization" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">মনিটাইজেশন (Insights)</TabsTrigger>
+                  <TabsTrigger value="users" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">ইউজার (Users)</TabsTrigger>
+                  <TabsTrigger value="monetization" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">রোজগার (Insights)</TabsTrigger>
+                  <TabsTrigger value="notifs" className="flex-1 uppercase text-[10px] font-black tracking-widest h-full data-[state=active]:bg-accent data-[state=active]:text-bg-dark">নটিফিকেশন (Alerts)</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="overview" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <TabsContent value="overview" className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+                  <div className="geometric-card p-8 space-y-6">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                       <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-3xl font-black text-accent">{allUsers.length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
+                       </div>
+                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-3xl font-black text-accent">{posts.length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Posts</div>
+                       </div>
+                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-3xl font-black text-accent">{onlineUsers.length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Live Online</div>
+                       </div>
+                       <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-3xl font-black text-accent">{allUsers.filter(u => u.role === 'admin').length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
+                       </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="geometric-card p-8 space-y-6">
                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
@@ -2479,20 +2545,41 @@ export default function App() {
                                className="bg-bg-dark border-border-custom text-white text-xs h-10"
                              />
                              
-                             <div className="space-y-2">
-                                <Label className="text-[8px] uppercase font-black text-text-dim ml-1">ভিডিও অ্যাড আপলোড (External Video Ad)</Label>
-                                <div 
-                                  onClick={selectVideoAd}
-                                  className="w-full aspect-video rounded-xl border-2 border-dashed border-border-custom bg-bg-dark flex flex-col items-center justify-center cursor-pointer hover:border-accent group"
-                                >
-                                  {adForm.videoAdUrl ? (
-                                    <video src={adForm.videoAdUrl} className="w-full h-full object-contain rounded-lg" />
-                                  ) : (
-                                    <>
-                                      {isUploadingPhoto ? <Loader2 className="w-6 h-6 animate-spin text-accent" /> : <VideoIcon className="w-8 h-8 text-text-dim group-hover:text-accent" />}
-                                      <span className="text-[8px] uppercase font-black text-text-dim mt-2 tracking-widest">ভিডিও আপলোড করুন (এমপি৪)</span>
-                                    </>
-                                  )}
+                             <div className="space-y-4 pt-2">
+                                <div className="space-y-2">
+                                  <Label className="text-[8px] uppercase font-black text-accent ml-1">Advanced: VAST Configuration</Label>
+                                  <Input 
+                                    placeholder="VAST XML URL (e.g. Google IMA)" 
+                                    value={adForm.vastUrl}
+                                    onChange={(e) => setAdForm(prev => ({ ...prev, vastUrl: e.target.value }))}
+                                    className="bg-bg-dark border-border-custom text-white text-xs h-10"
+                                  />
+                                  <select 
+                                    value={adForm.vastType}
+                                    onChange={(e) => setAdForm(prev => ({ ...prev, vastType: e.target.value as any }))}
+                                    className="w-full bg-bg-dark border border-border-custom rounded-xl px-4 text-xs h-10 text-white outline-none"
+                                  >
+                                    <option value="pre-roll">Pre-roll (ভিডিও শুরুর আগে)</option>
+                                    <option value="mid-roll">Mid-roll (ভিডিওর মাঝে)</option>
+                                    <option value="post-roll">Post-roll (ভিডিও শেষে)</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                   <Label className="text-[8px] uppercase font-black text-text-dim ml-1">অথবা লোকাল ভিডিও আপলোড (Direct File)</Label>
+                                   <div 
+                                     onClick={selectVideoAd}
+                                     className="w-full aspect-video rounded-xl border-2 border-dashed border-border-custom bg-bg-dark flex flex-col items-center justify-center cursor-pointer hover:border-accent group"
+                                   >
+                                     {adForm.videoAdUrl ? (
+                                       <video src={adForm.videoAdUrl} className="w-full h-full object-contain rounded-lg" />
+                                     ) : (
+                                       <>
+                                         {isUploadingPhoto ? <Loader2 className="w-6 h-6 animate-spin text-accent" /> : <VideoIcon className="w-8 h-8 text-text-dim group-hover:text-accent" />}
+                                         <span className="text-[8px] uppercase font-black text-text-dim mt-2 tracking-widest">ভিডিও আপলোড করুন (এমপি৪)</span>
+                                       </>
+                                     )}
+                                   </div>
                                 </div>
                              </div>
 
@@ -2606,155 +2693,133 @@ export default function App() {
                      </div>
                   </div>
                 </TabsContent>
-              </Tabs>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
-                  </h2>
-                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {allUsers.map((u: any) => (
-                      <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-surface-light border border-border-custom overflow-hidden">
-                            {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />}
+                <TabsContent value="users" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="geometric-card p-8 space-y-6">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                      <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
+                    </h2>
+                    <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
+                      {allUsers.map((u: any) => (
+                        <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-surface-light border border-border-custom overflow-hidden">
+                              {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />}
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-bold uppercase">{u.displayName}</div>
+                              <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="text-[10px] font-bold uppercase">{u.displayName}</div>
-                            <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleUpdateUserMonetization(u)}
+                              className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark' : 'bg-surface-light text-text-dim hover:text-accent'}`}
+                              title="Toggle Monetization"
+                            >
+                              <DollarSign className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => handleUpdateUserMonetization(u)}
-                            className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark' : 'bg-surface-light text-text-dim hover:text-accent'}`}
-                            title="Toggle Monetization"
-                          >
-                            <DollarSign className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="geometric-card p-8 space-y-6">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                    <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
-                  </h2>
-                  <div className="space-y-4">
-                    <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
-                      <button 
-                        onClick={() => setIsAdminNoticeAll(false)}
-                        className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark font-black' : 'text-text-dim hover:text-white'}`}
-                      >
-                        সিঙ্গেল ইউজার
-                      </button>
-                      <button 
-                        onClick={() => setIsAdminNoticeAll(true)}
-                        className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark font-black shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim hover:text-white'}`}
-                      >
-                        সকল ইউজার
-                      </button>
+                      ))}
                     </div>
+                  </div>
+                </TabsContent>
 
-                    {!isAdminNoticeAll && (
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
-                        <select 
-                          value={adminNoticeTargetUid}
-                          onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
-                          className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
+                <TabsContent value="notifs" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="max-w-2xl mx-auto geometric-card p-8 space-y-6">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                      <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
+                    </h2>
+                    <div className="space-y-4">
+                      <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
+                        <button 
+                          onClick={() => setIsAdminNoticeAll(false)}
+                          className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark font-black' : 'text-text-dim hover:text-white'}`}
                         >
-                          <option value="" className="bg-bg-dark">সিলেক্ট ইউজার</option>
-                          {allUsers.map(u => (
-                            <option key={u.uid || u.id} value={u.uid || u.id} className="bg-bg-dark">{u.displayName} ({u.role || 'user'})</option>
-                          ))}
-                        </select>
+                          সিঙ্গেল ইউজার
+                        </button>
+                        <button 
+                          onClick={() => setIsAdminNoticeAll(true)}
+                          className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark font-black shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim hover:text-white'}`}
+                        >
+                          সকল ইউজার
+                        </button>
                       </div>
-                    )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
-                        <select 
-                          value={adminNoticeType}
-                          onChange={(e) => setAdminNoticeType(e.target.value as any)}
-                          className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
-                        >
-                          <option value="system" className="bg-bg-dark">সিস্টেম বার্তা</option>
-                          <option value="link" className="bg-bg-dark">লিংক/ইউআরএল</option>
-                          <option value="event" className="bg-bg-dark">ইভেন্ট/অফার</option>
-                          <option value="message" className="bg-bg-dark">ব্যক্তিগত মেসেজ</option>
-                        </select>
+                      {!isAdminNoticeAll && (
+                        <div className="space-y-2">
+                          <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
+                          <select 
+                            value={adminNoticeTargetUid}
+                            onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
+                            className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
+                          >
+                            <option value="" className="bg-bg-dark">সিলেক্ট ইউজার</option>
+                            {allUsers.map(u => (
+                              <option key={u.uid || u.id} value={u.uid || u.id} className="bg-bg-dark">{u.displayName} ({u.role || 'user'})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
+                          <select 
+                            value={adminNoticeType}
+                            onChange={(e) => setAdminNoticeType(e.target.value as any)}
+                            className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
+                          >
+                            <option value="system" className="bg-bg-dark">সিস্টেম বার্তা</option>
+                            <option value="link" className="bg-bg-dark">লিংক/ইউআরএল</option>
+                            <option value="event" className="bg-bg-dark">ইভেন্ট/অফার</option>
+                            <option value="message" className="bg-bg-dark">ব্যক্তিগত মেসেজ</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
+                          <Input 
+                            value={adminNoticeTitle}
+                            onChange={(e) => setAdminNoticeTitle(e.target.value)}
+                            placeholder="যেমন: নতুন আপডেট"
+                            className="bg-bg-dark/50 border-border-custom text-white font-black"
+                          />
+                        </div>
                       </div>
+
                       <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
+                        <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
+                        <textarea 
+                          value={adminNoticeMessage}
+                          onChange={(e) => setAdminNoticeMessage(e.target.value)}
+                          placeholder="আপনার বার্তাটি এখানে লিখুন..."
+                          className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
                         <Input 
-                          value={adminNoticeTitle}
-                          onChange={(e) => setAdminNoticeTitle(e.target.value)}
-                          placeholder="যেমন: নতুন আপডেট"
+                          value={adminNoticeLink}
+                          onChange={(e) => setAdminNoticeLink(e.target.value)}
+                          placeholder="https://example.com"
                           className="bg-bg-dark/50 border-border-custom text-white font-black"
                         />
                       </div>
+
+                      <Button 
+                        onClick={handleSendAdminNotice}
+                        disabled={isSendingNotice}
+                        className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
+                      >
+                        {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
+                        নটিফিকেশন পাঠান
+                      </Button>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
-                      <textarea 
-                        value={adminNoticeMessage}
-                        onChange={(e) => setAdminNoticeMessage(e.target.value)}
-                        placeholder="আপনার বার্তাটি এখানে লিখুন..."
-                        className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
-                      <Input 
-                        value={adminNoticeLink}
-                        onChange={(e) => setAdminNoticeLink(e.target.value)}
-                        placeholder="https://example.com"
-                        className="bg-bg-dark/50 border-border-custom text-white font-black"
-                      />
-                    </div>
-
-                    <Button 
-                      onClick={handleSendAdminNotice}
-                      disabled={isSendingNotice}
-                      className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
-                    >
-                      {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
-                      নটিফিকেশন পাঠান
-                    </Button>
                   </div>
-                </div>
-              </div>
-
-              <div className="geometric-card p-8 space-y-6">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                  <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                    <div className="text-3xl font-black text-accent">{allUsers.length}</div>
-                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
-                  </div>
-                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                    <div className="text-3xl font-black text-accent">{posts.length}</div>
-                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Posts</div>
-                  </div>
-                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                    <div className="text-3xl font-black text-accent">{onlineUsers.length}</div>
-                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Live Online</div>
-                  </div>
-                  <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
-                    <div className="text-3xl font-black text-accent">{allUsers.filter(u => u.role === 'admin').length}</div>
-                    <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
-                  </div>
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         );
@@ -3216,6 +3281,7 @@ export default function App() {
                           onEdit={(p) => { 
                             setEditingPost(p); 
                             setPostInput(p.content); 
+                            setPostYoutubeUrl(p.youtubeUrl || '');
                             setPostPrivacy(p.privacy || 'public');
                             setIsPostCreationModalOpen(true); 
                           }}
