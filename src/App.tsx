@@ -2297,6 +2297,29 @@ export default function App() {
                     <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                        <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
                     </h2>
+                    
+                    {/* Quick Navigation Buttons */}
+                    <div className="grid grid-cols-3 gap-3">
+                       <TabsTrigger value="ads" asChild>
+                         <button className="flex flex-col items-center justify-center p-4 bg-accent/10 border border-accent/30 rounded-2xl group hover:bg-accent hover:text-bg-dark transition-all cursor-pointer">
+                            <Target className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-black uppercase">Ads</span>
+                         </button>
+                       </TabsTrigger>
+                       <TabsTrigger value="users" asChild>
+                         <button className="flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl group hover:bg-yellow-500 hover:text-bg-dark transition-all cursor-pointer">
+                            <Users className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-black uppercase">Users</span>
+                         </button>
+                       </TabsTrigger>
+                       <TabsTrigger value="monetization" asChild>
+                         <button className="flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/30 rounded-2xl group hover:bg-green-500 hover:text-bg-dark transition-all cursor-pointer">
+                            <DollarSign className="w-6 h-6 mb-2 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-black uppercase">Pay</span>
+                         </button>
+                       </TabsTrigger>
+                    </div>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                        <div className="p-6 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
                           <div className="text-3xl font-black text-accent">{allUsers.length}</div>
@@ -2544,6 +2567,16 @@ export default function App() {
                                onChange={(e) => setAdForm(prev => ({ ...prev, websiteUrl: e.target.value }))}
                                className="bg-bg-dark border-border-custom text-white text-xs h-10"
                              />
+
+                             <div className="space-y-2 pt-2">
+                               <Label className="text-[8px] uppercase font-black text-yellow-500 ml-1">Banners: AdSense / Script Code</Label>
+                               <textarea 
+                                 placeholder="<ins class='adsbygoogle' ...></ins>"
+                                 value={adForm.adCode}
+                                 onChange={(e) => setAdForm(prev => ({ ...prev, adCode: e.target.value }))}
+                                 className="w-full bg-bg-dark border border-border-custom rounded-xl p-3 text-[10px] font-mono h-24 outline-none text-white focus:border-yellow-500 transition-colors"
+                               />
+                             </div>
                              
                              <div className="space-y-4 pt-2">
                                 <div className="space-y-2">
@@ -2599,10 +2632,20 @@ export default function App() {
                              <div key={ad.id} className="p-3 bg-bg-dark/80 rounded-xl border border-border-custom flex items-center justify-between group">
                                 <div className="flex items-center gap-3">
                                    <div className="w-10 h-10 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center overflow-hidden">
-                                      <video src={ad.videoAdUrl} className="w-full h-full object-cover" />
+                                      {ad.vastUrl ? (
+                                        <Zap className="w-5 h-5 text-accent" />
+                                      ) : ad.adCode ? (
+                                        <Globe className="w-5 h-5 text-yellow-500" />
+                                      ) : (
+                                        <video src={ad.videoAdUrl || ad.videoUrl} className="w-full h-full object-cover" />
+                                      )}
                                    </div>
                                    <div>
-                                      <div className="text-[10px] font-black uppercase">{ad.title}</div>
+                                      <div className="text-[10px] font-black uppercase flex items-center gap-2">
+                                        {ad.title}
+                                        {ad.adCode && <span className="bg-yellow-500/20 text-yellow-500 px-1 rounded text-[6px]">ADSENSE</span>}
+                                        {ad.vastUrl && <span className="bg-accent/20 text-accent px-1 rounded text-[6px] uppercase">{ad.vastType}</span>}
+                                      </div>
                                       <div className="text-[8px] text-text-dim uppercase">Reach: {ad.reach || 0} | Clicks: {ad.clicks || 0}</div>
                                    </div>
                                 </div>
