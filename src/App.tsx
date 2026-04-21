@@ -149,6 +149,7 @@ export default function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [adminActiveTab, setAdminActiveTab] = useState('overview');
   const [onlineUsers, setOnlineUsers] = useState<AppUser[]>([]);
@@ -1508,7 +1509,7 @@ export default function App() {
                 </div>
                 <div className="flex-1 border-b border-border-custom/30 pb-4 group-last:border-none">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold uppercase tracking-tighter text-sm text-white">{u.displayName}</span>
+                    <span className="font-bold uppercase tracking-tighter text-sm text-foreground">{u.displayName}</span>
                     <span className="text-[8px] text-text-dim uppercase">১০:৩০ AM</span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -1697,7 +1698,7 @@ export default function App() {
                       placeholder="বিজ্ঞাপনের বিস্তারিত লিখুন এখানে..."
                       value={adForm.description}
                       onChange={(e) => setAdForm({...adForm, description: e.target.value})}
-                      className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-white font-sans"
+                      className="w-full bg-bg-dark/5 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-foreground font-sans"
                     />
                   </div>
 
@@ -1846,7 +1847,7 @@ export default function App() {
                       </div>
                       <div className="text-right">
                         <div className="text-[8px] text-text-dim uppercase font-bold mb-1">Clicks</div>
-                        <div className="text-2xl font-black text-white">{ad.clicks || 0}</div>
+                        <div className="text-2xl font-black text-foreground">{ad.clicks || 0}</div>
                       </div>
                     </div>
                   </div>
@@ -2042,7 +2043,7 @@ export default function App() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <div className="flex justify-between items-start">
-                      <h4 className={`text-base font-black uppercase tracking-tighter ${!n.isRead ? 'text-accent' : 'text-white'}`}>{n.title}</h4>
+                      <h4 className={`text-base font-black uppercase tracking-tighter ${!n.isRead ? 'text-accent' : 'text-foreground'}`}>{n.title}</h4>
                       <span className="text-[8px] text-text-dim font-bold uppercase">
                         {n.timestamp ? (typeof n.timestamp.toDate === 'function' ? n.timestamp.toDate().toLocaleTimeString() : 'Just now') : '...'}
                       </span>
@@ -2096,7 +2097,7 @@ export default function App() {
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <Button onClick={() => setShowAuthModal(true)} className="w-full bg-accent text-bg-dark font-black h-12 uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-transform">লগইন / একাউন্ট খুলুন</Button>
-            <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-white transition-colors">হোমে ফিরে যান</Button>
+            <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-accent transition-colors">হোমে ফিরে যান</Button>
           </CardContent>
           <CardFooter className="justify-center border-t border-border-custom/30 py-4 opacity-30">
             <div className="text-[8px] font-black uppercase tracking-[4px]">PORSHI PROTECTED</div>
@@ -2248,7 +2249,7 @@ export default function App() {
                     <img src={story.authorPhoto} alt="" className="w-full h-full object-cover" />
                   </div>
                   <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-white text-[10px] font-bold leading-tight truncate">{story.authorName}</p>
+                    <p className="text-foreground text-[10px] font-bold leading-tight truncate">{story.authorName}</p>
                   </div>
                 </motion.div>
               ))}
@@ -2396,7 +2397,7 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => setAdminActiveTab(item.id)}
-                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl transition-all whitespace-nowrap lg:min-w-0 ${adminActiveTab === item.id ? 'bg-accent text-bg-dark font-black shadow-[0_4px_20px_rgba(0,209,255,0.4)] scale-[1.02]' : 'text-text-dim hover:text-white hover:bg-white/5'}`}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-2xl transition-all whitespace-nowrap lg:min-w-0 ${adminActiveTab === item.id ? 'bg-accent text-white font-black shadow-[0_4px_20px_rgba(0,209,255,0.4)] scale-[1.02]' : 'text-text-dim hover:text-accent hover:bg-accent/5'}`}
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" />
                     <span className="text-[10px] font-black uppercase tracking-widest">{item.name}</span>
@@ -3799,6 +3800,7 @@ export default function App() {
               addLog('প্রোফাইল তৈরি সম্পন্ন (Profile Created)');
               setUser(newUser);
             }
+            setShowSplash(false);
             setIsAuthReady(true);
             setIsAuthLoading(false);
           }, (error) => {
@@ -3824,8 +3826,14 @@ export default function App() {
       }
     });
 
+    // Artificial delay for splash screen as requested (2-4 seconds)
+    const splashTimeout = setTimeout(() => {
+      setShowSplash(false);
+    }, 3000);
+
     return () => {
       unsubscribe();
+      clearTimeout(splashTimeout);
       if (userUnsubscribe) userUnsubscribe();
     };
   }, []);
@@ -4237,33 +4245,34 @@ export default function App() {
     </AnimatePresence>
   );
 
-  if (!isAuthReady) return (
-    <div className="min-h-screen bg-[#0A0A0B] flex flex-col items-center justify-center space-y-8">
-      {/* branded splash */}
+  if (showSplash || !isAuthReady) return (
+    <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
       <motion.div 
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-40 h-40 relative overflow-hidden border-4 border-accent shadow-[0_0_50px_rgba(0,209,255,0.3)] bg-surface flex items-center justify-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        className="relative w-full h-full"
       >
         <img 
-          src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
-          alt="PORSHI" 
-          className="w-full h-full object-contain p-4"
+          src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/057790b5-776a-464a-a92c-55095e7c8441.png" 
+          alt="PORSHI Splash" 
+          className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
-      </motion.div>
-      <div className="text-center space-y-2">
-        <h1 className="text-5xl font-black text-white tracking-tighter uppercase">PORSHI</h1>
-        <div className="flex items-center justify-center gap-2">
-           <div className="w-2 h-2 rounded-full bg-accent animate-ping"></div>
-           <span className="text-accent text-[10px] font-black uppercase tracking-[0.5em]">System Starting...</span>
+        {/* fallback if image takes too long to load */}
+        <div className="absolute inset-0 flex flex-col items-center justify-end pb-20 space-y-4 bg-gradient-to-t from-black/10 to-transparent">
+           <div className="flex items-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-[#1877F2]" />
+              <span className="text-[#1877F2] text-[10px] font-black uppercase tracking-[0.5em]">Loading Porshi...</span>
+           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-bg-dark text-text-main' : 'bg-gray-50 text-gray-900'} font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
+    <div className={`min-h-screen bg-background text-foreground font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-72 flex-col p-8 border-r ${theme === 'dark' ? 'border-border-custom bg-surface' : 'border-gray-200 bg-white'} z-50`}>
         {/* Hidden File Inputs */}
         <input type="file" accept="image/*,video/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
@@ -4276,7 +4285,7 @@ export default function App() {
               <img 
                 src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
                 alt="Logo" 
-                className="w-full h-full object-contain p-2 brightness-200 invert"
+                className={`w-full h-full object-contain p-2 ${theme === 'dark' ? 'brightness-200 invert' : ''}`}
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -4341,7 +4350,7 @@ export default function App() {
               onClick={() => setIsMobileDrawerOpen(true)}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
             >
-              <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+              <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
             <span className="text-xl font-black tracking-tighter text-accent">PORSHI</span>
           </div>
@@ -4356,16 +4365,16 @@ export default function App() {
               onClick={() => withAuth(() => setIsMobileCreateMenuOpen(true))}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
             >
-              <Plus className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+              <Plus className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
             <button 
               onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
             >
-              <Search className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+              <Search className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
             <button onClick={() => withAuth(() => setCurrentApp('porsh'))} className={`p-2 rounded-full relative ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
-              <MessageCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-black'}`} />
+              <MessageCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
               <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">9+</span>
             </button>
           </div>
@@ -4471,7 +4480,7 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               onClick={(e) => e.stopPropagation()}
-              className={`w-4/5 max-w-sm h-full p-6 shadow-2xl flex flex-col ${theme === 'dark' ? 'bg-bg-dark text-white' : 'bg-white text-black'}`}
+              className={`w-4/5 max-w-sm h-full p-6 shadow-2xl flex flex-col ${theme === 'dark' ? 'bg-bg-dark text-white' : 'bg-white text-foreground'}`}
             >
                <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
