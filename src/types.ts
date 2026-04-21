@@ -38,6 +38,7 @@ export interface Post {
   videoUrl?: string;
   youtubeUrl?: string;
   linkUrl?: string;
+  isReel?: boolean;
   likesCount: number;
   commentsCount: number;
   reactions?: {

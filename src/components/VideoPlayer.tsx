@@ -241,7 +241,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   };
 
   return (
-    <div ref={ref} className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden group">
+    <div ref={ref} className={`relative w-full ${post.isReel ? 'aspect-reel' : 'aspect-video'} bg-black flex items-center justify-center overflow-hidden group`}>
       {/* Real-time Stats Overlay */}
       <div className="absolute top-3 right-3 z-10 flex gap-2">
          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-full border border-white/10 text-[10px] font-black text-white uppercase tracking-widest">
@@ -314,7 +314,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
         <video 
           ref={videoRef}
           src={post.videoUrl}
-          className="w-full h-full object-contain"
+          className={`w-full h-full ${post.isReel ? 'object-cover' : 'object-contain'}`}
           onPlay={onVideoPlay}
           onTimeUpdate={onTimeUpdate}
           controls={!showAd && isPlaying}

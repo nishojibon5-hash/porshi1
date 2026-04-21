@@ -1,37 +1,55 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-dark: #0A0A0B;
-  --color-surface: #1C1C1E;
-  --color-accent: #00D1FF;
+  --color-bg-dark: #000000;
+  --color-surface: #111111;
+  --color-accent: #0066FF;
+  --color-accent-dim: #0044BB;
   --color-text-main: #FFFFFF;
-  --color-text-dim: #8E8E93;
-  --color-border-custom: #2C2C2E;
+  --color-text-dim: #A1A1A6;
+  --color-border-custom: rgba(255, 255, 255, 0.1);
   
-  --font-sans: 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Geist Variable', 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', monospace;
+  
+  --aspect-reel: 9 / 16;
 }
 
 @layer base {
   body {
-    @apply bg-bg-dark text-text-main font-sans;
+    @apply bg-bg-dark text-text-main font-sans selection:bg-accent selection:text-white;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
 @layer components {
   .geometric-ring {
-    @apply rounded-full border border-border-custom flex items-center justify-center transition-all duration-500;
+    @apply rounded-full border border-border-custom flex items-center justify-center transition-all duration-300;
   }
   
   .geometric-card {
-    @apply bg-surface border border-border-custom p-6 flex flex-col justify-between transition-colors duration-300;
+    @apply bg-surface border border-border-custom p-6 rounded-2xl transition-all duration-300 hover:border-white/20;
+    box-shadow: 0 4px 24px -12px rgba(0,0,0,0.5);
   }
   
   .geometric-btn {
-    @apply px-8 py-3 border border-border-custom bg-transparent text-text-main text-sm tracking-widest uppercase cursor-pointer transition-all;
+    @apply px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm tracking-tight cursor-pointer transition-all active:scale-95 disabled:opacity-50;
+  }
+  
+  .geometric-btn-outline {
+    @apply px-6 py-2.5 rounded-full border border-border-custom bg-transparent text-white font-semibold text-sm tracking-tight cursor-pointer transition-all hover:bg-white/5 active:scale-95;
   }
   
   .geometric-btn-active {
-    @apply bg-text-main text-bg-dark border-text-main;
+    @apply bg-accent text-white border-accent;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium text-text-dim hover:text-white hover:bg-white/5;
+  }
+
+  .sidebar-link-active {
+    @apply text-accent bg-accent/10 hover:bg-accent/15;
   }
 }
 @import "tw-animate-css";

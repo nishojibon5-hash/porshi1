@@ -8,10 +8,11 @@ import {
   Share2, 
   X,
   Globe,
-  Eye
+  Eye,
+  PlayCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Post, Advertisement } from '../types';
+import { Post, Advertisement, AppUser } from '../types';
 import { db } from '../firebase';
 import { doc, updateDoc, increment } from 'firebase/firestore';
 import { useInView } from 'react-intersection-observer';
@@ -69,6 +70,7 @@ interface PostCardProps {
   onUserClick?: (uid: string) => void;
   isFollowing?: boolean;
   currentUserId?: string;
+  usersRegistry?: Record<string, AppUser>;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ 
@@ -85,8 +87,13 @@ export const PostCard: React.FC<PostCardProps> = ({
   onDelete,
   onUserClick,
   isFollowing,
-  currentUserId
+  currentUserId,
+  usersRegistry = {}
 }) => {
+  const author = usersRegistry[post.authorUid] || {
+    displayName: post.authorName,
+    photoURL: post.authorPhoto
+  };
   const totalReactions = post.reactions ? Object.values(post.reactions).reduce((a, b) => (a as number) + (b as number), 0) as number : 0;
   
   const [selectedAd, setSelectedAd] = React.useState<Advertisement | null>(null);
@@ -138,11 +145,11 @@ export const PostCard: React.FC<PostCardProps> = ({
       <div className="p-3 flex justify-between items-start">
         <div className="flex items-center gap-2">
           <div 
-            className="w-10 h-10 rounded-full border border-gray-200 overflow-hidden cursor-pointer"
+            className="w-10 h-10 rounded-full border border-gray-100 dark:border-[#3E4042] overflow-hidden cursor-pointer"
             onClick={() => onUserClick?.(post.authorUid)}
           >
-            {post.authorPhoto ? (
-              <img src={post.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+            {author.photoURL ? (
+              <img src={author.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gray-100"><UserIcon className="w-5 h-5 text-gray-400" /></div>
             )}
@@ -150,11 +157,16 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span 
-                className="text-sm font-bold text-foreground hover:underline cursor-pointer"
+                className="text-sm font-black text-foreground hover:underline cursor-pointer tracking-tight"
                 onClick={() => onUserClick?.(post.authorUid)}
               >
-                {post.authorName}
+                {author.displayName}
               </span>
+              {post.isReel && (
+                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gradient-to-tr from-pink-500 to-orange-500 rounded text-[8px] text-white font-black uppercase tracking-tighter self-center">
+                   <PlayCircle className="w-2 h-2" /> Reel
+                </div>
+              )}
               {currentUserId && post.authorUid !== currentUserId && (
                 <>
                   <span className="text-gray-400 text-xs text-center">•</span>
