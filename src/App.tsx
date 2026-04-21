@@ -785,7 +785,8 @@ export default function App() {
       education: user.education || '',
       work: user.work || '',
       relationshipStatus: user.relationshipStatus || '',
-      website: user.website || ''
+      website: user.website || '',
+      autoplayVideos: user.autoplayVideos ?? true
     });
     setIsEditProfileModalOpen(true);
   };
@@ -2324,6 +2325,7 @@ export default function App() {
                   onUserClick={navigateToProfile}
                   isFollowing={user ? followingUids.includes(post.authorUid) : false}
                   currentUserId={user?.uid}
+                  autoplayVideos={user ? (user.autoplayVideos ?? true) : true}
                 />
               ))}
 
@@ -3637,6 +3639,7 @@ export default function App() {
                           onUserClick={navigateToProfile}
                           isFollowing={user ? followingUids.includes(post.authorUid) : false}
                           currentUserId={user?.uid}
+                          autoplayVideos={user ? (user.autoplayVideos ?? true) : true}
                         />
                       ))}
                       {posts.filter(p => p.authorUid === profileUid).length === 0 && (
@@ -3746,6 +3749,7 @@ export default function App() {
   useEffect(() => {
     addLog('পড়শি সিস্টেম প্রস্তুত (PORSHI System Ready)');
     let userUnsubscribe: (() => void) | null = null;
+    let followingUnsubscribe: (() => void) | null = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
@@ -3753,6 +3757,12 @@ export default function App() {
           addLog(`ইউজার পাওয়া গেছে: ${currentUser.uid.slice(0, 6)}...`);
           
           if (userUnsubscribe) userUnsubscribe();
+          if (followingUnsubscribe) followingUnsubscribe();
+
+          // Listen for following relationships
+          followingUnsubscribe = onSnapshot(collection(db, 'users', currentUser.uid, 'following'), (snap) => {
+            setFollowingUids(snap.docs.map(d => d.id));
+          });
 
           // Use onSnapshot for the user document to handle offline states and real-time updates
           userUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
@@ -3781,6 +3791,7 @@ export default function App() {
                 photoURL: currentUser.photoURL || '',
                 isOnline: true,
                 lastSeen: serverTimestamp(),
+                autoplayVideos: true,
                 role: currentUser.email?.toLowerCase() === "salman1000790@gmail.com" ? 'admin' : 'user'
               };
               
@@ -3890,12 +3901,20 @@ export default function App() {
   const followUser = async (targetUid: string) => {
     if (!user) return withAuth(() => {});
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        following: increment(1)
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'users', user.uid), { followingCount: increment(1) });
+      batch.update(doc(db, 'users', targetUid), { followersCount: increment(1) });
+      batch.set(doc(db, 'users', user.uid, 'following', targetUid), { 
+        followerUid: user.uid, 
+        followedUid: targetUid, 
+        timestamp: serverTimestamp() 
       });
-      await updateDoc(doc(db, 'users', targetUid), {
-        followers: increment(1)
+      batch.set(doc(db, 'users', targetUid, 'followers', user.uid), { 
+        followerUid: user.uid, 
+        followedUid: targetUid, 
+        timestamp: serverTimestamp() 
       });
+      await batch.commit();
       addLog(`ফলো করা হয়েছে: ${targetUid.slice(0, 6)}...`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
@@ -3905,12 +3924,12 @@ export default function App() {
   const unfollowUser = async (targetUid: string) => {
     if (!user) return;
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        following: increment(-1)
-      });
-      await updateDoc(doc(db, 'users', targetUid), {
-        followers: increment(-1)
-      });
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'users', user.uid), { followingCount: increment(-1) });
+      batch.update(doc(db, 'users', targetUid), { followersCount: increment(-1) });
+      batch.delete(doc(db, 'users', user.uid, 'following', targetUid));
+      batch.delete(doc(db, 'users', targetUid, 'followers', user.uid));
+      await batch.commit();
       addLog(`আনফলো করা হয়েছে: ${targetUid.slice(0, 6)}...`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
@@ -4109,6 +4128,23 @@ export default function App() {
                     maxLength={101}
                     className={`w-full p-4 rounded-xl border-2 resize-none h-24 text-sm font-medium focus:border-[#1877F2] transition-colors outline-none ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}
                   />
+               </div>
+
+               {/* Settings Section */}
+               <div className="space-y-6">
+                  <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Settings / সেটিংস</h3>
+                  <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}>
+                    <div>
+                      <div className="text-sm font-bold uppercase tracking-tight">Video Autoplay</div>
+                      <div className="text-[10px] text-text-dim font-medium uppercase">অটোমেটিক ভিডিও প্লে হবে</div>
+                    </div>
+                    <button 
+                      onClick={() => setEditProfileData(prev => ({ ...prev, autoplayVideos: !prev.autoplayVideos }))}
+                      className={`w-14 h-8 rounded-full transition-all relative cursor-pointer ${editProfileData.autoplayVideos ? 'bg-[#1877F2]' : 'bg-gray-400'}`}
+                    >
+                      <div className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${editProfileData.autoplayVideos ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
                </div>
 
                {/* Info Section */}

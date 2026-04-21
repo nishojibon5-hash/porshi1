@@ -19,9 +19,10 @@ interface VideoPlayerProps {
   ads: Advertisement[];
   currentUserId?: string;
   theme: 'light' | 'dark';
+  autoplayEnabled?: boolean;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUserId, theme }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUserId, theme, autoplayEnabled = true }) => {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
   const [showAd, setShowAd] = React.useState(false);
@@ -95,6 +96,35 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
     threshold: 0.5,
     triggerOnce: false
   });
+
+  // Autoplay Logic
+  React.useEffect(() => {
+    if (autoplayEnabled && inView && !showAd && !adVideo) {
+      if (youtubeId && ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } catch (e) {}
+      } else if (videoRef.current) {
+        videoRef.current.play().catch(() => {
+          // May fail due to browser policies if not muted
+          setIsMuted(true);
+          videoRef.current?.play().catch(console.error);
+        });
+        setIsPlaying(true);
+      }
+    } else if (!inView && isPlaying) {
+      if (youtubeId && ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.pauseVideo();
+          setIsPlaying(false);
+        } catch (e) {}
+      } else if (videoRef.current) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, [inView, autoplayEnabled, youtubeId, showAd, adVideo]);
 
   // Reach tracking (enters viewport)
   React.useEffect(() => {

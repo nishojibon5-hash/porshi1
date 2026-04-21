@@ -70,6 +70,7 @@ interface PostCardProps {
   onUserClick?: (uid: string) => void;
   isFollowing?: boolean;
   currentUserId?: string;
+  autoplayVideos?: boolean;
   usersRegistry?: Record<string, AppUser>;
 }
 
@@ -88,6 +89,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onUserClick,
   isFollowing,
   currentUserId,
+  autoplayVideos = true,
   usersRegistry = {}
 }) => {
   const author = usersRegistry[post.authorUid] || {
@@ -258,7 +260,13 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Post Media */}
       {post.mediaType === 'video' && (post.videoUrl || post.youtubeUrl) ? (
-        <VideoPlayer post={post} ads={ads} currentUserId={currentUserId} theme={theme} />
+        <VideoPlayer 
+          post={post} 
+          ads={ads} 
+          currentUserId={currentUserId} 
+          theme={theme} 
+          autoplayEnabled={autoplayVideos}
+        />
       ) : post.mediaType === 'link' && post.linkUrl ? (
         <a 
           href={post.linkUrl} 

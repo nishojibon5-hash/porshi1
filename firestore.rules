@@ -1,202 +1,101 @@
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: users
-// Document ID: {uid}
-// Fields:
-//   - uid: string (required)
-//   - displayName: string (required)
-//   - photoURL: string (optional)
-//   - isOnline: boolean (required)
-//   - lastSeen: timestamp (optional)
-//
-// Collection: posts
-// Document ID: {postId}
-// Fields:
-//   - authorUid: string (required)
-//   - authorName: string (required)
-//   - authorPhoto: string (optional)
-//   - content: string (required)
-//   - imageUrl: string (optional)
-//   - likesCount: number (required)
-//   - commentsCount: number (required)
-//   - timestamp: timestamp (required)
-//
-// ===============================================================
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper Functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
+    // 0. Global Safety Net
+    match /{document=**} { allow read, write: if false; }
+
+    // 1. Primitive Definitions
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isMasterAdmin() { return isEmailVerified() && request.auth.token.email == "salman1000790@gmail.com"; }
     
-    function isAdmin() {
-      return isAuthenticated() &&
-        (request.auth.token.email == "salman1000790@gmail.com" ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin'));
+    function isAdmin() { 
+      return isMasterAdmin() || 
+             (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin');
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    function isMasterAdmin() {
-      return isAuthenticated() && request.auth.token.email == "salman1000790@gmail.com";
-    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-.]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
 
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
+    // 2. Validation Blueprints
     function isValidUser(data) {
-      return data.uid is string && 
-             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
-             data.isOnline is bool &&
-             (!('photoURL' in data) || data.photoURL is string) &&
-             (!('coverPhotoURL' in data) || data.coverPhotoURL is string) &&
-             (!('lastSeen' in data) || data.lastSeen is timestamp) &&
-             (!('bio' in data) || (data.bio is string && data.bio.size() < 2000)) &&
-             (!('hometown' in data) || data.hometown is string) &&
-             (!('currentCity' in data) || data.currentCity is string) &&
-             (!('education' in data) || data.education is string) &&
-             (!('work' in data) || data.work is string) &&
-             (!('relationshipStatus' in data) || data.relationshipStatus is string) &&
-             (!('website' in data) || data.website is string) &&
+      return (!('uid' in data) || (data.uid == request.auth.uid)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100)) &&
+             (!('isOnline' in data) || data.isOnline is bool) &&
+             (!('photoURL' in data) || (data.photoURL is string || data.photoURL == null)) &&
+             (!('coverPhotoURL' in data) || (data.coverPhotoURL is string || data.coverPhotoURL == null)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 2000)) &&
              (!('role' in data) || data.role in ['user', 'admin']) &&
-             (!('isMonetized' in data) || data.isMonetized is bool) &&
-             (!('lastLat' in data) || data.lastLat is number) &&
-             (!('lastLng' in data) || data.lastLng is number) &&
-             (!('isDiscoverable' in data) || data.isDiscoverable is bool) &&
-             (!('discoveryStatus' in data) || (data.discoveryStatus is string && data.discoveryStatus.size() < 200)) &&
+             (!('autoplayVideos' in data) || data.autoplayVideos is bool) &&
              (!('followersCount' in data) || data.followersCount is number) &&
              (!('followingCount' in data) || data.followingCount is number);
     }
 
     function isValidFollow(data) {
-      return data.followerUid is string &&
-             data.followedUid is string &&
+      return data.followerUid is string && isValidId(data.followerUid) &&
+             data.followedUid is string && isValidId(data.followedUid) &&
              data.timestamp is timestamp;
     }
 
     function isValidPost(data) {
       return data.authorUid == request.auth.uid &&
-             data.authorName is string &&
-             (!('content' in data) || (data.content is string && data.content.size() < 5000)) &&
+             data.authorName is string && data.authorName.size() > 0 &&
+             (!('content' in data) || (data.content is string && data.content.size() <= 10000)) &&
              data.likesCount is number &&
              data.commentsCount is number &&
-             data.timestamp is timestamp &&
-             (!('reactions' in data) || data.reactions is map) &&
-             (!('reachCount' in data) || data.reachCount is number) &&
-             (!('viewsCount' in data) || data.viewsCount is number) &&
-             (!('isMonetized' in data) || data.isMonetized is bool);
-    }
-
-    function isValidMonetization(data) {
-      return data.totalEarnings is number &&
-             data.reach is number &&
-             data.engagement is number &&
-             data.followers is number;
-    }
-
-    function isValidAd(data) {
-      return data.creatorId is string &&
-             data.title is string &&
-             data.status in ['pending', 'active', 'rejected', 'paused'] &&
-             data.type in ['banner', 'video', 'interstitial', 'adsense', 'video_skippable'] &&
-             data.timestamp is timestamp &&
-             (!('reach' in data) || data.reach is number) &&
-             (!('clicks' in data) || data.clicks is number);
-    }
-
-    function isValidComment(data) {
-      return data.authorUid == request.auth.uid &&
-             data.authorName is string &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
              data.timestamp is timestamp;
     }
 
-    function isValidLike(data) {
-      return data.userUid == request.auth.uid &&
-             data.timestamp is timestamp;
-    }
-
-    function isValidStory(data) {
-      return data.authorUid == request.auth.uid &&
-             data.authorName is string &&
-             data.imageUrl is string &&
-             data.timestamp is timestamp &&
-             data.expiresAt is timestamp;
-    }
-
-    function isValidNotification(data) {
-      return (data.toUid is string && data.toUid.size() > 0) &&
-             data.type in ['like', 'comment', 'follow', 'system', 'link', 'event', 'message', 'pair_request'] &&
-             data.title is string && data.title.size() > 0 &&
-             data.message is string &&
-             data.isRead is bool &&
-             data.timestamp is timestamp;
-    }
-
+    // 3. Match Blocks
     match /users/{uid} {
       allow read: if true;
-      allow create: if isOwner(uid) && isValidUser(request.resource.data);
-      allow update: if isAuthenticated() && (
+      allow create: if isOwner(uid) && isValidUser(incoming()) && incoming().keys().hasAll(['uid', 'displayName', 'isOnline']);
+      allow update: if (
         (isOwner(uid) && (
-          // Allow owner to update EXCEPT role/isMonetized unless they are master admin
-          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isMonetized'])) || isMasterAdmin()
+          // Master admin can touch anything, others can't touch role/isMonetized
+          isMasterAdmin() || !incoming().diff(existing()).affectedKeys().hasAny(['role', 'isMonetized'])
         )) ||
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount'])
-      ) && isValidUser(request.resource.data);
+        // Allow public to increment follower counts
+        incoming().diff(existing()).affectedKeys().hasOnly(['followersCount', 'followingCount'])
+      ) && (
+        // During self-update, validate everything. During count update, we assume existing doc is okay
+        isOwner(uid) ? isValidUser(incoming()) : true
+      );
     }
 
     match /users/{uid}/followers/{followerUid} {
       allow read: if true;
-      allow create, delete: if isOwner(followerUid) && isValidFollow(request.resource.data);
+      allow create: if isOwner(followerUid) && isValidFollow(incoming()) && isValidId(uid);
+      allow delete: if isOwner(followerUid);
     }
 
     match /users/{uid}/following/{followedUid} {
       allow read: if true;
-      allow create, delete: if isOwner(uid) && isValidFollow(request.resource.data);
+      allow create: if isOwner(uid) && isValidFollow(incoming()) && isValidId(followedUid);
+      allow delete: if isOwner(uid);
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidPost(request.resource.data);
-      allow update: if isAuthenticated() && 
-                    (isOwner(resource.data.authorUid) || 
-                     request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount', 'commentsCount', 'reactions', 'reachCount', 'viewsCount']));
-      allow delete: if isOwner(resource.data.authorUid);
-    }
-
-    match /ads/{adId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && isValidAd(request.resource.data);
-      allow update: if isAdmin() || (isAuthenticated() && (
-        resource.data.creatorId == request.auth.uid || 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reach', 'clicks'])
-      ));
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.creatorId == request.auth.uid);
-    }
-
-    match /monetization/{uid} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(uid) && isValidMonetization(request.resource.data);
-      allow update: if isAuthenticated() && (
-        isOwner(uid) || 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalEarnings', 'engagement'])
-      ) && isValidMonetization(request.resource.data);
+      allow create: if isEmailVerified() && isValidPost(incoming());
+      allow update: if isSignedIn() && (
+        isOwner(existing().authorUid) || 
+        isAdmin() ||
+        // Public counters
+        incoming().diff(existing()).affectedKeys().hasAny(['likesCount', 'commentsCount', 'reactions', 'reachCount', 'viewsCount'])
+      );
+      allow delete: if isOwner(existing().authorUid) || isAdmin();
     }
 
     match /posts/{postId}/comments/{commentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidComment(request.resource.data);
-      allow delete: if isOwner(resource.data.authorUid);
+      allow create: if isEmailVerified() && incoming().authorUid == request.auth.uid;
+      allow delete: if isOwner(existing().authorUid) || isAdmin() || isOwner(get(/databases/$(database)/documents/posts/$(postId)).data.authorUid);
     }
 
     match /posts/{postId}/likes/{uid} {
@@ -204,40 +103,47 @@ service cloud.firestore {
       allow create, delete: if isOwner(uid);
     }
 
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isSignedIn() && (request.auth.uid in chatId.split('_'));
+      allow create: if isEmailVerified() && incoming().senderUid == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isOwner(existing().toUid) || existing().toUid == 'all';
+      allow create: if isSignedIn();
+      allow update: if isOwner(existing().toUid) && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isOwner(existing().toUid) || isAdmin();
+    }
+
+    // Additional collections based on code scan
     match /stories/{storyId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidStory(request.resource.data);
-      allow delete: if isOwner(resource.data.authorUid);
+      allow create: if isEmailVerified() && incoming().authorUid == request.auth.uid;
+      allow delete: if isOwner(existing().authorUid) || isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow create: if isEmailVerified();
+      allow update: if isAdmin() || isOwner(existing().creatorId) || incoming().diff(existing()).affectedKeys().hasOnly(['reach', 'clicks']);
+      allow delete: if isAdmin() || isOwner(existing().creatorId);
+    }
+
+    match /monetization/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['totalEarnings', 'engagement']);
     }
 
     match /requests/{requestId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
-      allow create: if isAuthenticated() && (request.resource.data.fromUid == request.auth.uid);
-      allow update: if isAuthenticated() && 
-                    (request.auth.uid == resource.data.toUid) && 
-                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
-    }
-
-    match /chats/{chatId}/messages/{messageId} {
-      allow read: if isAuthenticated() && (request.auth.uid in chatId.split('_'));
-      allow create: if isAuthenticated() && (request.resource.data.senderUid == request.auth.uid);
-    }
-
-    match /chats/{chatId}/typing/{uid} {
-      allow read: if isAuthenticated() && (request.auth.uid in chatId.split('_'));
-      allow create, update: if isOwner(uid);
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid);
+      allow create: if isEmailVerified() && incoming().fromUid == request.auth.uid;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.toUid && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
     }
 
     match /appConfig/{configId} {
       allow read: if true;
       allow write: if isAdmin();
-    }
-
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && (resource.data.toUid == request.auth.uid || resource.data.toUid == 'all');
-      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.toUid == request.auth.uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.toUid == request.auth.uid);
     }
   }
 }

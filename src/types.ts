@@ -19,6 +19,7 @@ export interface AppUser {
   followingCount?: number;
   role?: 'admin' | 'user';
   isMonetized?: boolean;
+  autoplayVideos?: boolean;
 }
 
 export interface Follow {
