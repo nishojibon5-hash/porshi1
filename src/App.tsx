@@ -4266,24 +4266,46 @@ export default function App() {
   if (showSplash || !isAuthReady) return (
     <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
       <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.8 }}
-        className="relative w-full h-full"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 1.1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="flex flex-col items-center space-y-8"
       >
-        <img 
-          src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/057790b5-776a-464a-a92c-55095e7c8441.png" 
-          alt="PORSHI Splash" 
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-        {/* fallback if image takes too long to load */}
-        <div className="absolute inset-0 flex flex-col items-center justify-end pb-20 space-y-4 bg-gradient-to-t from-black/10 to-transparent">
-           <div className="flex items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-[#1877F2]" />
-              <span className="text-[#1877F2] text-[10px] font-black uppercase tracking-[0.5em]">Loading Porshi...</span>
-           </div>
+        <motion.h1 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+          className="text-6xl md:text-8xl font-black tracking-widest text-[#000080] drop-shadow-sm select-none"
+        >
+          PORSHI
+        </motion.h1>
+        
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex gap-2">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                animate={{ 
+                  scale: [1, 1.5, 1],
+                  opacity: [0.3, 1, 0.3],
+                }}
+                transition={{ 
+                  duration: 1,
+                  repeat: Infinity,
+                  delay: i * 0.2
+                }}
+                className="w-2.5 h-2.5 rounded-full bg-[#000080]"
+              />
+            ))}
+          </div>
+          <motion.span 
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="text-[10px] font-bold tracking-[0.4em] text-[#000080]/60 uppercase ml-1"
+          >
+            Initializing Experience
+          </motion.span>
         </div>
       </motion.div>
     </div>
