@@ -186,6 +186,24 @@ export default function App() {
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [activeReel, setActiveReel] = useState<Post | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  // Sync theme with system/CSS and handle status bar color
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
+
+    // Update Chrome/Android theme-color meta tag
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme === 'dark' ? '#242526' : '#ffffff');
+    }
+  }, [theme]);
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const [adForm, setAdForm] = useState({
     title: '',
@@ -4272,7 +4290,7 @@ export default function App() {
   );
 
   return (
-    <div className={`min-h-screen bg-background text-foreground font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300`}>
+    <div className={`min-h-screen bg-background text-foreground font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-72 flex-col p-8 border-r ${theme === 'dark' ? 'border-border-custom bg-surface' : 'border-gray-200 bg-white'} z-50`}>
         {/* Hidden File Inputs */}
         <input type="file" accept="image/*,video/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
@@ -4342,7 +4360,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-2xl lg:ml-72 flex flex-col min-h-screen">
+      <main className="flex-1 w-full lg:max-w-2xl lg:ml-72 flex flex-col min-h-screen bg-background">
         {/* Mobile Header (Facebook Style) */}
         <header className={`lg:hidden w-full px-4 pt-3 pb-2 flex justify-between items-center ${theme === 'dark' ? 'bg-[#242526] text-white border-b border-[#3E4042]' : 'bg-white text-[#1877F2] border-b border-[#E4E6EB]'} sticky top-0 z-50`}>
           <div className="flex items-center gap-2">
@@ -4413,7 +4431,7 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="p-4 lg:p-8">
+        <div className="px-0 py-2 lg:p-8">
            {renderContent()}
         </div>
       </main>
