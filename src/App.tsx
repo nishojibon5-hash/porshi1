@@ -235,7 +235,7 @@ export default function App() {
     // Update Chrome/Android theme-color meta tag
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme === 'dark' ? '#242526' : '#ffffff');
+      metaThemeColor.setAttribute('content', theme === 'dark' ? '#18191A' : '#ffffff');
     }
   }, [theme]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -1665,9 +1665,9 @@ export default function App() {
     );
 
     return (
-      <div className={`flex-1 flex flex-col h-screen fixed inset-0 z-50 lg:relative lg:h-full overflow-hidden ${theme === 'dark' ? 'bg-[#18191A] text-white' : 'bg-white text-black'}`}>
+      <div className={`flex-1 flex flex-col h-screen fixed inset-0 z-50 lg:relative lg:h-full overflow-hidden ${theme === 'dark' ? 'bg-[#18191A] text-white' : 'bg-white text-black'}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Messenger Header */}
-        <div className="px-4 pt-4 pb-2 flex justify-between items-center bg-inherit">
+        <div className="px-4 pt-2 pb-2 flex justify-between items-center bg-inherit">
           <div className="flex items-center gap-3">
              <button onClick={() => withAuth(() => navigateToProfile(user?.uid || ''))} className="relative">
                 <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-[#3E4042]">
@@ -1863,7 +1863,13 @@ export default function App() {
         </div>
 
         {/* Messenger Bottom Navigation */}
-        <div className={`fixed bottom-0 left-0 right-0 h-20 px-6 flex items-center justify-between z-50 border-t ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-white border-gray-100'}`}>
+        <div 
+          className={`fixed bottom-0 left-0 right-0 px-6 flex items-center justify-between z-50 border-t ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-white border-gray-100'}`}
+          style={{ 
+            height: 'calc(80px + env(safe-area-inset-bottom))', 
+            paddingBottom: 'env(safe-area-inset-bottom)' 
+          }}
+        >
            <button onClick={() => setActiveMessengerTab('chats')} className={`flex flex-col items-center gap-1 flex-1 transition-all ${chatActiveTab === 'chats' ? 'text-[#0084FF]' : 'text-gray-400 hover:text-gray-600'}`}>
               <div className="relative">
                  <MessageCircle className={`w-7 h-7 ${chatActiveTab === 'chats' ? 'fill-current' : ''}`} />
