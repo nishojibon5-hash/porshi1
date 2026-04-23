@@ -73,7 +73,13 @@ import {
   PlayCircle,
   UserCircle,
   Plus,
-  ThumbsUp
+  ThumbsUp,
+  Pencil,
+  Settings2,
+  Phone,
+  PlusCircle,
+  Mic,
+  SendHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -147,6 +153,7 @@ interface ActiveChat {
 
 export default function App() {
   const { t } = useTranslation();
+  const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -204,6 +211,13 @@ export default function App() {
     }
   }, [commentingPostId]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('app') === 'porsh') {
+      setCurrentApp('porsh');
+    }
+  }, []);
+
   // Sync theme with system/CSS and handle status bar color
   useEffect(() => {
     const root = window.document.documentElement;
@@ -243,7 +257,6 @@ export default function App() {
   const [myAds, setMyAds] = useState<Advertisement[]>([]);
   const [allAds, setAllAds] = useState<Advertisement[]>([]);
   const [usersRegistry, setUsersRegistry] = useState<Record<string, AppUser>>({});
-  const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [commentImage, setCommentImage] = useState<string | null>(null);
   const [isUploadingCommentMedia, setIsUploadingCommentMedia] = useState(false);
   const commentMediaInputRef = useRef<HTMLInputElement>(null);
@@ -409,6 +422,8 @@ export default function App() {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isMobileCreateMenuOpen, setIsMobileCreateMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [messengerSearch, setMessengerSearch] = useState('');
+  const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'calls'>('chats');
 
   const loadMorePosts = () => {
     if (hasMorePosts && !isLoadingMore) {
@@ -1537,84 +1552,200 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (!activeChat || !user) {
+      setMessages([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'chats', activeChat.id, 'messages'),
+      orderBy('timestamp', 'asc'),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage)));
+    }, (error) => {
+      console.error('Chat messages error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [activeChat, user]);
+
+  const handleSendMessage = async () => {
+    if (!activeChat || !user || !messageInput.trim()) return;
+
+    const text = messageInput;
+    setMessageInput('');
+
+    try {
+      await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
+        senderUid: user.uid,
+        text: text,
+        timestamp: serverTimestamp(),
+        isRead: false
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+      setErrorMessage('মেসেজ পাঠানো যায়নি।');
+    }
+  };
+
   const renderMessenger = () => {
+    const chatActiveTab = activeMessengerTab || 'chats';
+    
+    // Filter users based on search
+    const filteredUsers = onlineUsers.filter(u => 
+      u.displayName.toLowerCase().includes(messengerSearch.toLowerCase())
+    );
+
     return (
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg-dark">
-        <div className="p-4 border-b border-border-custom flex justify-between items-center bg-surface/95 backdrop-blur-2xl sticky top-0 z-40">
+      <div className={`flex-1 flex flex-col h-screen fixed inset-0 z-50 lg:relative lg:h-full overflow-hidden ${theme === 'dark' ? 'bg-[#18191A] text-white' : 'bg-white text-black'}`}>
+        {/* Messenger Header */}
+        <div className="px-4 pt-4 pb-2 flex justify-between items-center bg-inherit">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30 overflow-hidden">
-              <MessageSquare className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <div className="font-black uppercase tracking-widest text-lg text-accent">PORSH</div>
-              <div className="text-[8px] text-text-dim uppercase font-bold">মেসেঞ্জার অ্যাপ</div>
-            </div>
+             <button onClick={() => withAuth(() => navigateToProfile(user?.uid || ''))} className="relative">
+                <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-[#3E4042]">
+                  {user?.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2" />}
+                </div>
+                <div className="absolute -top-1 -right-1 bg-red-600 text-[10px] text-white font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-[#18191A]">
+                   {unreadNotificationsCount > 0 ? unreadNotificationsCount : 0}
+                </div>
+             </button>
+             <h1 className="text-2xl font-bold tracking-tight lowercase">messenger</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={createStory} className="text-text-dim hover:text-accent"><CameraIcon className="w-5 h-5" /></Button>
-            <Button variant="ghost" size="icon" onClick={() => setActiveTab('profile')} className="text-text-dim hover:text-accent"><PenLine className="w-5 h-5" /></Button>
+          <div className="flex gap-2">
+             <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C] text-white' : 'bg-gray-100 text-black'}`}>
+                <CameraIcon className="w-5 h-5" />
+             </button>
+             <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C] text-white' : 'bg-gray-100 text-black'}`}>
+                <Pencil className="w-5 h-5" />
+             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* Active Friends Horizontal */}
-          <div className="p-4 flex gap-4 overflow-x-auto no-scrollbar border-b border-border-custom/30">
-            {onlineUsers.map(u => (
-              <div key={u.uid} className="flex flex-col items-center gap-1 flex-shrink-0">
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-full border-2 border-accent p-0.5">
-                    <div className="w-full h-full rounded-full overflow-hidden bg-bg-dark">
-                      {u.photoURL ? (
-                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
+        {/* Search Bar */}
+        <div className="px-4 py-2">
+           <div className={`flex items-center gap-3 h-11 px-4 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+              <Search className="w-5 h-5 text-gray-400" />
+              <input 
+                placeholder="Ask Meta AI or Search" 
+                className="bg-transparent border-none outline-none text-[15px] w-full placeholder:text-gray-500"
+                value={messengerSearch}
+                onChange={(e) => setMessengerSearch(e.target.value)}
+              />
+           </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
+           {/* Stories Section (Messenger Circles) */}
+           <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar">
+              <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                 <div className="relative">
+                    <button onClick={createStory} className={`w-16 h-16 rounded-full flex items-center justify-center border border-dashed ${theme === 'dark' ? 'border-[#3E4042] bg-[#242526]' : 'border-gray-300 bg-gray-50'}`}>
+                       <Plus className="w-6 h-6 text-gray-400" />
+                    </button>
+                    <div className="absolute -top-1 -left-1 bg-white dark:bg-[#242526] p-1 rounded-full shadow-md text-[10px] border border-gray-100 dark:border-[#3E4042]">
+                       💭
+                    </div>
+                 </div>
+                 <span className="text-[11px] text-gray-500 font-medium mt-1">Create story</span>
+              </div>
+
+              {stories.slice(0, 10).map(s => (
+                 <div key={s.id} onClick={() => setActiveStory(s)} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer group">
+                    <div className="relative p-[3px] rounded-full ring-2 ring-blue-500 bg-inherit transition-transform active:scale-95">
+                       <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-[#18191A]">
+                          <img src={s.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                       </div>
+                    </div>
+                    <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{s.authorName.split(' ')[0]}</span>
+                 </div>
+              ))}
+              
+              {onlineUsers.filter(u => u.uid !== user?.uid).map(u => (
+                 <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+                    <div className="relative">
+                       <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-100 dark:border-[#3E4042]">
+                          {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 bg-gray-100 opacity-50" />}
+                       </div>
+                       <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
+                    </div>
+                    <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{u.displayName.split(' ')[0]}</span>
+                 </div>
+              ))}
+           </div>
+
+           {/* Chat List */}
+           <div className="space-y-0.5">
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map(u => (
+                  <button 
+                    key={u.uid}
+                    onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })}
+                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left"
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
+                        {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
+                      </div>
+                      {u.isOnline && (
+                         <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
                       )}
                     </div>
-                  </div>
-                  <div className="absolute bottom-1 right-1 w-3 h-3 bg-accent border-2 border-bg-dark rounded-full" />
+                    <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
+                       <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-semibold text-[17px] truncate pr-2">{u.displayName}</span>
+                          <span className="text-[12px] text-gray-400 font-medium">Wed</span>
+                       </div>
+                       <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-1 min-w-0">
+                             <p className="text-[14px] text-gray-500 truncate">You: হাই, কেমন আছেন পড়শি বন্ধু?</p>
+                          </div>
+                          <div className="flex-shrink-0 ml-2">
+                             <div className="w-3 h-3 rounded-full bg-blue-500" />
+                          </div>
+                       </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="py-20 text-center opacity-30">
+                   <MessageSquare className="w-16 h-16 mx-auto mb-4" />
+                   <p className="font-bold text-sm tracking-widest uppercase">No chats found</p>
                 </div>
-                <span className="text-[8px] font-bold uppercase text-text-dim truncate w-14 text-center">{u.displayName}</span>
-              </div>
-            ))}
-          </div>
+              )}
+           </div>
+        </div>
 
-          {/* Chat List */}
-          <div className="p-2">
-            {onlineUsers.map(u => (
-              <button 
-                key={u.uid}
-                onClick={() => setActiveChat({ id: u.uid, partnerId: u.uid, partnerName: u.displayName })}
-                className="w-full p-4 flex items-center gap-4 hover:bg-accent/5 transition-all text-left group rounded-2xl"
-              >
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-full border border-border-custom overflow-hidden bg-bg-dark">
-                    {u.photoURL ? (
-                      <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-accent" /></div>
-                    )}
-                  </div>
-                  <div className="absolute bottom-0 right-0 w-4 h-4 bg-accent border-4 border-bg-dark rounded-full" />
-                </div>
-                <div className="flex-1 border-b border-border-custom/30 pb-4 group-last:border-none">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold uppercase tracking-tighter text-sm text-foreground">{u.displayName}</span>
-                    <span className="text-[8px] text-text-dim uppercase">১০:৩০ AM</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-[10px] text-text-dim uppercase tracking-tighter truncate max-w-[180px]">আপনি: হাই, কেমন আছেন?</p>
-                    <div className="w-2 h-2 rounded-full bg-accent" />
-                  </div>
-                </div>
-              </button>
-            ))}
-            {onlineUsers.length === 0 && (
-              <div className="p-20 text-center opacity-20">
-                <MessageSquare className="w-16 h-16 mx-auto mb-4" />
-                <p className="text-xs uppercase font-bold tracking-widest">কোনো মেসেজ নেই</p>
+        {/* Messenger Bottom Navigation */}
+        <div className={`fixed bottom-0 left-0 right-0 h-20 px-6 flex items-center justify-between z-50 border-t ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-white border-gray-100'}`}>
+           <button onClick={() => setActiveMessengerTab('chats')} className={`flex flex-col items-center gap-1 flex-1 transition-all ${chatActiveTab === 'chats' ? 'text-[#0084FF]' : 'text-gray-400 hover:text-gray-600'}`}>
+              <div className="relative">
+                 <MessageCircle className={`w-7 h-7 ${chatActiveTab === 'chats' ? 'fill-current' : ''}`} />
+                 <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center">2</span>
               </div>
-            )}
-          </div>
+              <span className="text-[11px] font-bold">Chats</span>
+           </button>
+           
+           <button onClick={() => setActiveMessengerTab('stories')} className={`flex flex-col items-center gap-1 flex-1 transition-all ${chatActiveTab === 'stories' ? 'text-[#0084FF]' : 'text-gray-400 hover:text-gray-600'}`}>
+              <Users className={`w-7 h-7 ${chatActiveTab === 'stories' ? 'fill-current' : ''}`} />
+              <span className="text-[11px] font-bold">Stories</span>
+           </button>
+
+           <button className="flex flex-col items-center gap-1 flex-1 text-gray-400 hover:text-gray-600">
+              <div className="relative">
+                <Bell className="w-7 h-7" />
+                 <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center">1</span>
+              </div>
+              <span className="text-[11px] font-bold">Alerts</span>
+           </button>
+
+           <button onClick={() => setCurrentApp('porshi')} className="flex flex-col items-center gap-1 flex-1 text-gray-400 hover:text-gray-600">
+              <LogOut className="w-7 h-7" />
+              <span className="text-[11px] font-bold">Leave</span>
+           </button>
         </div>
       </div>
     );
@@ -4328,6 +4459,117 @@ export default function App() {
     </AnimatePresence>
   );
 
+  const renderChatWindow = () => {
+    if (!activeChat) return null;
+    
+    return (
+      <motion.div 
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        className={`fixed inset-0 z-[160] flex flex-col ${theme === 'dark' ? 'bg-[#18191A] text-white' : 'bg-white text-black'}`}
+      >
+         {/* Chat Header */}
+         <div className={`px-4 h-16 flex items-center justify-between border-b ${theme === 'dark' ? 'border-[#3E4042]' : 'border-gray-100'}`}>
+            <div className="flex items-center gap-1">
+               <button onClick={() => setActiveChat(null)} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <ArrowLeft className="w-6 h-6 text-[#0084FF]" />
+               </button>
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
+                     {usersRegistry[activeChat.partnerId]?.photoURL ? 
+                       <img src={usersRegistry[activeChat.partnerId].photoURL} className="w-full h-full object-cover" /> : 
+                       <UserIcon className="w-full h-full p-2 text-gray-400" />
+                     }
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                     <span className="font-bold text-[15px] leading-tight truncate max-w-[120px]">{activeChat.partnerName}</span>
+                     <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span className="text-[11px] text-gray-500 font-medium lowercase">Active now</span>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            <div className="flex items-center gap-0.5">
+               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Phone className="w-5 h-5 fill-current" /></button>
+               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><VideoIcon className="w-6 h-6 fill-current" /></button>
+               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Info className="w-6 h-6 fill-current" /></button>
+            </div>
+         </div>
+
+         {/* Messages Area */}
+         <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-inherit">
+            <div className="flex flex-col items-center justify-center py-12">
+               <div className="w-24 h-24 rounded-full overflow-hidden mb-4 ring-4 ring-blue-500/10">
+                  {usersRegistry[activeChat.partnerId]?.photoURL ? 
+                    <img src={usersRegistry[activeChat.partnerId].photoURL} className="w-full h-full object-cover" /> : 
+                    <UserIcon className="w-full h-full p-6 bg-gray-100 dark:bg-[#3A3B3C]" />
+                  }
+               </div>
+               <h2 className="text-xl font-bold text-center">{activeChat.partnerName}</h2>
+               <p className="text-[13px] text-gray-500 font-medium text-center mt-1">Facebook · You're friends on Porshi</p>
+               <p className="text-[12px] text-gray-400 text-center">Lives in {usersRegistry[activeChat.partnerId]?.currentCity || 'Bangladesh'}</p>
+               <Button variant="ghost" size="sm" className="mt-4 bg-gray-100 dark:bg-[#3A3B3C] font-bold text-xs px-4" onClick={() => navigateToProfile(activeChat.partnerId)}>View Profile</Button>
+            </div>
+
+            {messages.map((m, i) => {
+               const isMe = m.senderUid === user?.uid;
+               return (
+                 <div key={m.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
+                    <div className={`max-w-[75%] px-4 py-2 text-[15px] ${
+                      isMe 
+                      ? 'bg-[#0084FF] text-white rounded-[20px] rounded-tr-[4px]' 
+                      : 'bg-[#F0F2F5] dark:bg-[#3A3B3C] text-inherit rounded-[20px] rounded-tl-[4px]'
+                    }`}>
+                       {m.text}
+                    </div>
+                 </div>
+               );
+            })}
+            <div ref={chatEndRef} className="h-4" />
+         </div>
+
+         {/* Chat Input */}
+         <div className={`p-3 bg-inherit border-t safe-bottom ${theme === 'dark' ? 'border-[#3E4042]' : 'border-gray-100'}`}>
+            <div className="flex items-center gap-1">
+               <div className="flex items-center">
+                 <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><PlusCircle className="w-6 h-6" /></button>
+                 {!messageInput.trim() && (
+                   <>
+                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><CameraIcon className="w-6 h-6" /></button>
+                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><ImageIcon className="w-6 h-6" /></button>
+                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Mic className="w-6 h-6" /></button>
+                   </>
+                 )}
+               </div>
+               
+               <div className={`flex-1 flex items-center h-10 px-3 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+                  <input 
+                    placeholder="Aa" 
+                    className="bg-transparent border-none outline-none text-[15px] w-full placeholder:text-gray-500"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                  />
+                  <button className="p-1 transition-transform active:scale-125"><Smile className="w-5 h-5 text-[#0084FF]" /></button>
+               </div>
+               
+               {messageInput.trim() ? (
+                 <button onClick={handleSendMessage} className="p-2 text-[#0084FF] transition-transform active:scale-90">
+                    <SendHorizontal className="w-6 h-6 fill-current" />
+                 </button>
+               ) : (
+                 <button className="p-2 text-[#0084FF] transition-transform active:scale-110">
+                    <ThumbsUp className="w-6 h-6 fill-current" />
+                 </button>
+               )}
+            </div>
+         </div>
+      </motion.div>
+    );
+  };
+
   const renderEditProfileModal = () => (
     <AnimatePresence>
       {isEditProfileModalOpen && (
@@ -4728,6 +4970,9 @@ export default function App() {
       {renderPostCreationModal()}
       {renderAdPaymentModal && renderAdPaymentModal()}
       {renderCommentsModal()}
+      <AnimatePresence>
+         {activeChat && renderChatWindow()}
+      </AnimatePresence>
 
       <AnimatePresence>
         {activeStory && (

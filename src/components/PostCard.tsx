@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ThumbsUp, MessageCircle, Share2, X, Globe, Eye, PlayCircle, Heart, Smile } from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, X, Globe, Eye, PlayCircle, Heart, Smile, User as UserIcon, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Post, Advertisement, AppUser } from '../types';
 import { db, auth } from '../firebase';
@@ -109,7 +109,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     displayName: post.authorName,
     photoURL: post.authorPhoto
   };
-  const totalReactions = post.reactions ? Object.values(post.reactions).reduce((a, b) => a + b, 0) : 0;
+  const totalReactions = post.reactions ? (Object.values(post.reactions) as number[]).reduce((a, b) => a + b, 0) : 0;
   
   const [selectedAd, setSelectedAd] = React.useState<Advertisement | null>(null);
   const [showMenu, setShowMenu] = React.useState(false);
@@ -375,7 +375,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div className="flex items-center gap-1">
             <div className="flex -space-x-1">
                {post.reactions && Object.entries(post.reactions)
-                 .filter(([_, count]) => count > 0)
+                 .filter(([_, count]) => (count as number) > 0)
                  .slice(0, 3)
                  .map(([emoji]) => (
                    <div key={emoji} className="w-5 h-5 rounded-full bg-white dark:bg-[#3A3B3C] flex items-center justify-center border border-gray-100 dark:border-[#242526] z-10 text-[10px]">
@@ -389,7 +389,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div className="flex items-center gap-2 text-[11px] text-gray-500 font-medium font-sans">
              <span>{post.commentsCount || 0} comments</span>
              <span>•</span>
-             <span>{Math.floor(totalReactions * 0.4)} shares</span>
+             <span>{Math.floor((totalReactions as number) * 0.4)} shares</span>
           </div>
         </div>
       )}
