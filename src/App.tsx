@@ -235,6 +235,42 @@ export default function App() {
       metaThemeColor.setAttribute('content', theme === 'dark' ? '#242526' : '#ffffff');
     }
   }, [theme]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
+  const [messengerSearch, setMessengerSearch] = useState('');
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) {
+      setErrorMessage('আপনার ব্রাউজার এটি সাপোর্ট করছে না অথবা অ্যাপটি ইতিমধ্যে ইনস্টল করা আছে।');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
+    }
+    setDeferredPrompt(null);
+  };
+
+  useEffect(() => {
+    if (currentApp === 'porsh' && deferredPrompt) {
+      // Small delay for better UX
+      setTimeout(() => {
+        setShowInstallModal(true);
+      }, 1000);
+    }
+  }, [currentApp, deferredPrompt]);
+
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const [adForm, setAdForm] = useState({
     title: '',
@@ -422,8 +458,6 @@ export default function App() {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isMobileCreateMenuOpen, setIsMobileCreateMenuOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const [messengerSearch, setMessengerSearch] = useState('');
-  const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'calls'>('chats');
 
   const loadMorePosts = () => {
     if (hasMorePosts && !isLoadingMore) {
@@ -1630,7 +1664,7 @@ export default function App() {
            <div className={`flex items-center gap-3 h-11 px-4 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
               <Search className="w-5 h-5 text-gray-400" />
               <input 
-                placeholder="Ask Meta AI or Search" 
+                placeholder="Search or find friends..." 
                 className="bg-transparent border-none outline-none text-[15px] w-full placeholder:text-gray-500"
                 value={messengerSearch}
                 onChange={(e) => setMessengerSearch(e.target.value)}
@@ -1639,84 +1673,135 @@ export default function App() {
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar pb-32">
-           {/* Stories Section (Messenger Circles) */}
-           <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar">
-              <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                 <div className="relative">
-                    <button onClick={createStory} className={`w-16 h-16 rounded-full flex items-center justify-center border border-dashed ${theme === 'dark' ? 'border-[#3E4042] bg-[#242526]' : 'border-gray-300 bg-gray-50'}`}>
-                       <Plus className="w-6 h-6 text-gray-400" />
-                    </button>
-                    <div className="absolute -top-1 -left-1 bg-white dark:bg-[#242526] p-1 rounded-full shadow-md text-[10px] border border-gray-100 dark:border-[#3E4042]">
-                       💭
+           {chatActiveTab === 'chats' && (
+             <>
+               {/* Stories Section (Messenger Circles) */}
+               <div className="flex gap-4 p-4 overflow-x-auto no-scrollbar">
+                  <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                     <div className="relative">
+                        <button onClick={createStory} className={`w-16 h-16 rounded-full flex items-center justify-center border border-dashed ${theme === 'dark' ? 'border-[#3E4042] bg-[#242526]' : 'border-gray-300 bg-gray-50'}`}>
+                           <Plus className="w-6 h-6 text-gray-400" />
+                        </button>
+                        <div className="absolute -top-1 -left-1 bg-white dark:bg-[#242526] p-1 rounded-full shadow-md text-[10px] border border-gray-100 dark:border-[#3E4042]">
+                           💭
+                        </div>
+                     </div>
+                     <span className="text-[11px] text-gray-500 font-medium mt-1">Create story</span>
+                  </div>
+
+                  {stories.slice(0, 10).map(s => (
+                     <div key={s.id} onClick={() => setActiveStory(s)} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer group">
+                        <div className="relative p-[3px] rounded-full ring-2 ring-blue-500 bg-inherit transition-transform active:scale-95">
+                           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-[#18191A]">
+                              <img src={s.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                           </div>
+                        </div>
+                        <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{s.authorName.split(' ')[0]}</span>
+                     </div>
+                  ))}
+                  
+                  {onlineUsers.filter(u => u.uid !== user?.uid).map(u => (
+                     <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+                        <div className="relative">
+                           <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-100 dark:border-[#3E4042]">
+                              {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 bg-gray-100 opacity-50" />}
+                           </div>
+                           <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
+                        </div>
+                        <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{u.displayName.split(' ')[0]}</span>
+                     </div>
+                  ))}
+               </div>
+
+               {/* Chat List */}
+               <div className="space-y-0.5">
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map(u => (
+                      <button 
+                        key={u.uid}
+                        onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left"
+                      >
+                        <div className="relative flex-shrink-0">
+                          <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
+                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
+                          </div>
+                          {u.isOnline && (
+                             <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
+                           <div className="flex justify-between items-center mb-0.5">
+                              <span className="font-semibold text-[17px] truncate pr-2">{u.displayName}</span>
+                              <span className="text-[12px] text-gray-400 font-medium">Wed</span>
+                           </div>
+                           <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1 min-w-0">
+                                 <p className="text-[14px] text-gray-500 truncate">You: হাই, কেমন আছেন পড়শি বন্ধু?</p>
+                              </div>
+                              <div className="flex-shrink-0 ml-2">
+                                 <div className="w-3 h-3 rounded-full bg-blue-500" />
+                              </div>
+                           </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="py-20 text-center opacity-30">
+                       <MessageSquare className="w-16 h-16 mx-auto mb-4" />
+                       <p className="font-bold text-sm tracking-widest uppercase">No chats found</p>
                     </div>
-                 </div>
-                 <span className="text-[11px] text-gray-500 font-medium mt-1">Create story</span>
+                  )}
+               </div>
+             </>
+           )}
+
+           {chatActiveTab === 'stories' && (
+              <div className="p-4 grid grid-cols-2 gap-4">
+                 {stories.map(s => (
+                    <div key={s.id} onClick={() => setActiveStory(s)} className="relative aspect-[9/16] rounded-2xl overflow-hidden cursor-pointer group shadow-lg">
+                       <img src={s.imageUrl || s.authorPhoto} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60" />
+                       <div className="absolute top-2 left-2 p-0.5 rounded-full ring-2 ring-blue-500 bg-white">
+                          <img src={s.authorPhoto} className="w-8 h-8 rounded-full border border-white" />
+                       </div>
+                       <div className="absolute bottom-2 left-2 text-white text-xs font-bold truncate pr-2">{s.authorName}</div>
+                    </div>
+                 ))}
+                 <button onClick={createStory} className={`aspect-[9/16] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 ${theme === 'dark' ? 'border-[#3E4042] bg-[#3A3B3C]' : 'border-gray-200 bg-gray-50'}`}>
+                    <Plus className="w-8 h-8 text-blue-500" />
+                    <span className="text-[10px] font-black uppercase text-gray-500">Add Story</span>
+                 </button>
               </div>
+           )}
 
-              {stories.slice(0, 10).map(s => (
-                 <div key={s.id} onClick={() => setActiveStory(s)} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer group">
-                    <div className="relative p-[3px] rounded-full ring-2 ring-blue-500 bg-inherit transition-transform active:scale-95">
-                       <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-[#18191A]">
-                          <img src={s.authorPhoto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                       </div>
-                    </div>
-                    <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{s.authorName.split(' ')[0]}</span>
-                 </div>
-              ))}
-              
-              {onlineUsers.filter(u => u.uid !== user?.uid).map(u => (
-                 <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
-                    <div className="relative">
-                       <div className="w-16 h-16 rounded-full overflow-hidden border border-gray-100 dark:border-[#3E4042]">
-                          {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 bg-gray-100 opacity-50" />}
-                       </div>
-                       <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
-                    </div>
-                    <span className="text-[11px] text-gray-500 font-medium truncate w-16 text-center mt-1">{u.displayName.split(' ')[0]}</span>
-                 </div>
-              ))}
-           </div>
-
-           {/* Chat List */}
-           <div className="space-y-0.5">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map(u => (
-                  <button 
-                    key={u.uid}
-                    onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })}
-                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left"
-                  >
-                    <div className="relative flex-shrink-0">
-                      <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
-                        {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
-                      </div>
-                      {u.isOnline && (
-                         <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
-                       <div className="flex justify-between items-center mb-0.5">
-                          <span className="font-semibold text-[17px] truncate pr-2">{u.displayName}</span>
-                          <span className="text-[12px] text-gray-400 font-medium">Wed</span>
-                       </div>
-                       <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-1 min-w-0">
-                             <p className="text-[14px] text-gray-500 truncate">You: হাই, কেমন আছেন পড়শি বন্ধু?</p>
+           {chatActiveTab === 'alerts' && (
+              <div className="p-4 space-y-4">
+                 <h2 className="text-sm font-bold uppercase tracking-widest text-[#0084FF] px-2 mb-2">Notifications</h2>
+                 {notifications.map(n => (
+                    <div key={n.id} className={`p-4 rounded-2xl border flex gap-3 ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-gray-50 border-gray-100'}`}>
+                        {n.fromPhoto ? (
+                          <img src={n.fromPhoto} className="w-10 h-10 rounded-full flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                             <Bell className="w-5 h-5 text-blue-500" />
                           </div>
-                          <div className="flex-shrink-0 ml-2">
-                             <div className="w-3 h-3 rounded-full bg-blue-500" />
-                          </div>
-                       </div>
+                        )}
+                        <div>
+                           <p className="text-sm font-bold">{n.title}</p>
+                           <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                           <p className="text-[10px] text-gray-400 mt-2 font-medium">Just now</p>
+                        </div>
                     </div>
-                  </button>
-                ))
-              ) : (
-                <div className="py-20 text-center opacity-30">
-                   <MessageSquare className="w-16 h-16 mx-auto mb-4" />
-                   <p className="font-bold text-sm tracking-widest uppercase">No chats found</p>
-                </div>
-              )}
-           </div>
+                 ))}
+                 {notifications.length === 0 && (
+                   <div className="py-20 text-center opacity-30">
+                      <Bell className="w-16 h-16 mx-auto mb-4" />
+                      <p className="font-bold text-sm tracking-widest uppercase">No alerts</p>
+                   </div>
+                 )}
+              </div>
+           )}
         </div>
 
         {/* Messenger Bottom Navigation */}
@@ -1734,9 +1819,9 @@ export default function App() {
               <span className="text-[11px] font-bold">Stories</span>
            </button>
 
-           <button className="flex flex-col items-center gap-1 flex-1 text-gray-400 hover:text-gray-600">
+           <button onClick={() => setActiveMessengerTab('alerts')} className={`flex flex-col items-center gap-1 flex-1 transition-all ${chatActiveTab === 'alerts' ? 'text-[#0084FF]' : 'text-gray-400 hover:text-gray-600'}`}>
               <div className="relative">
-                <Bell className="w-7 h-7" />
+                <Bell className={`w-7 h-7 ${chatActiveTab === 'alerts' ? 'fill-current' : ''}`} />
                  <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center">1</span>
               </div>
               <span className="text-[11px] font-bold">Alerts</span>
@@ -4570,6 +4655,30 @@ export default function App() {
     );
   };
 
+  const renderInstallModal = () => {
+    if (!showInstallModal || !deferredPrompt) return null;
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className={`max-w-sm w-full rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl border ${theme === 'dark' ? 'bg-[#242526] border-[#3A3B3C]' : 'bg-white border-gray-100'}`}
+        >
+          <div className="w-20 h-20 rounded-2xl overflow-hidden mb-6 shadow-xl ring-4 ring-blue-500/10">
+            <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-cover" />
+          </div>
+          <h2 className="text-xl font-black mb-2 lowercase tracking-tight">পরশ মেসেন্জার ইনস্টল করুন</h2>
+          <p className="text-sm text-gray-500 mb-8 font-medium italic">সরাসরি ফোন থেকে ব্যবহার করতে এবং নতুন মেসেজের নোটিফিকেশন পেতে অ্যাপটি ডাউনলোড করুন।</p>
+          
+          <div className="flex flex-col w-full gap-3">
+            <Button onClick={() => { installApp(); setShowInstallModal(false); }} className="w-full h-12 bg-[#0084FF] text-white hover:bg-[#0074E0] rounded-full font-bold">ইনস্টল করুন (Install)</Button>
+            <Button variant="ghost" onClick={() => setShowInstallModal(false)} className="w-full h-12 text-gray-400 font-bold">পরে করবো</Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  };
+
   const renderEditProfileModal = () => (
     <AnimatePresence>
       {isEditProfileModalOpen && (
@@ -4970,6 +5079,7 @@ export default function App() {
       {renderPostCreationModal()}
       {renderAdPaymentModal && renderAdPaymentModal()}
       {renderCommentsModal()}
+      {renderInstallModal()}
       <AnimatePresence>
          {activeChat && renderChatWindow()}
       </AnimatePresence>
