@@ -4724,8 +4724,8 @@ export default function App() {
           className={`max-w-md w-full rounded-[48px] p-12 flex flex-col items-center text-center shadow-[0_0_100px_rgba(0,132,255,0.4)] border-2 ${theme === 'dark' ? 'bg-[#1C1C1E] border-[#3A3B3C]' : 'bg-white border-gray-100'}`}
         >
           <div className="relative mb-8">
-             <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-1">
-               <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain" />
+             <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-4 bg-white">
+               <img src="https://img.icons8.com/color/512/facebook-messenger--v1.png" className="w-full h-full object-contain" alt="Messenger Icon" />
              </div>
              <motion.div 
                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
@@ -4737,17 +4737,17 @@ export default function App() {
           <h2 className={`text-4xl font-black mb-4 tracking-tighter leading-none ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             পরশ মেসেন্জার (Porsh)
           </h2>
-          <p className="text-blue-500 font-black uppercase text-xs tracking-widest mb-6">পরশি অফিসিয়াল ইকোসিস্টেম</p>
+          <p className="text-blue-500 font-black uppercase text-xs tracking-widest mb-6 underline decoration-2 underline-offset-4">১০০% এন্ড্রয়েড অ্যাপের মতো ডাউনলোড করুন</p>
           
           <div className={`text-[16px] leading-relaxed mb-10 px-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
             {isIframe ? (
               <div>
-                 <p className="mb-4">আপনি প্রিভিউ উইন্ডোতে আছেন। অ্যাপটি সরাসরি আপনার ফোনে ইনস্টল করতে <span className="text-blue-500 underline font-bold px-1">porshi.vercel.app</span> ডোমেইন থেকে ওপেন করুন।</p>
-                 <div className="p-4 bg-orange-500/10 rounded-3xl border border-orange-500/20 text-orange-500 text-xs font-black">যেকোনো একটি ব্রাউজারে (Chrome/Safari) ওপেন করুন।</div>
+                 <p className="mb-4 text-blue-400 font-bold">আপনি বর্তমানে একটি সুরক্ষিত প্রিভিউ উইন্ডোতে আছেন।</p>
+                 <p className="mb-4">অফিসিয়াল "পরশ মেসেন্জার" সরাসরি আপনার ফোনে ইনস্টল করতে নিচের বাটনে ক্লিক করে <span className="text-blue-500">porshi.vercel.app</span> ওপেন করুন।</p>
               </div>
             ) : isIOS ? (
               <div className="space-y-4 text-left">
-                <p className="text-center font-bold">iOS (iPhone) এ ইনস্টল করতে এটি অনুসরণ করুন:</p>
+                <p className="text-center font-bold">iPhone (iOS) এ অ্যাপটি ইনস্টল করতে:</p>
                 <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
                    <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
@@ -4759,21 +4759,15 @@ export default function App() {
                       <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
                          <PlusSquare className="w-4 h-4 text-blue-500" />
                       </div>
-                      <p className="text-xs">২. মেনু থেকে <span className="font-bold">"Add to Home Screen"</span> খুজে নিন।</p>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
-                         <Star className="w-4 h-4 text-white" />
-                      </div>
-                      <p className="text-xs">৩. তারপর <span className="font-bold">Add</span> বাটনে ক্লিক করে অ্যাপটি ব্যবহার করুন।</p>
+                      <p className="text-xs">২. মেনু থেকে <span className="font-bold">"Add to Home Screen"</span> এ ক্লিক করুন।</p>
                    </div>
                 </div>
               </div>
             ) : deferredPrompt ? (
-              <p>সরাসরি ফোন থেকে ব্যবহার করতে এবং নতুন মেসেজের সাথে সাথে নোটিফিকেশন পেতে অফিসিয়াল অ্যাপটি এখনই ডাউনলোড করুন।</p>
+              <p>নিচের বাটনে ক্লিক করলেই "পরশ মেসেন্জার" আপনার ফোনে একটি এন্ড্রয়েড অ্যাপের মতো ইনস্টল হয়ে যাবে। কোনো ব্রাউজার ছাড়াই সরাসরি চ্যাট করতে পারবেন।</p>
             ) : (
               <div className="space-y-4 text-left">
-                <p className="text-center font-bold italic underline mb-2 tracking-tighter">ম্যানুয়ালি ইনস্টল করার নিয়ম:</p>
+                <p className="text-center font-bold italic underline mb-2 tracking-tighter">ব্রাউজার থেকে সরাসরি ইনস্টল:</p>
                 <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
                    <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">১</div>
@@ -4781,11 +4775,7 @@ export default function App() {
                    </div>
                    <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">২</div>
-                      <p className="text-xs font-bold leading-tight"><span className="text-blue-500 underline">"Install App"</span> অথবা <span className="text-blue-500 underline">"Add to Home Screen"</span> এ ক্লিক করুন।</p>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs text-center"><Download className="w-4 h-4" /></div>
-                      <p className="text-xs font-bold leading-tight">অ্যাপটি আপনার ফোনের হোম স্ক্রিনে ডাউনলোড হয়ে যাবে।</p>
+                      <p className="text-xs font-bold leading-tight"><span className="text-blue-500 underline uppercase italic">"Install App"</span> এ ক্লিক করে এন্ড্রয়েড অ্যাপের মতো ডাউনলোড করুন।</p>
                    </div>
                 </div>
               </div>
@@ -4795,16 +4785,16 @@ export default function App() {
           <div className="flex flex-col w-full gap-4">
             <button 
               onClick={() => { installApp(); if (!deferredPrompt && !isIframe) setShowInstallModal(false); }} 
-              className={`w-full h-20 rounded-[30px] font-black text-xl transition-all active:scale-95 shadow-2xl flex items-center justify-center gap-4 ${isIframe ? 'bg-orange-500 text-white shadow-orange-500/30' : (deferredPrompt ? 'bg-[#0084FF] text-white shadow-blue-500/30' : 'bg-gray-800 text-white')}`}
+              className={`w-full h-20 rounded-[30px] font-black text-xl transition-all active:scale-95 shadow-2xl flex items-center justify-center gap-4 ${isIframe ? 'bg-orange-500 text-white shadow-orange-500/30' : (deferredPrompt ? 'bg-[#0084FF] text-white shadow-blue-500/30' : 'bg-gray-800 text-white hover:bg-gray-700')}`}
             >
               {isIframe ? (
-                <>ওপেন করুন (Open App)</>
+                <>অ্যাপটি ওপেন করুন (Open App)</>
               ) : deferredPrompt ? (
-                <><Download className="w-6 h-6" /> ইনস্টল করুন (Install)</>
+                <><Download className="w-6 h-6" /> অ্যাপটি নামান (Install Now)</>
               ) : isIOS ? (
-                <>ঠিক আছে, করছি</>
-              ) : (
                 <>বন্ধ করুন (Close)</>
+              ) : (
+                <>ঠিক আছে (Understood)</>
               )}
             </button>
             
@@ -4812,7 +4802,7 @@ export default function App() {
               onClick={() => setShowInstallModal(false)} 
               className={`w-full h-14 rounded-[24px] font-bold bg-transparent transition-all ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              এখন না (Maybe Later)
+              পরে করবো (Later)
             </button>
           </div>
           
@@ -4820,7 +4810,7 @@ export default function App() {
              <div className="h-[1px] flex-1 bg-gray-500/20" />
              <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest leading-none">porshi ecosystem verified</span>
+                <span className="text-[10px] font-black uppercase tracking-widest leading-none">PWA Secure Installation</span>
              </div>
              <div className="h-[1px] flex-1 bg-gray-500/20" />
           </div>

@@ -1,10 +1,11 @@
-const CACHE_NAME = 'porshi-v2';
+const CACHE_NAME = 'parash-v1';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
   '/sw.js',
-  'https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png'
+  'https://img.icons8.com/color/512/facebook-messenger--v1.png',
+  'https://img.icons8.com/color/192/facebook-messenger--v1.png'
 ];
 
 self.addEventListener('install', event => {
