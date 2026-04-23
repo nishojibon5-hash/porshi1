@@ -277,19 +277,23 @@ export default function App() {
       return;
     }
 
-    if (!deferredPrompt && !isIOS) {
-       alert("The installation prompt is not ready yet. Please wait a moment or use the 'Manual Installation' guide below.");
-       return;
-    }
-
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setIsInStandaloneMode(true);
-        setShowInstallModal(false);
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setIsInStandaloneMode(true);
+          setShowInstallModal(false);
+          addLog('Porsh successfully installed!');
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        console.error('Install prompt error:', err);
       }
-      setDeferredPrompt(null);
+    } else {
+       addLog('PWA prompt not ready. Trying to initialize...');
+       // Trigger a small interaction to help browser decide
+       window.dispatchEvent(new Event('resize'));
     }
   };
 
@@ -4735,11 +4739,12 @@ export default function App() {
           <div className="relative mb-8">
             <div className="w-24 h-24 rounded-[30px] overflow-hidden shadow-2xl ring-4 ring-blue-500/10 p-0 bg-white">
                <img 
-                 src="/porsh-pwa-icon.png" 
+                 src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
                  className="w-full h-full object-cover" 
                  alt="Porsh" 
+                 referrerPolicy="no-referrer"
                  onError={(e) => { 
-                   e.currentTarget.src = "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png";
+                   e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
                  }} 
                />
             </div>
@@ -4768,20 +4773,6 @@ export default function App() {
               Maybe Later
             </button>
           </div>
-
-          {!deferredPrompt && !isIOS && !isIframe && (
-            <div className="mt-8 pt-8 border-t border-gray-100 w-full text-left space-y-3">
-              <p className="text-[10px] uppercase font-black text-gray-400 tracking-[2px] text-center mb-1 font-mono">Manual Installation</p>
-              <div className="flex items-center gap-3 text-xs text-gray-600">
-                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black">1</div>
-                <span>Tap browser menu (top/bottom dots)</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-gray-600">
-                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black">2</div>
-                <span>Select <span className="font-bold text-black underline">"Install App"</span></span>
-              </div>
-            </div>
-          )}
         </motion.div>
       </div>
     );
