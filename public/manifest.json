@@ -1,0 +1,48 @@
+{
+  "name": "Porsh",
+  "short_name": "Porsh",
+  "id": "/?app=porsh",
+  "description": "Porsh - Beautiful and artistic real-time messenger.",
+  "start_url": "/?app=porsh",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "categories": ["social", "messenger", "communication"],
+  "icons": [
+    {
+      "src": "/porsh-pwa-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/porsh-pwa-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/porsh-pwa-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/porsh-pwa-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Porsh",
+      "short_name": "Porsh",
+      "url": "/?app=porsh&view=chats",
+      "icons": [{ "src": "/porsh-pwa-icon.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}
