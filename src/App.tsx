@@ -4730,48 +4730,49 @@ export default function App() {
     if (!showInstallModal || isInStandaloneMode) return null;
     
     return (
-      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+      <div className="fixed inset-0 z-[2001] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/40 backdrop-blur-[2px]">
         <motion.div 
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          className={`max-w-sm w-full rounded-[40px] p-10 flex flex-col items-center text-center shadow-2xl border ${theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-gray-100'}`}
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          className={`w-full sm:max-w-sm rounded-t-[32px] sm:rounded-[32px] p-8 flex flex-col items-center text-center shadow-2xl ${theme === 'dark' ? 'bg-[#1C1C1E] border-white/5' : 'bg-white border-gray-100'} border-t sm:border`}
         >
-          <div className="relative mb-8">
-            <div className="w-24 h-24 rounded-[30px] overflow-hidden shadow-2xl ring-4 ring-blue-500/10 p-0 bg-white">
+          <div className="w-12 h-1 bg-gray-200 rounded-full mb-8 sm:hidden" />
+          
+          <div className="relative mb-6">
+            <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-lg p-0 bg-white">
                <img 
                  src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
                  className="w-full h-full object-cover" 
-                 alt="Porsh" 
+                 alt="Porsh Logo" 
                  referrerPolicy="no-referrer"
-                 onError={(e) => { 
-                   e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
-                 }} 
                />
             </div>
-            <motion.div 
-               animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
-               transition={{ repeat: Infinity, duration: 4 }}
-               className="absolute inset-0 bg-blue-500 rounded-full blur-3xl -z-10"
-            />
           </div>
           
-          <h2 className="text-2xl font-black mb-2 tracking-tighter">Install Porsh</h2>
-          <p className="text-sm text-gray-500 mb-10 px-2 font-medium leading-relaxed">Experience <b>Porsh</b> as a native app with full-screen mode and faster access.</p>
+          <h2 className="text-xl font-bold mb-1">Install Porsh</h2>
+          <p className="text-sm text-gray-500 mb-8 font-medium">Use Porsh as a dedicated messenger app on your phone.</p>
           
-          <div className="w-full space-y-4">
+          <div className="w-full space-y-3">
             <button 
               onClick={() => { installApp(); if (isIframe) setShowInstallModal(false); }} 
-              className="w-full h-16 rounded-3xl font-black text-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3"
+              className="w-full h-14 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center"
             >
-              {isIframe ? "Open in Browser" : (deferredPrompt ? <><Download className="w-6 h-6" /> Install Porsh</> : (isIOS ? "Add to Home Screen" : "Install Porsh"))}
+              Install App
             </button>
             
             <button 
               onClick={() => setShowInstallModal(false)} 
-              className="w-full h-12 rounded-2xl font-bold text-gray-400 hover:text-gray-600 transition-colors"
+              className="w-full h-12 rounded-2xl font-bold text-gray-400 hover:text-gray-500 transition-colors"
             >
-              Maybe Later
+              Not Now
             </button>
+          </div>
+          
+          <div className="mt-6 flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+             <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+               <Check className="w-2.5 h-2.5 text-white stroke-[4px]" />
+             </div>
+             Verified Standalone App
           </div>
         </motion.div>
       </div>

@@ -1,16 +1,16 @@
-const CACHE_NAME = 'parash-v1';
+const CACHE_NAME = 'porsh-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/sw.js'
+  '/sw.js',
+  'https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
@@ -29,21 +29,25 @@ self.addEventListener('activate', event => {
       );
     })
   );
+  return self.clients.claim();
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.open(CACHE_NAME).then(cache => {
+          return cache.match('/');
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).catch(() => {
-          // Fallback to index.html for SPA if offline and resource not found
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-        });
+        return response || fetch(event.request);
       })
   );
 });
