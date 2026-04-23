@@ -256,6 +256,14 @@ export default function App() {
     const initializeGoogleOneTap = () => {
       if (typeof window.google === 'undefined' || !import.meta.env.VITE_GOOGLE_CLIENT_ID) return;
       
+      // Use a global or window property to prevent multiple initializations
+      if ((window as any)._gsiInitialized) {
+        if (!user && window.self === window.top) {
+          window.google.accounts.id.prompt();
+        }
+        return;
+      }
+
       try {
         window.google.accounts.id.initialize({
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
@@ -277,6 +285,8 @@ export default function App() {
           cancel_on_tap_outside: true,
         });
         
+        (window as any)._gsiInitialized = true;
+
         if (!user && window.self === window.top) {
           window.google.accounts.id.prompt();
         }
@@ -286,8 +296,9 @@ export default function App() {
       }
     };
 
-    if (!googleOneTapLoaded) {
+    if (!googleOneTapLoaded && !document.getElementById('gsi-client-script')) {
       const script = document.createElement('script');
+      script.id = 'gsi-client-script';
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
@@ -296,7 +307,7 @@ export default function App() {
     } else {
       initializeGoogleOneTap();
     }
-  }, [googleOneTapLoaded, user]);
+  }, [user]); // Only re-reun prompt logic if user changes, initialization is guarded by window flag
 
   // Helper to enforce auth
   const withAuth = (action: () => void) => {
