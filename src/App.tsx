@@ -38,6 +38,7 @@ import {
   Home,
   Users,
   Bell,
+  Check,
   Search,
   PlusSquare,
   Heart,
@@ -273,7 +274,8 @@ export default function App() {
 
   const installApp = async () => {
     if (isIframe) {
-      window.open('https://porshi.vercel.app/?app=porsh', '_blank');
+      const targetUrl = `${window.location.origin}${window.location.pathname}?app=porsh`;
+      window.open(targetUrl, '_blank');
       return;
     }
 
@@ -4741,7 +4743,7 @@ export default function App() {
           <div className="relative mb-6">
             <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-lg p-0 bg-white">
                <img 
-                 src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
+                 src="/porsh-pwa-icon.png" 
                  className="w-full h-full object-cover" 
                  alt="Porsh Logo" 
                  referrerPolicy="no-referrer"
@@ -5241,7 +5243,7 @@ export default function App() {
                <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
-                       <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain brightness-200 invert" alt="" />
+                       <img src="/porsh-pwa-icon.png" className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
                     <span className="text-xl font-black tracking-tighter italic">PORSH</span>
                   </div>

@@ -4,7 +4,7 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/sw.js',
-  'https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png'
+  '/porsh-pwa-icon.png'
 ];
 
 self.addEventListener('install', event => {
