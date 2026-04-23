@@ -196,7 +196,7 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [activeReel, setActiveReel] = useState<Post | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
     if (commentingPostId) {
@@ -235,9 +235,8 @@ export default function App() {
     // Update Chrome/Android theme-color meta tag
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const color = theme === 'dark' ? '#18191A' : '#ffffff';
+      const color = '#ffffff';
       metaThemeColor.setAttribute('content', color);
-      // Ensure body background also matches for navigation bar sync on some devices
       document.body.style.backgroundColor = color;
     }
   }, [theme]);
@@ -5129,15 +5128,6 @@ export default function App() {
         </nav>
 
         <div className="space-y-4 pt-8 border-t border-border-custom">
-          <div className="flex items-center justify-between px-4">
-             <span className="text-xs font-bold text-text-dim uppercase tracking-widest">Theme</span>
-             <button 
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-2 rounded-xl hover:bg-white/5 transition-all text-text-dim hover:text-white"
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-          </div>
           <button onClick={logout} className="w-full flex items-center gap-4 px-4 py-3 text-red-400 hover:bg-red-400/5 rounded-xl transition-all font-semibold">
             <LogOut className="w-5 h-5" />
             <span className="text-sm">{t('logout')}</span>
@@ -5159,12 +5149,6 @@ export default function App() {
             <span className="text-xl font-black tracking-tighter text-accent">PORSHI</span>
           </div>
           <div className="flex items-center gap-1">
-             <button 
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
-            >
-              {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-gray-600" />}
-            </button>
             <button 
               onClick={() => withAuth(() => setIsMobileCreateMenuOpen(true))}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
@@ -5344,12 +5328,6 @@ export default function App() {
                </div>
 
                <div className="pt-6 border-t border-black/5 space-y-4">
-                  <div className="flex items-center justify-between px-4">
-                    <span className="text-xs font-bold opacity-40 uppercase tracking-widest">Dark Mode</span>
-                    <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-12 h-6 rounded-full bg-gray-200 relative transition-all">
-                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${theme === 'dark' ? 'left-7 bg-accent' : 'left-1'}`} />
-                    </button>
-                  </div>
                   {user && (
                     <button onClick={logout} className="w-full h-14 rounded-2xl flex items-center gap-4 px-6 text-red-500 font-bold hover:bg-red-500/5 transition-all">
                       <LogOut className="w-5 h-5" />
