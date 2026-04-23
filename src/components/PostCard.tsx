@@ -1,22 +1,35 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  User as UserIcon, 
-  MoreHorizontal, 
-  ThumbsUp, 
-  MessageCircle, 
-  Share2, 
-  X,
-  Globe,
-  Eye,
-  PlayCircle
-} from 'lucide-react';
+import { ThumbsUp, MessageCircle, Share2, X, Globe, Eye, PlayCircle, Heart, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Post, Advertisement, AppUser } from '../types';
-import { db } from '../firebase';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { useInView } from 'react-intersection-observer';
 import { VideoPlayer } from './VideoPlayer';
+
+const REACTION_EMOJIS = ['👍', '❤️', '🥰', '😆', '😁', '😛', '🥴', '😯', '🫤', '😡', '🫦', '🖕'];
+
+const ReactionPicker: React.FC<{ onSelect: (emoji: string) => void, onClose: () => void }> = ({ onSelect, onClose }) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.5, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.5, y: 10 }}
+      className="absolute bottom-full mb-2 left-0 bg-white dark:bg-[#242526] p-1 shadow-xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1 z-50"
+    >
+      {REACTION_EMOJIS.map(emoji => (
+        <button 
+          key={emoji}
+          onClick={(e) => { e.stopPropagation(); onSelect(emoji); onClose(); }}
+          className="text-xl hover:scale-125 transition-transform p-1 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full"
+        >
+          {emoji}
+        </button>
+      ))}
+    </motion.div>
+  );
+};
 
 const ImageWithTracking: React.FC<{ post: Post, theme: string, currentUserId?: string, onLike: (id: string) => void }> = ({ post, theme, currentUserId, onLike }) => {
   const { ref, inView } = useInView({ threshold: 0.5, triggerOnce: true });
@@ -96,11 +109,49 @@ export const PostCard: React.FC<PostCardProps> = ({
     displayName: post.authorName,
     photoURL: post.authorPhoto
   };
-  const totalReactions = post.reactions ? Object.values(post.reactions).reduce((a, b) => (a as number) + (b as number), 0) as number : 0;
+  const totalReactions = post.reactions ? Object.values(post.reactions).reduce((a, b) => a + b, 0) : 0;
   
   const [selectedAd, setSelectedAd] = React.useState<Advertisement | null>(null);
   const [showMenu, setShowMenu] = React.useState(false);
+  const [showReactionPicker, setShowReactionPicker] = React.useState(false);
+  const [isSharing, setIsSharing] = React.useState(false);
+  const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const reachTracked = React.useRef(false);
+
+  const handleLikeStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      setShowReactionPicker(true);
+    }, 500);
+  };
+
+  const handleLikeEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const handleReactionSelect = (emoji: string) => {
+    onReact(post.id, emoji);
+  };
+
+  const handleShareClick = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Porshi Post',
+          text: post.content,
+          url: window.location.href,
+        });
+        onShare?.(post.id);
+      } catch (e) {
+        console.log('Share error:', e);
+      }
+    } else {
+      setIsSharing(true);
+      setTimeout(() => setIsSharing(false), 2000);
+      onShare?.(post.id);
+    }
+  };
 
   React.useEffect(() => {
     if (post.isMonetized && ads.length > 0 && !selectedAd) {
@@ -323,44 +374,72 @@ export const PostCard: React.FC<PostCardProps> = ({
         <div className="mx-3 py-3 flex items-center justify-between border-b border-gray-200 dark:border-[#3E4042]">
           <div className="flex items-center gap-1">
             <div className="flex -space-x-1">
-               <div className="w-4 h-4 rounded-full bg-[#1877F2] flex items-center justify-center border border-white dark:border-[#242526] z-30">
-                  <ThumbsUp className="w-2 h-2 text-white fill-current" />
-               </div>
-               <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center border border-white dark:border-[#242526] z-20 text-[6px]">❤️</div>
-               <div className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center border border-white dark:border-[#242526] z-10 text-[6px]">😆</div>
+               {post.reactions && Object.entries(post.reactions)
+                 .filter(([_, count]) => count > 0)
+                 .slice(0, 3)
+                 .map(([emoji]) => (
+                   <div key={emoji} className="w-5 h-5 rounded-full bg-white dark:bg-[#3A3B3C] flex items-center justify-center border border-gray-100 dark:border-[#242526] z-10 text-[10px]">
+                      {emoji === 'like' ? '👍' : emoji}
+                   </div>
+                 ))
+               }
             </div>
-            <span className="text-sm text-gray-500">{totalReactions}</span>
+            <span className="text-xs text-gray-500 font-medium ml-1">{totalReactions}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-             <span>{post.commentsCount} comments</span>
+          <div className="flex items-center gap-2 text-[11px] text-gray-500 font-medium font-sans">
+             <span>{post.commentsCount || 0} comments</span>
              <span>•</span>
-             <span>12 shares</span>
+             <span>{Math.floor(totalReactions * 0.4)} shares</span>
           </div>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="px-1 py-1 flex justify-around">
-        <button 
-          onClick={() => onLike(post.id)}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors ${post.isLiked ? 'text-[#1877F2]' : 'text-gray-500'}`}
-        >
-          <ThumbsUp className={`w-5 h-5 ${post.isLiked ? 'fill-current' : ''}`} />
-          <span className="text-sm font-semibold">Like</span>
-        </button>
+      <div className="px-1 py-1 flex justify-around relative">
+        <div className="flex-1 relative">
+          <button 
+            onMouseDown={handleLikeStart}
+            onMouseUp={handleLikeEnd}
+            onTouchStart={handleLikeStart}
+            onTouchEnd={handleLikeEnd}
+            onClick={() => onLike(post.id)}
+            className={`w-full flex items-center justify-center gap-2 py-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors ${post.isLiked ? 'text-[#1877F2]' : 'text-gray-500'}`}
+          >
+            {post.isLiked ? (
+               <span className="text-xl">{post.userReaction || '👍'}</span>
+            ) : (
+               <ThumbsUp className="w-5 h-5" />
+            )}
+            <span className="text-sm font-bold">{post.isLiked ? (post.userReaction === '👍' ? 'Like' : 'Reacted') : 'Like'}</span>
+          </button>
+          
+          <AnimatePresence>
+            {showReactionPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowReactionPicker(false)} />
+                <ReactionPicker 
+                  onSelect={handleReactionSelect} 
+                  onClose={() => setShowReactionPicker(false)} 
+                />
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+        
         <button 
           onClick={() => onComment?.(post.id)}
           className="flex-1 flex items-center justify-center gap-2 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors"
         >
           <MessageCircle className="w-5 h-5" />
-          <span className="text-sm font-semibold">Comment</span>
+          <span className="text-sm font-bold">Comment</span>
         </button>
+        
         <button 
-          onClick={() => onShare?.(post.id)}
+          onClick={handleShareClick}
           className="flex-1 flex items-center justify-center gap-2 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors"
         >
           <Share2 className="w-5 h-5" />
-          <span className="text-sm font-semibold">Share</span>
+          <span className="text-sm font-bold">{isSharing ? 'Copied!' : 'Share'}</span>
         </button>
       </div>
     </motion.div>

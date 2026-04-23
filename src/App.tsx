@@ -137,6 +137,7 @@ import {
   AppNotification
 } from './types';
 import { PostCard } from './components/PostCard';
+import { StoryViewer } from './components/StoryViewer';
 
 interface ActiveChat {
   id: string;
@@ -187,6 +188,22 @@ export default function App() {
   const [activeReel, setActiveReel] = useState<Post | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
+  useEffect(() => {
+    if (commentingPostId) {
+      const q = query(
+        collection(db, 'posts', commentingPostId, 'comments'),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setPostComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      return () => unsubscribe();
+    } else {
+      setPostComments([]);
+    }
+  }, [commentingPostId]);
+
   // Sync theme with system/CSS and handle status bar color
   useEffect(() => {
     const root = window.document.documentElement;
@@ -227,6 +244,9 @@ export default function App() {
   const [allAds, setAllAds] = useState<Advertisement[]>([]);
   const [usersRegistry, setUsersRegistry] = useState<Record<string, AppUser>>({});
   const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
+  const [commentImage, setCommentImage] = useState<string | null>(null);
+  const [isUploadingCommentMedia, setIsUploadingCommentMedia] = useState(false);
+  const commentMediaInputRef = useRef<HTMLInputElement>(null);
   const [postComments, setPostComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
@@ -985,59 +1005,76 @@ export default function App() {
   };
 
   const likePost = async (postId: string) => {
-    if (!user) return;
-    
-    // Optimistic Update locally
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const isCurrentlyLiked = false; // We don't easily know without tracking, but we can toggle
-        return { ...p, likesCount: p.likesCount + 1 }; 
-      }
-      return p;
-    }));
+    return reactToPost(postId, '👍');
+  };
 
-    const likeRef = doc(db, 'posts', postId, 'likes', user.uid);
-    const postRef = doc(db, 'posts', postId);
+  const reactToPost = async (postId: string, reactionType: string) => {
+    if (!user) return;
 
     try {
+      const postRef = doc(db, 'posts', postId);
+      const userReactionRef = doc(db, 'posts', postId, 'userReactions', user.uid);
+      
+      const userReactionDoc = await getDoc(userReactionRef);
+      const existingReaction = userReactionDoc.exists() ? userReactionDoc.data().type : null;
+
+      const batch = writeBatch(db);
+
+      if (existingReaction === reactionType) {
+        // Toggle off
+        batch.delete(userReactionRef);
+        batch.update(postRef, {
+          [`reactions.${reactionType}`]: increment(-1),
+          // We only decrement likesCount if it was a '👍'? 
+          // Actually let's just make likesCount represent TOTAL reactions for simplicity or just '👍'
+          // User asked for "লাইক করা যাচ্চে না", usually means the main Like button.
+          likesCount: existingReaction === '👍' ? increment(-1) : increment(0)
+        });
+      } else {
+        // Change or add new
+        if (existingReaction) {
+          batch.update(postRef, {
+            [`reactions.${existingReaction}`]: increment(-1),
+            likesCount: existingReaction === '👍' ? increment(-1) : increment(0)
+          });
+        }
+        
+        batch.set(userReactionRef, { type: reactionType, timestamp: serverTimestamp() });
+        batch.update(postRef, {
+          [`reactions.${reactionType}`]: increment(1),
+          likesCount: reactionType === '👍' ? increment(1) : increment(0)
+        });
+      }
+
+      await batch.commit();
+
+      // Reward author logic
       const postDoc = await getDoc(postRef);
       const postData = postDoc.data() as Post;
-      
-      const likeDoc = await getDoc(likeRef);
-      if (likeDoc.exists()) {
-        await deleteDoc(likeRef);
-        await updateDoc(postRef, { likesCount: increment(-1) });
-      } else {
-        await setDoc(likeRef, { userUid: user.uid, timestamp: serverTimestamp() });
-        await updateDoc(postRef, { likesCount: increment(1) });
-        
-        // Reward author if post is monetized
-        if (postData.isMonetized && postData.authorUid !== user.uid) {
-          const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
-          await updateDoc(authorMonetizationRef, {
-            totalEarnings: increment(0.01), // $0.01 per like
-            engagement: increment(1)
-          });
-        }
+      if (postData.isMonetized && postData.authorUid !== user.uid) {
+        const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
+        await updateDoc(authorMonetizationRef, {
+          totalEarnings: increment(0.01),
+          engagement: increment(1)
+        });
+      }
 
-        // Send Notification
-        if (postData.authorUid !== user.uid) {
-          await sendNotification({
-            toUid: postData.authorUid,
-            fromUid: user.uid,
-            fromName: user.displayName,
-            fromPhoto: user.photoURL,
-            type: 'like',
-            title: 'নতুন লাইক!',
-            message: `${user.displayName} আপনার পোস্টে লাইক দিয়েছেন।`
-          });
-        }
+      // Send Notification
+      if (postData.authorUid !== user.uid && existingReaction !== reactionType) {
+        await sendNotification({
+          toUid: postData.authorUid,
+          fromUid: user.uid,
+          fromName: user.displayName,
+          fromPhoto: user.photoURL,
+          type: 'like',
+          title: reactionType === '👍' ? 'নতুন লাইক!' : 'নতুন রিঅ্যাকশন!',
+          message: `${user.displayName} আপনার পোস্টে ${reactionType === '👍' ? 'লাইক দিয়েছেন' : 'রিঅ্যাক্ট করেছেন'}।`
+        });
       }
     } catch (error) {
-      console.error('Like post error:', error);
-      setErrorMessage('লাইক করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      handleFirestoreError(error, OperationType.WRITE, `posts/${postId}/likes`);
+      console.error('Reaction error:', error);
+      setErrorMessage('রিঅ্যাক্ট করতে সমস্যা হয়েছে।');
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
     }
   };
 
@@ -1372,60 +1409,76 @@ export default function App() {
     return () => unsub();
   }, [user]);
 
-  const reactToPost = async (postId: string, reactionType: string) => {
-    if (!user) return;
 
-    // Optimistic
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const reactions = { ...p.reactions };
-        reactions[reactionType] = (reactions[reactionType] || 0) + 1;
-        return { ...p, reactions };
-      }
-      return p;
-    }));
+  const reactToComment = async (commentId: string, type: string) => {
+    if (!user || !commentingPostId) return;
 
     try {
-      const postRef = doc(db, 'posts', postId);
-      const postDoc = await getDoc(postRef);
-      const postData = postDoc.data() as Post;
+      const commentRef = doc(db, 'posts', commentingPostId, 'comments', commentId);
+      const userReactionRef = doc(db, 'posts', commentingPostId, 'comments', commentId, 'userReactions', user.uid);
       
-      await updateDoc(postRef, {
-        [`reactions.${reactionType}`]: increment(1)
+      const userReactionDoc = await getDoc(userReactionRef);
+      const existingReaction = userReactionDoc.exists() ? userReactionDoc.data().type : null;
+
+      const batch = writeBatch(db);
+
+      if (existingReaction === type) {
+        // Toggle off
+        batch.delete(userReactionRef);
+        batch.update(commentRef, {
+          [`reactions.${type}`]: increment(-1)
+        });
+      } else {
+        // Change or add new
+        if (existingReaction) {
+          batch.update(commentRef, {
+            [`reactions.${existingReaction}`]: increment(-1)
+          });
+        }
+        batch.set(userReactionRef, { type, timestamp: serverTimestamp() });
+        batch.update(commentRef, {
+          [`reactions.${type}`]: increment(1)
+        });
+      }
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Comment reaction error:', error);
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${commentingPostId}/comments/${commentId}`);
+    }
+  };
+
+  const handleCommentMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploadingCommentMedia(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', appConfig?.cloudinaryUploadPreset || 'porshi_preset');
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${appConfig?.cloudinaryCloudName || 'dozmbxvo5'}/auto/upload`, {
+        method: 'POST',
+        body: formData,
       });
 
-      // Reward author if post is monetized
-      if (postData.isMonetized && postData.authorUid !== user.uid) {
-        const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
-        await updateDoc(authorMonetizationRef, {
-          totalEarnings: increment(0.02), // Reactions are worth more
-          engagement: increment(1)
-        });
-      }
-
-      // Send Notification
-      if (postData.authorUid !== user.uid) {
-        await sendNotification({
-          toUid: postData.authorUid,
-          fromUid: user.uid,
-          fromName: user.displayName,
-          fromPhoto: user.photoURL,
-          type: 'like', // Reusing like type for reactions
-          title: 'নতুন রিঅ্যাকশন!',
-          message: `${user.displayName} আপনার পোস্টে রিঅ্যাক্ট করেছেন।`
-        });
+      const data = await response.json();
+      if (data.secure_url) {
+        setCommentImage(data.secure_url);
+        addLog('কমেন্ট মিডিয়া আপলোড সফল!');
       }
     } catch (error) {
-      console.error('Reaction error:', error);
-      setErrorMessage('রিঅ্যাক্ট করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
-      handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
+      console.error('Comment media upload error:', error);
+      setErrorMessage('মিডিয়া আপলোড করতে সমস্যা হয়েছে।');
+    } finally {
+      setIsUploadingCommentMedia(false);
     }
   };
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !commentingPostId || !commentInput.trim()) return;
+    if (!user || !commentingPostId || (!commentInput.trim() && !commentImage)) return;
 
     // Optimistic Update
     const tempId = 'temp-' + Date.now();
@@ -1435,13 +1488,18 @@ export default function App() {
       authorName: user.displayName || 'User',
       authorPhoto: user.photoURL || '',
       text: commentInput.trim(),
-      timestamp: { toDate: () => new Date() } as any
+      imageUrl: commentImage || undefined,
+      timestamp: { toDate: () => new Date() } as any,
+      reactions: {}
     };
 
     setPostComments(prev => [newComment, ...prev]);
     setPosts(prev => prev.map(p => p.id === commentingPostId ? { ...p, commentsCount: p.commentsCount + 1 } : p));
     const savedCommentText = commentInput.trim();
+    const savedCommentImage = commentImage;
+    
     setCommentInput('');
+    setCommentImage(null);
 
     try {
       await addDoc(collection(db, 'posts', commentingPostId, 'comments'), {
@@ -1449,7 +1507,9 @@ export default function App() {
         authorName: user.displayName,
         authorPhoto: user.photoURL || '',
         text: savedCommentText,
-        timestamp: serverTimestamp()
+        imageUrl: savedCommentImage || null,
+        timestamp: serverTimestamp(),
+        reactions: {}
       });
       await updateDoc(doc(db, 'posts', commentingPostId), {
         commentsCount: increment(1)
@@ -1466,7 +1526,7 @@ export default function App() {
           fromPhoto: user.photoURL,
           type: 'comment',
           title: 'নতুন কমেন্ট!',
-          message: `${user.displayName} আপনার পোস্টে কমেন্ট করেছেন: "${savedCommentText.substring(0, 30)}..."`
+          message: `${user.displayName} আপনার পোস্টে কমেন্ট করেছেন${savedCommentText ? `: "${savedCommentText.substring(0, 30)}..."` : ' একটি ছবি পোস্ট করেছেন।'}`
         });
       }
     } catch (error) {
@@ -1893,6 +1953,143 @@ export default function App() {
           </div>
         </div>
       </div>
+    );
+  };
+
+  const renderCommentsModal = () => {
+    if (!commentingPostId) return null;
+    const post = posts.find(p => p.id === commentingPostId);
+    
+    return (
+      <AnimatePresence>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+          onClick={() => setCommentingPostId(null)}
+        >
+          <motion.div 
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full sm:max-w-lg h-[90vh] sm:h-[80vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl ${theme === 'dark' ? 'bg-[#242526] text-white' : 'bg-white text-black'}`}
+          >
+            {/* Header */}
+            <div className={`px-4 py-3 flex justify-between items-center border-b ${theme === 'dark' ? 'border-[#3E4042]' : 'border-[#E4E6EB]'}`}>
+              <h3 className="font-bold">Comments</h3>
+              <button 
+                onClick={() => setCommentingPostId(null)}
+                className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+              {postComments.map((comment) => (
+                <div key={comment.id} className="flex gap-2">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                    {comment.authorPhoto ? (
+                      <img src={comment.authorPhoto} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserIcon className="w-full h-full p-1.5 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className={`p-3 rounded-2xl inline-block max-w-[90%] ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+                      <div className="font-bold text-xs mb-0.5">{comment.authorName}</div>
+                      <div className="text-sm whitespace-pre-wrap">{comment.text}</div>
+                      {comment.imageUrl && (
+                        <div className="mt-2 rounded-xl overflow-hidden max-w-full">
+                          <img src={comment.imageUrl} alt="Attached" className="w-full h-auto max-h-60 object-cover" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-4 px-2">
+                      <span className="text-[10px] text-gray-500 font-medium">
+                        {comment.timestamp?.toDate ? new Date(comment.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}
+                      </span>
+                      
+                      {/* Comment Reaction System */}
+                      <div className="flex items-center gap-1">
+                        {['❤️', '😆', '😡', '👍'].map(emoji => (
+                          <button 
+                            key={emoji}
+                            onClick={() => withAuth(() => reactToComment(comment.id, emoji))}
+                            className={`text-xs p-1 rounded-full transition-transform hover:scale-125 ${comment.reactions?.[emoji] ? 'bg-accent/20' : ''}`}
+                          >
+                            {emoji} <span className="text-[9px] font-bold">{comment.reactions?.[emoji] || ''}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {postComments.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-40 opacity-30">
+                  <MessageCircle className="w-10 h-10 mb-2" />
+                  <p className="text-sm font-bold uppercase tracking-widest">No comments yet</p>
+                </div>
+              )}
+            </div>
+
+            {/* Input Footer */}
+            <div className={`p-4 border-t ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
+              {commentImage && (
+                <div className="relative inline-block mb-2 group">
+                  <img src={commentImage} alt="Preview" className="w-20 h-20 object-cover rounded-xl border border-border-custom" />
+                  <button 
+                    onClick={() => setCommentImage(null)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              
+              <form onSubmit={submitComment} className="flex items-center gap-2">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  ref={commentMediaInputRef} 
+                  className="hidden" 
+                  onChange={handleCommentMediaChange}
+                />
+                <button 
+                  type="button"
+                  onClick={() => commentMediaInputRef.current?.click()}
+                  className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-black/5 text-[#45BD62]'}`}
+                >
+                  <ImageIcon className="w-6 h-6" />
+                </button>
+                <div className={`flex-1 flex items-center rounded-full px-4 h-10 ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+                  <input 
+                    placeholder="Write a comment..." 
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm w-full"
+                  />
+                  <button type="button" className={`p-1 rounded-full transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-black/5 text-[#F7B928]'}`}>
+                    <Smile className="w-5 h-5" />
+                  </button>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={isUploadingCommentMedia || (!commentInput.trim() && !commentImage)}
+                  className={`p-2 rounded-full transition-all ${commentInput.trim() || commentImage ? 'text-[#1877F2] hover:bg-blue-500/10' : 'text-gray-400 opacity-50'}`}
+                >
+                  {isUploadingCommentMedia ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-6 h-6" />}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
     );
   };
 
@@ -2343,7 +2540,37 @@ export default function App() {
                   onComment={() => withAuth(() => setCommentingPostId(post.id))}
                   onFollow={() => withAuth(() => followUser(post.authorUid))}
                   onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
-                  onShare={() => withAuth(() => setErrorMessage('Sharing feature coming soon!'))}
+                  onShare={(p) => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: 'Porshi Post',
+                        text: p.content,
+                        url: window.location.href,
+                      }).catch(console.error);
+                    } else {
+                      setErrorMessage('Sharing to timeline...');
+                      // Internal sharing logic: create new post with same content
+                      withAuth(async () => {
+                        try {
+                          await addDoc(collection(db, 'posts'), {
+                            authorUid: user!.uid,
+                            authorName: user!.displayName,
+                            authorPhoto: user!.photoURL,
+                            content: `[Shared Post]: ${p.content}`,
+                            mediaType: p.imageUrl ? 'image' : 'text',
+                            imageUrl: p.imageUrl || null,
+                            timestamp: serverTimestamp(),
+                            likesCount: 0,
+                            commentsCount: 0,
+                            reactions: {}
+                          });
+                          setErrorMessage('Shared to your timeline!');
+                        } catch (err) {
+                          setErrorMessage('Failed to share.');
+                        }
+                      });
+                    }
+                  }}
                   onEdit={(p) => { 
                     setEditingPost(p); 
                     setPostInput(p.content); 
@@ -3139,7 +3366,7 @@ export default function App() {
             </div>
           </motion.div>
         );
-      case 'scan':
+      case 'market':
         return (
           <div className={`flex-1 overflow-y-auto custom-scrollbar ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-[#F0F2F5]'}`}>
             {/* Marketplace Search Header */}
@@ -3724,10 +3951,36 @@ export default function App() {
       setIsLoadingMore(false);
     });
 
-    const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(20));
+    const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(50));
     const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
-      const storiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
+      const now = new Date();
+      const storiesList: Story[] = [];
+      const expiredDocs: string[] = [];
+      
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt);
+        
+        if (expiresAt < now) {
+          // If the current user is the author or an admin, they can perform physical cleanup
+          if (user && (data.authorUid === user.uid || user.role === 'admin')) {
+            expiredDocs.push(docSnap.id);
+          }
+        } else {
+          storiesList.push({ id: docSnap.id, ...data } as Story);
+        }
+      });
+      
       setStories(storiesList);
+
+      // Background cleanup for expired stories (only for own stories or if admin)
+      if (expiredDocs.length > 0) {
+        expiredDocs.forEach(id => {
+          deleteDoc(doc(db, 'stories', id)).catch(() => {
+            // Silently fail if permissions didn't allow it yet
+          });
+        });
+      }
     });
 
     const adsQuery = query(collection(db, 'ads'), where('status', '==', 'active'));
@@ -4474,6 +4727,18 @@ export default function App() {
       {renderEditProfileModal()}
       {renderPostCreationModal()}
       {renderAdPaymentModal && renderAdPaymentModal()}
+      {renderCommentsModal()}
+
+      <AnimatePresence>
+        {activeStory && (
+          <StoryViewer 
+            stories={stories}
+            initialStoryIndex={stories.findIndex(s => s.id === activeStory.id)}
+            onClose={() => setActiveStory(null)}
+            usersRegistry={usersRegistry}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Mobile Create Menu Backdrop */}
       <AnimatePresence>

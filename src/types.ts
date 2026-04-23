@@ -42,21 +42,29 @@ export interface Post {
   isReel?: boolean;
   likesCount: number;
   commentsCount: number;
-  reactions?: {
-    like: number;
-    love: number;
-    haha: number;
-    wow: number;
-    sad: number;
-    angry: number;
-  };
+  reactions?: Record<string, number>;
   timestamp: any;
   isLiked?: boolean;
+  userReaction?: string;
   isMonetized?: boolean;
   viewsCount?: number;
   reachCount?: number;
   privacy?: 'public' | 'followers' | 'private';
   isEdited?: boolean;
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  authorUid: string;
+  authorName: string;
+  authorPhoto: string;
+  text: string;
+  imageUrl?: string;
+  stickerUrl?: string;
+  reactions?: Record<string, number>;
+  userReaction?: string;
+  timestamp: any;
 }
 
 export interface Story {
