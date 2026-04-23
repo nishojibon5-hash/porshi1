@@ -235,7 +235,10 @@ export default function App() {
     // Update Chrome/Android theme-color meta tag
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme === 'dark' ? '#18191A' : '#ffffff');
+      const color = theme === 'dark' ? '#18191A' : '#ffffff';
+      metaThemeColor.setAttribute('content', color);
+      // Ensure body background also matches for navigation bar sync on some devices
+      document.body.style.backgroundColor = color;
     }
   }, [theme]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -1677,7 +1680,7 @@ export default function App() {
                    {unreadNotificationsCount > 0 ? unreadNotificationsCount : 0}
                 </div>
              </button>
-             <h1 className="text-2xl font-bold tracking-tight lowercase">messenger</h1>
+             <h1 className="text-2xl font-bold tracking-tight lowercase">porsh</h1>
           </div>
           <div className="flex gap-2">
              {!isInStandaloneMode && (
@@ -4731,7 +4734,7 @@ export default function App() {
         >
           <div className="relative mb-8">
              <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-4 bg-white">
-               <img src="https://img.icons8.com/color/512/facebook-messenger--v1.png" className="w-full h-full object-contain" alt="Messenger Icon" />
+               <img src="https://img.icons8.com/fluency/512/chat.png" className="w-full h-full object-contain" alt="Porsh Icon" />
              </div>
              <motion.div 
                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
@@ -5025,7 +5028,7 @@ export default function App() {
   );
 
   if (showSplash || !isAuthReady) return (
-    <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
+    <div className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-colors duration-500 ${theme === 'dark' ? 'bg-[#18191A]' : 'bg-white'}`}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -5037,9 +5040,9 @@ export default function App() {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="text-6xl md:text-8xl font-black tracking-widest text-[#000080] drop-shadow-sm select-none"
+          className={`text-6xl md:text-8xl font-black tracking-widest drop-shadow-sm select-none ${theme === 'dark' ? 'text-white' : 'text-[#000080]'}`}
         >
-          PORSHI
+          {currentApp === 'porsh' ? 'PORSH' : 'PORSHI'}
         </motion.h1>
         
         <div className="flex flex-col items-center gap-3">
@@ -5056,16 +5059,16 @@ export default function App() {
                   repeat: Infinity,
                   delay: i * 0.2
                 }}
-                className="w-2.5 h-2.5 rounded-full bg-[#000080]"
+                className={`w-2.5 h-2.5 rounded-full ${theme === 'dark' ? 'bg-white' : 'bg-[#000080]'}`}
               />
             ))}
           </div>
           <motion.span 
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="text-[10px] font-bold tracking-[0.4em] text-[#000080]/60 uppercase ml-1"
+            className={`text-[10px] font-bold tracking-[0.4em] uppercase ml-1 ${theme === 'dark' ? 'text-white/40' : 'text-[#000080]/60'}`}
           >
-            Initializing Experience
+            {currentApp === 'porsh' ? 'Secure Messaging' : 'Initializing Experience'}
           </motion.span>
         </div>
       </motion.div>

@@ -1,7 +1,7 @@
 {
-  "name": "Parash Messenger - পরশ মেসেন্জার",
-  "short_name": "Parash",
-  "description": "চ্যাট করুন পরশ মেসেন্জারে - একটি সম্পূর্ণ নিরাপদ এবং দ্রুত মেসেজিং অ্যাপ যা পড়শি ইকোসিস্টেমের অংশ।",
+  "name": "Porsh Messenger - পরশ মেসেন্জার",
+  "short_name": "Porsh",
+  "description": "Secure and fast messaging app. Part of Porshi Ecosystem.",
   "start_url": "/?app=porsh",
   "display": "standalone",
   "orientation": "portrait",
@@ -9,13 +9,13 @@
   "theme_color": "#0084FF",
   "icons": [
     {
-      "src": "https://img.icons8.com/color/512/facebook-messenger--v1.png",
+      "src": "https://img.icons8.com/fluency/512/chat.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://img.icons8.com/color/192/facebook-messenger--v1.png",
+      "src": "https://img.icons8.com/fluency/192/chat.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
@@ -26,7 +26,7 @@
       "name": "Open Chats",
       "short_name": "Chats",
       "url": "/?app=porsh&view=chats",
-      "icons": [{ "src": "https://img.icons8.com/color/192/facebook-messenger--v1.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://img.icons8.com/fluency/192/chat.png", "sizes": "192x192" }]
     }
   ]
 }
