@@ -17,6 +17,9 @@ import {
   CheckCircle2, 
   ExternalLink,
   History,
+  Download,
+  MonitorSmartphone,
+  ChevronRight,
   Trash2,
   Wifi,
   Link as LinkIcon,
@@ -237,39 +240,66 @@ export default function App() {
   }, [theme]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isInStandaloneMode, setIsInStandaloneMode] = useState(false);
+  const [isIframe, setIsIframe] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
   const [messengerSearch, setMessengerSearch] = useState('');
 
   useEffect(() => {
+    setIsInStandaloneMode(window.matchMedia('(display-mode: standalone)').matches);
+    setIsIframe(window.self !== window.top);
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      addLog('PWA Installation ready for ' + window.location.hostname);
     };
+    
     window.addEventListener('beforeinstallprompt', handler);
+    
+    // Check if app is already installed
+    window.addEventListener('appinstalled', () => {
+      addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
+      setIsInStandaloneMode(true);
+      setShowInstallModal(false);
+    });
+
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const installApp = async () => {
-    if (!deferredPrompt) {
-      setErrorMessage('আপনার ব্রাউজার এটি সাপোর্ট করছে না অথবা অ্যাপটি ইতিমধ্যে ইনস্টল করা আছে।');
+    if (isIframe) {
+      window.open('https://porshi.vercel.app/?app=porsh', '_blank');
       return;
     }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
+
+    if (!deferredPrompt && !isIOS) {
+       // On non-supporting non-iOS browsers, keep modal open for manual guide
+       return;
     }
-    setDeferredPrompt(null);
+
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInStandaloneMode(true);
+      }
+      setDeferredPrompt(null);
+    }
   };
 
   useEffect(() => {
-    if (currentApp === 'porsh' && deferredPrompt) {
-      // Small delay for better UX
-      setTimeout(() => {
+    // If we are in messenger and not already in standalone mode, show the invite
+    if (currentApp === 'porsh' && !isInStandaloneMode) {
+      // Force prompt on every refresh as requested
+      const timer = setTimeout(() => {
         setShowInstallModal(true);
-      }, 1000);
+      }, 1500);
+      return () => clearTimeout(timer);
     }
-  }, [currentApp, deferredPrompt]);
+  }, [currentApp, isInStandaloneMode]);
 
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const [adForm, setAdForm] = useState({
@@ -1650,6 +1680,15 @@ export default function App() {
              <h1 className="text-2xl font-bold tracking-tight lowercase">messenger</h1>
           </div>
           <div className="flex gap-2">
+             {!isInStandaloneMode && (
+               <button 
+                 onClick={() => setShowInstallModal(true)}
+                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-tighter animate-pulse shadow-lg"
+               >
+                 <Download className="w-3 h-3" />
+                 Install
+               </button>
+             )}
              <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C] text-white' : 'bg-gray-100 text-black'}`}>
                 <CameraIcon className="w-5 h-5" />
              </button>
@@ -1658,6 +1697,25 @@ export default function App() {
              </button>
           </div>
         </div>
+
+        {/* Dynamic Install Promo */}
+        {!isInStandaloneMode && (
+          <div 
+             onClick={() => setShowInstallModal(true)}
+             className={`mx-4 mt-2 mb-4 p-4 rounded-3xl cursor-pointer border-2 border-dashed ${theme === 'dark' ? 'bg-blue-500/5 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-100 text-blue-600'} flex items-center justify-between group transition-all hover:bg-blue-500/10`}
+          >
+             <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                   <MonitorSmartphone className="w-5 h-5" />
+                </div>
+                <div>
+                   <p className="text-[13px] font-black tracking-tight leading-none mb-1">পরশ অ্যাপ ডাউনলোড করুন</p>
+                   <p className="text-[11px] font-medium opacity-70">দ্রুত চ্যাট এবং নোটিফিকেশন পেতে অ্যাপটি ডাউনলোড করে নিন।</p>
+                </div>
+             </div>
+             <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </div>
+        )}
 
         {/* Search Bar */}
         <div className="px-4 py-2">
@@ -4656,23 +4714,115 @@ export default function App() {
   };
 
   const renderInstallModal = () => {
-    if (!showInstallModal || !deferredPrompt) return null;
+    if (!showInstallModal || isInStandaloneMode) return null;
+    
     return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl">
         <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className={`max-w-sm w-full rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl border ${theme === 'dark' ? 'bg-[#242526] border-[#3A3B3C]' : 'bg-white border-gray-100'}`}
+          initial={{ scale: 0.9, opacity: 0, y: 40 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          className={`max-w-md w-full rounded-[48px] p-12 flex flex-col items-center text-center shadow-[0_0_100px_rgba(0,132,255,0.4)] border-2 ${theme === 'dark' ? 'bg-[#1C1C1E] border-[#3A3B3C]' : 'bg-white border-gray-100'}`}
         >
-          <div className="w-20 h-20 rounded-2xl overflow-hidden mb-6 shadow-xl ring-4 ring-blue-500/10">
-            <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-cover" />
+          <div className="relative mb-8">
+             <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-1">
+               <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain" />
+             </div>
+             <motion.div 
+               animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+               transition={{ repeat: Infinity, duration: 4 }}
+               className="absolute inset-0 bg-blue-500 rounded-full blur-3xl -z-0 opacity-20"
+             />
           </div>
-          <h2 className="text-xl font-black mb-2 lowercase tracking-tight">পরশ মেসেন্জার ইনস্টল করুন</h2>
-          <p className="text-sm text-gray-500 mb-8 font-medium italic">সরাসরি ফোন থেকে ব্যবহার করতে এবং নতুন মেসেজের নোটিফিকেশন পেতে অ্যাপটি ডাউনলোড করুন।</p>
           
-          <div className="flex flex-col w-full gap-3">
-            <Button onClick={() => { installApp(); setShowInstallModal(false); }} className="w-full h-12 bg-[#0084FF] text-white hover:bg-[#0074E0] rounded-full font-bold">ইনস্টল করুন (Install)</Button>
-            <Button variant="ghost" onClick={() => setShowInstallModal(false)} className="w-full h-12 text-gray-400 font-bold">পরে করবো</Button>
+          <h2 className={`text-4xl font-black mb-4 tracking-tighter leading-none ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+            পরশ মেসেন্জার (Porsh)
+          </h2>
+          <p className="text-blue-500 font-black uppercase text-xs tracking-widest mb-6">পরশি অফিসিয়াল ইকোসিস্টেম</p>
+          
+          <div className={`text-[16px] leading-relaxed mb-10 px-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            {isIframe ? (
+              <div>
+                 <p className="mb-4">আপনি প্রিভিউ উইন্ডোতে আছেন। অ্যাপটি সরাসরি আপনার ফোনে ইনস্টল করতে <span className="text-blue-500 underline font-bold px-1">porshi.vercel.app</span> ডোমেইন থেকে ওপেন করুন।</p>
+                 <div className="p-4 bg-orange-500/10 rounded-3xl border border-orange-500/20 text-orange-500 text-xs font-black">যেকোনো একটি ব্রাউজারে (Chrome/Safari) ওপেন করুন।</div>
+              </div>
+            ) : isIOS ? (
+              <div className="space-y-4 text-left">
+                <p className="text-center font-bold">iOS (iPhone) এ ইনস্টল করতে এটি অনুসরণ করুন:</p>
+                <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
+                         <Share2 className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <p className="text-xs">১. ব্রাউজারের নিচের <span className="font-bold">Share</span> বাটনটি চাপুন।</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
+                         <PlusSquare className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <p className="text-xs">২. মেনু থেকে <span className="font-bold">"Add to Home Screen"</span> খুজে নিন।</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+                         <Star className="w-4 h-4 text-white" />
+                      </div>
+                      <p className="text-xs">৩. তারপর <span className="font-bold">Add</span> বাটনে ক্লিক করে অ্যাপটি ব্যবহার করুন।</p>
+                   </div>
+                </div>
+              </div>
+            ) : deferredPrompt ? (
+              <p>সরাসরি ফোন থেকে ব্যবহার করতে এবং নতুন মেসেজের সাথে সাথে নোটিফিকেশন পেতে অফিসিয়াল অ্যাপটি এখনই ডাউনলোড করুন।</p>
+            ) : (
+              <div className="space-y-4 text-left">
+                <p className="text-center font-bold italic underline mb-2 tracking-tighter">ম্যানুয়ালি ইনস্টল করার নিয়ম:</p>
+                <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">১</div>
+                      <p className="text-xs font-bold leading-tight">আপনার ব্রাউজার মেনুর (তিনটি ডট) এ ক্লিক করুন।</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">২</div>
+                      <p className="text-xs font-bold leading-tight"><span className="text-blue-500 underline">"Install App"</span> অথবা <span className="text-blue-500 underline">"Add to Home Screen"</span> এ ক্লিক করুন।</p>
+                   </div>
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs text-center"><Download className="w-4 h-4" /></div>
+                      <p className="text-xs font-bold leading-tight">অ্যাপটি আপনার ফোনের হোম স্ক্রিনে ডাউনলোড হয়ে যাবে।</p>
+                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-col w-full gap-4">
+            <button 
+              onClick={() => { installApp(); if (!deferredPrompt && !isIframe) setShowInstallModal(false); }} 
+              className={`w-full h-20 rounded-[30px] font-black text-xl transition-all active:scale-95 shadow-2xl flex items-center justify-center gap-4 ${isIframe ? 'bg-orange-500 text-white shadow-orange-500/30' : (deferredPrompt ? 'bg-[#0084FF] text-white shadow-blue-500/30' : 'bg-gray-800 text-white')}`}
+            >
+              {isIframe ? (
+                <>ওপেন করুন (Open App)</>
+              ) : deferredPrompt ? (
+                <><Download className="w-6 h-6" /> ইনস্টল করুন (Install)</>
+              ) : isIOS ? (
+                <>ঠিক আছে, করছি</>
+              ) : (
+                <>বন্ধ করুন (Close)</>
+              )}
+            </button>
+            
+            <button 
+              onClick={() => setShowInstallModal(false)} 
+              className={`w-full h-14 rounded-[24px] font-bold bg-transparent transition-all ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              এখন না (Maybe Later)
+            </button>
+          </div>
+          
+          <div className="mt-12 flex items-center gap-3 opacity-60">
+             <div className="h-[1px] flex-1 bg-gray-500/20" />
+             <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest leading-none">porshi ecosystem verified</span>
+             </div>
+             <div className="h-[1px] flex-1 bg-gray-500/20" />
           </div>
         </motion.div>
       </div>
