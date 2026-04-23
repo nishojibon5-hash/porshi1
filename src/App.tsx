@@ -2608,7 +2608,7 @@ export default function App() {
             <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-accent transition-colors">হোমে ফিরে যান</Button>
           </CardContent>
           <CardFooter className="justify-center border-t border-border-custom/30 py-4 opacity-30">
-            <div className="text-[8px] font-black uppercase tracking-[4px]">PORSHI PROTECTED</div>
+            <div className="text-[8px] font-black uppercase tracking-[4px]">PORSH PROTECTED</div>
           </CardFooter>
         </Card>
       </motion.div>
@@ -2627,7 +2627,7 @@ export default function App() {
           <p className="text-text-dim text-sm max-w-sm">
             সিস্টেম আপডেটের কাজ চলছে। পড়শি শীঘ্রই আরও উন্নত ফিচারের সাথে ফিরে আসছে। পাশে থাকার জন্য ধন্যবাদ।
           </p>
-          <div className="text-[10px] text-accent font-bold uppercase tracking-[4px]">Porshi Team</div>
+          <div className="text-[10px] text-accent font-bold uppercase tracking-[4px]">Porsh Team</div>
         </div>
       );
     }
@@ -4208,10 +4208,10 @@ export default function App() {
         // Initial Default Config
         const defaultConfig: AppConfig = {
           maintenanceMode: false,
-          welcomeMessage: 'Welcome to Porshi!',
+          welcomeMessage: 'Welcome to Porsh!',
           appVersion: '1.0.0',
           minVersion: '1.0.0',
-          contactEmail: 'support@porshi.app',
+          contactEmail: 'support@porsh.app',
           announcement: '',
           themeColor: '#00D1FF',
           cloudinaryCloudName: 'dozmbxvo5',
@@ -4312,7 +4312,7 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
-    addLog('পড়শি সিস্টেম প্রস্তুত (PORSHI System Ready)');
+    addLog('পরশ সিস্টেম প্রস্তুত (PORSH System Ready)');
     let userUnsubscribe: (() => void) | null = null;
     let followingUnsubscribe: (() => void) | null = null;
 
@@ -4733,7 +4733,7 @@ export default function App() {
         >
           <div className="relative mb-8">
              <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-4 bg-white">
-               <img src="https://img.icons8.com/fluency/512/chat.png" className="w-full h-full object-contain" alt="Porsh Icon" />
+               <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain" alt="Porsh Icon" />
              </div>
              <motion.div 
                animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
@@ -4743,7 +4743,7 @@ export default function App() {
           </div>
           
           <h2 className={`text-4xl font-black mb-4 tracking-tighter leading-none ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-            পরশ মেসেন্জার (Porsh)
+            পরশ (Porsh)
           </h2>
           <p className="text-blue-500 font-black uppercase text-xs tracking-widest mb-6 underline decoration-2 underline-offset-4">১০০% এন্ড্রয়েড অ্যাপের মতো ডাউনলোড করুন</p>
           
@@ -4751,7 +4751,7 @@ export default function App() {
             {isIframe ? (
               <div>
                  <p className="mb-4 text-blue-400 font-bold">আপনি বর্তমানে একটি সুরক্ষিত প্রিভিউ উইন্ডোতে আছেন।</p>
-                 <p className="mb-4">অফিসিয়াল "পরশ মেসেন্জার" সরাসরি আপনার ফোনে ইনস্টল করতে নিচের বাটনে ক্লিক করে <span className="text-blue-500">porshi.vercel.app</span> ওপেন করুন।</p>
+                 <p className="mb-4">অফিসিয়াল "পরশ" সরাসরি আপনার ফোনে ইনস্টল করতে নিচের বাটনে ক্লিক করে <span className="text-blue-500">porshi.vercel.app</span> ওপেন করুন।</p>
               </div>
             ) : isIOS ? (
               <div className="space-y-4 text-left">
@@ -4772,7 +4772,7 @@ export default function App() {
                 </div>
               </div>
             ) : deferredPrompt ? (
-              <p>নিচের বাটনে ক্লিক করলেই "পরশ মেসেন্জার" আপনার ফোনে একটি এন্ড্রয়েড অ্যাপের মতো ইনস্টল হয়ে যাবে। কোনো ব্রাউজার ছাড়াই সরাসরি চ্যাট করতে পারবেন।</p>
+              <p>নিচের বাটনে ক্লিক করলেই "পরশ" আপনার ফোনে একটি এন্ড্রয়েড অ্যাপের মতো ইনস্টল হয়ে যাবে। কোনো ব্রাউজার ছাড়াই সরাসরি চ্যাট করতে পারবেন।</p>
             ) : (
               <div className="space-y-4 text-left">
                 <p className="text-center font-bold italic underline mb-2 tracking-tighter">ব্রাউজার থেকে সরাসরি ইনস্টল:</p>
@@ -5092,7 +5092,7 @@ export default function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="text-xl font-black tracking-tighter">PORSHI</div>
+            <div className="text-xl font-black tracking-tighter">PORSH</div>
         </div>
         
         <nav className="flex-1 space-y-1">
@@ -5146,7 +5146,7 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            <span className="text-xl font-black tracking-tighter text-accent">PORSHI</span>
+            <span className="text-xl font-black tracking-tighter text-accent">PORSH</span>
           </div>
           <div className="flex items-center gap-1">
             <button 
@@ -5291,7 +5291,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
                        <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
-                    <span className="text-xl font-black tracking-tighter italic">PORSHI</span>
+                    <span className="text-xl font-black tracking-tighter italic">PORSH</span>
                   </div>
                   <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
                     <X className="w-6 h-6" />

@@ -1,7 +1,7 @@
 {
-  "name": "Porsh Messenger - পরশ মেসেন্জার",
+  "name": "Porsh",
   "short_name": "Porsh",
-  "description": "Secure and fast messaging app. Part of Porshi Ecosystem.",
+  "description": "Porsh - Beautiful and artistic real-time messenger.",
   "start_url": "/?app=porsh",
   "display": "standalone",
   "orientation": "portrait",
@@ -9,13 +9,13 @@
   "theme_color": "#ffffff",
   "icons": [
     {
-      "src": "https://img.icons8.com/fluency/512/chat.png",
+      "src": "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://img.icons8.com/fluency/192/chat.png",
+      "src": "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
@@ -23,10 +23,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Open Chats",
-      "short_name": "Chats",
+      "name": "Open Porsh",
+      "short_name": "Porsh",
       "url": "/?app=porsh&view=chats",
-      "icons": [{ "src": "https://img.icons8.com/fluency/192/chat.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png", "sizes": "192x192" }]
     }
   ]
 }
