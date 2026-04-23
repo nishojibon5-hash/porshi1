@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.porshi.app',
-  appName: 'Porshi',
+  appName: 'Porsh',
   webDir: 'dist',
   server: {
     url: 'https://porshi.vercel.app',

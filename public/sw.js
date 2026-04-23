@@ -4,8 +4,7 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/sw.js',
-  'https://img.icons8.com/fluency/512/chat.png',
-  'https://img.icons8.com/fluency/192/chat.png'
+  '/porsh-pwa-icon.png'
 ];
 
 self.addEventListener('install', event => {

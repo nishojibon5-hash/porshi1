@@ -3756,7 +3756,7 @@ export default function App() {
             </button>
             <LayoutDashboard className="w-16 h-16 text-accent" />
             <h2 className="text-xl font-bold uppercase tracking-widest">Pages coming soon</h2>
-            <p className="text-xs text-text-dim text-center max-w-xs">Create and manage your professional pages on PORSHI.</p>
+            <p className="text-xs text-text-dim text-center max-w-xs">Create and manage your professional pages on PORSH.</p>
           </div>
         );
       case 'events':
@@ -4128,7 +4128,7 @@ export default function App() {
                              </button>
                            )}
                            <button onClick={logout} className="w-full p-3 rounded-lg bg-red-500/5 text-red-500 font-bold text-xs flex items-center justify-center gap-2 border border-red-500/10 hover:bg-red-500/20 transition-colors uppercase tracking-widest">
-                             <LogOut className="w-4 h-4" /> Logout from Porshi
+                             <LogOut className="w-4 h-4" /> Logout from Porsh
                            </button>
                         </div>
                       )}
@@ -4549,11 +4549,11 @@ export default function App() {
             <Card className="bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 relative overflow-hidden border-2 border-accent/30 bg-surface">
-                  <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" alt="Logo" className="w-full h-full object-contain p-2" />
+                  <img src="/porsh-pwa-icon.png" alt="Logo" className="w-full h-full object-contain p-2" />
                 </div>
-                <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSHI - SIGN IN</CardTitle>
+                <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSH - SIGN IN</CardTitle>
                 <CardDescription className="text-text-dim text-xs">
-                  পড়শিতে কোনো কিছু করতে হলে দয়া করে লগইন করুন।
+                  পরশ এ কোনো কিছু করতে হলে দয়া করে লগইন করুন।
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -4659,7 +4659,7 @@ export default function App() {
                   }
                </div>
                <h2 className="text-xl font-bold text-center">{activeChat.partnerName}</h2>
-               <p className="text-[13px] text-gray-500 font-medium text-center mt-1">Facebook · You're friends on Porshi</p>
+               <p className="text-[13px] text-gray-500 font-medium text-center mt-1">Facebook · You're friends on Porsh</p>
                <p className="text-[12px] text-gray-400 text-center">Lives in {usersRegistry[activeChat.partnerId]?.currentCity || 'Bangladesh'}</p>
                <Button variant="ghost" size="sm" className="mt-4 bg-gray-100 dark:bg-[#3A3B3C] font-bold text-xs px-4" onClick={() => navigateToProfile(activeChat.partnerId)}>View Profile</Button>
             </div>
@@ -4725,103 +4725,55 @@ export default function App() {
     if (!showInstallModal || isInStandaloneMode) return null;
     
     return (
-      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl">
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
         <motion.div 
-          initial={{ scale: 0.9, opacity: 0, y: 40 }}
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          className={`max-w-md w-full rounded-[48px] p-12 flex flex-col items-center text-center shadow-[0_0_100px_rgba(0,132,255,0.4)] border-2 ${theme === 'dark' ? 'bg-[#1C1C1E] border-[#3A3B3C]' : 'bg-white border-gray-100'}`}
+          className={`max-w-sm w-full rounded-[40px] p-10 flex flex-col items-center text-center shadow-2xl border ${theme === 'dark' ? 'bg-[#1C1C1E] border-white/10' : 'bg-white border-gray-100'}`}
         >
           <div className="relative mb-8">
-             <div className="w-28 h-28 rounded-[36px] overflow-hidden shadow-2xl ring-8 ring-blue-500/10 relative z-10 p-4 bg-white">
-               <img src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" className="w-full h-full object-contain" alt="Porsh Icon" />
-             </div>
-             <motion.div 
-               animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
+            <div className="w-24 h-24 rounded-[30px] overflow-hidden shadow-2xl ring-4 ring-blue-500/10 p-0 bg-white">
+               <img src="/porsh-pwa-icon.png" className="w-full h-full object-cover" alt="Porsh" onError={(e) => { e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png" }} />
+            </div>
+            <motion.div 
+               animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
                transition={{ repeat: Infinity, duration: 4 }}
-               className="absolute inset-0 bg-blue-500 rounded-full blur-3xl -z-0 opacity-20"
-             />
+               className="absolute inset-0 bg-blue-500 rounded-full blur-3xl -z-10"
+            />
           </div>
           
-          <h2 className={`text-4xl font-black mb-4 tracking-tighter leading-none ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-            পরশ (Porsh)
-          </h2>
-          <p className="text-blue-500 font-black uppercase text-xs tracking-widest mb-6 underline decoration-2 underline-offset-4">১০০% এন্ড্রয়েড অ্যাপের মতো ডাউনলোড করুন</p>
+          <h2 className="text-2xl font-black mb-2 tracking-tighter">Install Porsh</h2>
+          <p className="text-sm text-gray-500 mb-10 px-2 font-medium leading-relaxed">Experience Porsh as a native app with full-screen mode and faster access.</p>
           
-          <div className={`text-[16px] leading-relaxed mb-10 px-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-            {isIframe ? (
-              <div>
-                 <p className="mb-4 text-blue-400 font-bold">আপনি বর্তমানে একটি সুরক্ষিত প্রিভিউ উইন্ডোতে আছেন।</p>
-                 <p className="mb-4">অফিসিয়াল "পরশ" সরাসরি আপনার ফোনে ইনস্টল করতে নিচের বাটনে ক্লিক করে <span className="text-blue-500">porshi.vercel.app</span> ওপেন করুন।</p>
-              </div>
-            ) : isIOS ? (
-              <div className="space-y-4 text-left">
-                <p className="text-center font-bold">iPhone (iOS) এ অ্যাপটি ইনস্টল করতে:</p>
-                <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
-                         <Share2 className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <p className="text-xs">১. ব্রাউজারের নিচের <span className="font-bold">Share</span> বাটনটি চাপুন।</p>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
-                         <PlusSquare className="w-4 h-4 text-blue-500" />
-                      </div>
-                      <p className="text-xs">২. মেনু থেকে <span className="font-bold">"Add to Home Screen"</span> এ ক্লিক করুন।</p>
-                   </div>
-                </div>
-              </div>
-            ) : deferredPrompt ? (
-              <p>নিচের বাটনে ক্লিক করলেই "পরশ" আপনার ফোনে একটি এন্ড্রয়েড অ্যাপের মতো ইনস্টল হয়ে যাবে। কোনো ব্রাউজার ছাড়াই সরাসরি চ্যাট করতে পারবেন।</p>
-            ) : (
-              <div className="space-y-4 text-left">
-                <p className="text-center font-bold italic underline mb-2 tracking-tighter">ব্রাউজার থেকে সরাসরি ইনস্টল:</p>
-                <div className={`p-5 rounded-3xl space-y-3 ${theme === 'dark' ? 'bg-blue-500/5' : 'bg-blue-50'}`}>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">১</div>
-                      <p className="text-xs font-bold leading-tight">আপনার ব্রাউজার মেনুর (তিনটি ডট) এ ক্লিক করুন।</p>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm font-black text-blue-500 text-xs">২</div>
-                      <p className="text-xs font-bold leading-tight"><span className="text-blue-500 underline uppercase italic">"Install App"</span> এ ক্লিক করে এন্ড্রয়েড অ্যাপের মতো ডাউনলোড করুন।</p>
-                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex flex-col w-full gap-4">
+          <div className="w-full space-y-4">
             <button 
               onClick={() => { installApp(); if (!deferredPrompt && !isIframe) setShowInstallModal(false); }} 
-              className={`w-full h-20 rounded-[30px] font-black text-xl transition-all active:scale-95 shadow-2xl flex items-center justify-center gap-4 ${isIframe ? 'bg-orange-500 text-white shadow-orange-500/30' : (deferredPrompt ? 'bg-[#0084FF] text-white shadow-blue-500/30' : 'bg-gray-800 text-white hover:bg-gray-700')}`}
+              className="w-full h-16 rounded-3xl font-black text-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3"
             >
-              {isIframe ? (
-                <>অ্যাপটি ওপেন করুন (Open App)</>
-              ) : deferredPrompt ? (
-                <><Download className="w-6 h-6" /> অ্যাপটি নামান (Install Now)</>
-              ) : isIOS ? (
-                <>বন্ধ করুন (Close)</>
-              ) : (
-                <>ঠিক আছে (Understood)</>
-              )}
+              {isIframe ? "Open in Browser" : (deferredPrompt ? <><Download className="w-6 h-6" /> Install Now</> : (isIOS ? "Got it" : "Understood"))}
             </button>
             
             <button 
               onClick={() => setShowInstallModal(false)} 
-              className={`w-full h-14 rounded-[24px] font-bold bg-transparent transition-all ${theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+              className="w-full h-12 rounded-2xl font-bold text-gray-400 hover:text-gray-600 transition-colors"
             >
-              পরে করবো (Later)
+              Maybe Later
             </button>
           </div>
-          
-          <div className="mt-12 flex items-center gap-3 opacity-60">
-             <div className="h-[1px] flex-1 bg-gray-500/20" />
-             <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest leading-none">PWA Secure Installation</span>
-             </div>
-             <div className="h-[1px] flex-1 bg-gray-500/20" />
-          </div>
+
+          {!deferredPrompt && !isIOS && !isIframe && (
+            <div className="mt-8 pt-8 border-t border-gray-100 w-full text-left space-y-3">
+              <p className="text-[10px] uppercase font-black text-gray-400 tracking-[2px] text-center mb-1">Manual Installation</p>
+              <div className="flex items-center gap-3 text-xs text-gray-600">
+                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">1</div>
+                <span>Tap browser menu (top/bottom dots)</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-gray-600">
+                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">2</div>
+                <span>Select <span className="font-bold text-black">"Install App"</span></span>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
     );
