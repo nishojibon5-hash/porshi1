@@ -278,7 +278,7 @@ export default function App() {
     }
 
     if (!deferredPrompt && !isIOS) {
-       // On non-supporting non-iOS browsers, keep modal open for manual guide
+       alert("The installation prompt is not ready yet. Please wait a moment or use the 'Manual Installation' guide below.");
        return;
     }
 
@@ -287,6 +287,7 @@ export default function App() {
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setIsInStandaloneMode(true);
+        setShowInstallModal(false);
       }
       setDeferredPrompt(null);
     }
@@ -4733,7 +4734,14 @@ export default function App() {
         >
           <div className="relative mb-8">
             <div className="w-24 h-24 rounded-[30px] overflow-hidden shadow-2xl ring-4 ring-blue-500/10 p-0 bg-white">
-               <img src="/porsh-pwa-icon.png" className="w-full h-full object-cover" alt="Porsh" onError={(e) => { e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png" }} />
+               <img 
+                 src="/porsh-pwa-icon.png" 
+                 className="w-full h-full object-cover" 
+                 alt="Porsh" 
+                 onError={(e) => { 
+                   e.currentTarget.src = "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png";
+                 }} 
+               />
             </div>
             <motion.div 
                animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
@@ -4743,14 +4751,14 @@ export default function App() {
           </div>
           
           <h2 className="text-2xl font-black mb-2 tracking-tighter">Install Porsh</h2>
-          <p className="text-sm text-gray-500 mb-10 px-2 font-medium leading-relaxed">Experience Porsh as a native app with full-screen mode and faster access.</p>
+          <p className="text-sm text-gray-500 mb-10 px-2 font-medium leading-relaxed">Experience <b>Porsh</b> as a native app with full-screen mode and faster access.</p>
           
           <div className="w-full space-y-4">
             <button 
-              onClick={() => { installApp(); if (!deferredPrompt && !isIframe) setShowInstallModal(false); }} 
+              onClick={() => { installApp(); if (isIframe) setShowInstallModal(false); }} 
               className="w-full h-16 rounded-3xl font-black text-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3"
             >
-              {isIframe ? "Open in Browser" : (deferredPrompt ? <><Download className="w-6 h-6" /> Install Now</> : (isIOS ? "Got it" : "Understood"))}
+              {isIframe ? "Open in Browser" : (deferredPrompt ? <><Download className="w-6 h-6" /> Install Porsh</> : (isIOS ? "Add to Home Screen" : "Install Porsh"))}
             </button>
             
             <button 
@@ -4763,14 +4771,14 @@ export default function App() {
 
           {!deferredPrompt && !isIOS && !isIframe && (
             <div className="mt-8 pt-8 border-t border-gray-100 w-full text-left space-y-3">
-              <p className="text-[10px] uppercase font-black text-gray-400 tracking-[2px] text-center mb-1">Manual Installation</p>
+              <p className="text-[10px] uppercase font-black text-gray-400 tracking-[2px] text-center mb-1 font-mono">Manual Installation</p>
               <div className="flex items-center gap-3 text-xs text-gray-600">
-                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">1</div>
+                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black">1</div>
                 <span>Tap browser menu (top/bottom dots)</span>
               </div>
               <div className="flex items-center gap-3 text-xs text-gray-600">
-                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">2</div>
-                <span>Select <span className="font-bold text-black">"Install App"</span></span>
+                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black">2</div>
+                <span>Select <span className="font-bold text-black underline">"Install App"</span></span>
               </div>
             </div>
           )}
