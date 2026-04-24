@@ -287,15 +287,23 @@ export default function App() {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
           addLog('Porsh successfully installed!');
+        } else {
+          addLog('Installation cancelled by user.');
         }
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
+        addLog('Device does not support automatic installation. Please use browser menu.');
       }
     } else {
        addLog('PWA prompt not ready. Trying to initialize...');
        // Trigger a small interaction to help browser decide
        window.dispatchEvent(new Event('resize'));
+       
+       if (!isIframe) {
+         // Show a small hint that they can use the browser menu
+         alert("Installation prompt is not ready. You can manually install by clicking the 3-dots menu in your browser and selecting 'Install App' or 'Add to Home Screen'.");
+       }
     }
   };
 
@@ -4741,24 +4749,27 @@ export default function App() {
           <div className="w-12 h-1 bg-gray-200 rounded-full mb-8 sm:hidden" />
           
           <div className="relative mb-6">
-            <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-lg p-0 bg-white">
+            <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-lg p-0 bg-white ring-4 ring-blue-500/5">
                <img 
                  src="/porsh-pwa-icon.png" 
                  className="w-full h-full object-cover" 
                  alt="Porsh Logo" 
-                 referrerPolicy="no-referrer"
+                 onError={(e) => {
+                    e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
+                 }}
                />
             </div>
           </div>
           
-          <h2 className="text-xl font-bold mb-1">Install Porsh</h2>
-          <p className="text-sm text-gray-500 mb-8 font-medium">Use Porsh as a dedicated messenger app on your phone.</p>
+          <h2 className="text-xl font-black mb-1">Install Porsh</h2>
+          <p className="text-sm text-gray-500 mb-8 font-medium px-4">Experience Porsh as a native Android app without the browser bar.</p>
           
           <div className="w-full space-y-3">
             <button 
               onClick={() => { installApp(); if (isIframe) setShowInstallModal(false); }} 
-              className="w-full h-14 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center"
+              className="w-full h-14 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-2"
             >
+              <Download className="w-5 h-5" />
               Install App
             </button>
             
@@ -4769,6 +4780,12 @@ export default function App() {
               Not Now
             </button>
           </div>
+          
+          {(!deferredPrompt && !isIframe) && (
+             <div className="mt-4 text-[10px] text-gray-400 font-medium bg-gray-50 p-2 rounded-xl border border-gray-100">
+                Hint: If the button above doesn't work, install from browser menu (⋮) → "Install app"
+             </div>
+          )}
           
           <div className="mt-6 flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
              <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
