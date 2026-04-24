@@ -275,7 +275,7 @@ export default function App() {
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      addLog('ইন্সটল প্রম্পট তৈরি (PORSH Setup Ready)');
+      addLog('পর্শি মেসেন্জার ইনস্টল করার জন্য প্রস্তুত!');
     };
     
     window.addEventListener('beforeinstallprompt', handler);
@@ -291,29 +291,35 @@ export default function App() {
   }, []);
 
   const installApp = async () => {
+    addLog('পর্শি মেসেন্জার (Porsh) ইনভেস্টিগেটিং...');
+    
+    // If inside an iframe (like preview), redirect to full page for PWA trigger
     if (isIframe) {
-      addLog('ব্রাউজার থেকে মেসেন্জার ওপেন হচ্ছে...');
-      const targetUrl = `${window.location.origin}${window.location.pathname}?app=porsh`;
-      window.open(targetUrl, '_blank');
+      const url = new URL(window.location.href);
+      url.searchParams.set('app', 'porsh');
+      window.open(url.toString(), '_blank');
       return;
     }
 
     if (deferredPrompt) {
       try {
+        addLog('ইনস্টল প্রম্পট দেখানো হচ্ছে...');
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
-          addLog('ইনস্টল শুরু হচ্ছে (Installing Porsh)...');
+          addLog('পর্শি অ্যাপ ইনস্টল গ্রহণ করা হয়েছে!');
         }
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
+        setShowInstallModal(true);
       }
     } else {
-      addLog('সরাসরি ইন্সটল সম্ভব নয়, ব্রাউজার অপশন দেখুন (Use 3-dots if button fails)');
+      // If no prompt, show the modal with guidance
       setShowInstallModal(true);
+      addLog('ইনস্টল গাইড চেক করুন (Browser Limitations)');
     }
   };
 
@@ -2950,6 +2956,7 @@ export default function App() {
               <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 no-scrollbar">
                 {[
                   { id: 'overview', name: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'ecosystem', name: 'Ecosystem', icon: Zap },
                   { id: 'ads', name: 'অ্যাড ম্যানেজার', icon: Megaphone },
                   { id: 'users', name: 'ইউজার লিস্ট', icon: Users },
                   { id: 'monetization', name: 'রোজগার', icon: DollarSign },
@@ -3166,6 +3173,149 @@ export default function App() {
                   </div>
                 </motion.div>
               )}
+
+                  {adminActiveTab === 'ecosystem' && (
+                    <motion.div 
+                      key="ecosystem"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-8"
+                    >
+                       <div className="geometric-card p-8 border-l-8 border-l-accent space-y-6">
+                          <div className="flex items-center justify-between">
+                             <div className="space-y-1">
+                                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Porsh Ecosystem Panel</h2>
+                                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">মেসেন্জার ও সোশ্যাল নেটওয়ার্ক কন্ট্রোল</p>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <Button 
+                                   onClick={async () => {
+                                      try {
+                                         await updateDoc(doc(db, 'appConfig', 'remote-settings'), appConfig || {});
+                                         setAuthSuccessMessage('Ecosystem updated successfully!');
+                                      } catch (e: any) {
+                                         setErrorMessage('Sync failed: ' + e.message);
+                                      }
+                                   }}
+                                   className="bg-accent text-bg-dark font-black px-8 py-6 rounded-2xl shadow-[0_0_30px_rgba(0,209,255,0.3)] hover:shadow-accent/50 transition-all"
+                                >
+                                   SYNC ECOSYSTEM
+                                </Button>
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                             {/* Branding Card */}
+                             <div className="lg:col-span-2 space-y-6">
+                                <div className="p-6 bg-bg-dark/80 rounded-3xl border border-accent/20 space-y-6">
+                                   <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px] flex items-center gap-2">
+                                      <Zap className="w-4 h-4" /> Global Branding
+                                   </h3>
+                                   
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-2">
+                                         <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Ecosystem Name</label>
+                                         <Input 
+                                            value={appConfig?.appName || ''}
+                                            onChange={(e) => setAppConfig(prev => prev ? { ...prev, appName: e.target.value } : null)}
+                                            className="h-14 font-black text-lg bg-bg-dark border-border-custom"
+                                         />
+                                      </div>
+                                      <div className="space-y-2">
+                                         <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Theme Color</label>
+                                         <div className="flex gap-2">
+                                            <div className="w-14 h-14 rounded-2xl border-2 border-border-custom flex-shrink-0" style={{ backgroundColor: appConfig?.pwaThemeColor || '#0084FF' }} />
+                                            <Input 
+                                               value={appConfig?.pwaThemeColor || ''}
+                                               onChange={(e) => setAppConfig(prev => prev ? { ...prev, pwaThemeColor: e.target.value } : null)}
+                                               className="h-14 font-mono bg-bg-dark border-border-custom"
+                                            />
+                                         </div>
+                                      </div>
+                                   </div>
+
+                                   <div className="space-y-2">
+                                      <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Universal Icon URL</label>
+                                      <div className="flex gap-4">
+                                         <div className="w-20 h-20 rounded-3xl bg-bg-dark border border-accent/20 flex items-center justify-center overflow-hidden">
+                                            <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-12 h-12 object-contain" alt="" />
+                                         </div>
+                                         <Input 
+                                            value={appConfig?.appIcon || ''}
+                                            onChange={(e) => setAppConfig(prev => prev ? { ...prev, appIcon: e.target.value } : null)}
+                                            placeholder="Paste Cloudinary Link"
+                                            className="bg-bg-dark/50 border-border-custom h-20"
+                                         />
+                                      </div>
+                                   </div>
+                                </div>
+
+                                <div className="p-6 bg-bg-dark/80 rounded-3xl border border-yellow-500/20 space-y-6">
+                                   <h3 className="text-[10px] font-black text-yellow-500 uppercase tracking-[4px] flex items-center gap-2">
+                                      <MonitorSmartphone className="w-4 h-4" /> Messenger UI Config
+                                   </h3>
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="flex items-center justify-between p-4 bg-bg-dark rounded-2xl border border-white/5">
+                                         <span className="text-[10px] font-black uppercase text-text-dim">Auto Play Video</span>
+                                         <button 
+                                            onClick={() => setAppConfig(prev => prev ? { ...prev, autoPlayVideo: !prev.autoPlayVideo } : null)}
+                                            className={`w-10 h-5 rounded-full transition-all relative ${appConfig?.autoPlayVideo ? 'bg-green-500' : 'bg-white/10'}`}
+                                         >
+                                            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${appConfig?.autoPlayVideo ? 'right-0.5' : 'left-0.5'}`} />
+                                         </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-4 bg-bg-dark rounded-2xl border border-white/5">
+                                         <span className="text-[10px] font-black uppercase text-text-dim">Force Dark mode</span>
+                                         <button 
+                                            onClick={() => setAppConfig(prev => prev ? { ...prev, forceDark: !prev.forceDark } : null)}
+                                            className={`w-10 h-5 rounded-full transition-all relative ${appConfig?.forceDark ? 'bg-accent' : 'bg-white/10'}`}
+                                         >
+                                            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${appConfig?.forceDark ? 'right-0.5' : 'left-0.5'}`} />
+                                         </button>
+                                      </div>
+                                   </div>
+                                </div>
+                             </div>
+
+                             {/* Status Card */}
+                             <div className="space-y-6">
+                                <div className="p-6 bg-bg-dark/80 rounded-3xl border border-white/5 space-y-6">
+                                   <h3 className="text-[10px] font-black text-text-dim uppercase tracking-[4px]">System Status</h3>
+                                   <div className="space-y-4">
+                                      <div className="flex items-center gap-3">
+                                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                         <span className="text-[10px] font-black uppercase text-white">Ecosystem Active</span>
+                                      </div>
+                                      <div className="p-4 bg-bg-dark rounded-2xl border border-white/5 space-y-2">
+                                         <div className="text-[8px] text-text-dim uppercase font-bold">Total API Calls Today</div>
+                                         <div className="text-xl font-black text-white">2.4k+</div>
+                                      </div>
+                                      <div className="p-4 bg-bg-dark rounded-2xl border border-white/5 space-y-2">
+                                         <div className="text-[8px] text-text-dim uppercase font-bold">Storage Health</div>
+                                         <div className="text-xl font-black text-accent">EXCELLENT</div>
+                                      </div>
+                                   </div>
+                                </div>
+
+                                <div className="p-6 bg-bg-dark/80 rounded-3xl border border-red-500/20 space-y-4">
+                                   <h3 className="text-[10px] font-black text-red-500 uppercase tracking-[4px]">Danger Zone</h3>
+                                   <p className="text-[8px] text-text-dim leading-relaxed">
+                                      এখানে কোন পরিবর্তন করলে সকল ইউজারের রিয়েল-টাইম এক্সপিরিয়েন্স বদলে যাবে। দয়া করে সতর্কতা অবলম্বন করুন।
+                                   </p>
+                                   <Button 
+                                      variant="destructive" 
+                                      onClick={() => addLog('Maintenance sequence initialized...')}
+                                      className="w-full text-[10px] h-12 uppercase font-black tracking-widest bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white"
+                                   >
+                                      Trigger Shutdown
+                                   </Button>
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                    </motion.div>
+                  )}
 
                   {adminActiveTab === 'ads' && (
                     <motion.div 
@@ -4890,61 +5040,75 @@ export default function App() {
     );
   };
 
-  const renderInstallModal = () => {
-    if (!showInstallModal || isInStandaloneMode) return null;
-    
-    return (
-      <div className="fixed inset-0 z-[2001] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/40 backdrop-blur-[2px]">
+  const renderInstallModal = () => (
+    <AnimatePresence>
+      {showInstallModal && !isInStandaloneMode && (
         <motion.div 
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          className={`w-full sm:max-w-sm rounded-t-[32px] sm:rounded-[32px] p-8 flex flex-col items-center text-center shadow-2xl ${theme === 'dark' ? 'bg-[#1C1C1E] border-white/5' : 'bg-white border-gray-100'} border-t sm:border`}
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[3000] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6"
         >
-          <div className="w-12 h-1 bg-gray-200 rounded-full mb-8 sm:hidden" />
-          
-          <div className="relative mb-6">
-            <div className="w-20 h-20 rounded-[22px] overflow-hidden shadow-lg p-0 bg-white ring-4 ring-blue-500/5">
-               <img 
-                 src="/porsh-pwa-icon.png" 
-                 className="w-full h-full object-cover" 
-                 alt="Porsh Logo" 
-                 onError={(e) => {
-                    e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
-                 }}
-               />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-black mb-1">Install Porsh</h2>
-          <p className="text-sm text-gray-500 mb-8 font-medium px-4">Experience Porsh as a native Android app without the browser bar.</p>
-          
-          <div className="w-full space-y-3">
-            <button 
-              onClick={() => { installApp(); if (isIframe) setShowInstallModal(false); }} 
-              className="w-full h-14 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              {deferredPrompt ? "Install App" : (isIOS ? "Add to Home Screen" : (isIframe ? "Install App" : "Install App"))}
-            </button>
-            
-            <button 
-              onClick={() => setShowInstallModal(false)} 
-              className="w-full h-12 rounded-2xl font-bold text-gray-400 hover:text-gray-500 transition-colors"
-            >
-              Not Now
-            </button>
-          </div>
-          
-          <div className="mt-6 flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-             <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-               <Check className="w-2.5 h-2.5 text-white stroke-[4px]" />
+          <div className="relative w-full max-w-sm bg-[#1C1C1E] border border-white/10 rounded-[44px] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.9)]">
+             <div className="p-10 space-y-8">
+                <div className="w-24 h-24 mx-auto bg-bg-dark rounded-3xl border-2 border-accent/30 p-4 shadow-2xl relative group">
+                   <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-full h-full object-contain" alt="" />
+                   <div className="absolute inset-0 bg-accent/20 animate-pulse rounded-3xl" />
+                </div>
+                
+                <div className="text-center space-y-2">
+                   <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">INSTALL PORSH</h2>
+                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">অরিজিনাল পর্শি মেসেন্জার অ্যাপ</p>
+                </div>
+
+                <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
+                  এটি কোন সাধারণ ওয়েবপেজ নয়, এটি একটি <span className="text-white font-bold italic">অ্যান্ড্রয়েড অ্যাপ</span> যা আপনার ফোনের অ্যাপ ড্রয়ারে থাকবে।
+                </p>
+
+                <div className="space-y-6 pt-2">
+                   <div className="flex gap-4 items-start">
+                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-xs shrink-0">1</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">ইনস্টল বাটন খুজুন</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">আপনার ব্রাউজারের উপরে থাকা ৩টি ডট (৩-ডট) মেনু থেকে <span className="text-accent font-bold">'Install App'</span> বাটনে ক্লিক করবেন।</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-4 items-start">
+                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-xs shrink-0">2</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">ডেস্কটপে অ্যাড করুন</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">কনফার্ম করলেই এটি আপনার সিষ্টেমের অরিজিনাল অ্যান্ড্রয়েড অ্যাপ হিসেবে অ্যাপ ড্রয়ারে চলে যাবে।</p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="pt-4 flex flex-col gap-3">
+                   {deferredPrompt && (
+                     <Button 
+                        onClick={installApp}
+                        className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95"
+                     >
+                        এখনই অ্যাপ ইনস্টল করুন
+                     </Button>
+                   )}
+                   <Button 
+                      variant="ghost" 
+                      onClick={() => setShowInstallModal(false)}
+                      className="w-full text-text-dim text-[10px] uppercase font-black py-4 hover:text-white"
+                   >
+                      পরে জানাবো
+                   </Button>
+                </div>
+
+                <div className="mt-2 text-center">
+                   <p className="text-[8px] text-white/30 font-bold uppercase tracking-[2px]">Note: Porsh and Porshi are separate apps</p>
+                </div>
              </div>
-             Verified Standalone App
           </div>
         </motion.div>
-      </div>
-    );
-  };
+      )}
+    </AnimatePresence>
+  );
 
   const renderEditProfileModal = () => (
     <AnimatePresence>
