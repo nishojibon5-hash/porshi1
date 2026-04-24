@@ -85,6 +85,7 @@ export interface ChatMessage {
   text: string;
   timestamp: any;
   isRead?: boolean;
+  reactions?: Record<string, string>;
 }
 
 export interface PairRequest {

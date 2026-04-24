@@ -90,6 +90,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import NearbyDiscovery from './components/NearbyDiscovery';
+
+const REACTION_EMOJIS = ['👍', '❤️', '🥰', '😆', '😁', '😛', '🥴', '😯', '🫤', '😡', '🫦', '🖕'];
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -176,7 +178,35 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<AppUser[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
-  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const [reactingToMessageId, setReactingToMessageId] = useState<string | null>(null);
+  const [showBottomLikePicker, setShowBottomLikePicker] = useState(false);
+  const messageLongPressTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  const handleMessageLongPressStart = (messageId: string) => {
+    messageLongPressTimer.current = setTimeout(() => {
+      setReactingToMessageId(messageId);
+    }, 500);
+  };
+
+  const handleMessageLongPressEnd = () => {
+    if (messageLongPressTimer.current) {
+      clearTimeout(messageLongPressTimer.current);
+    }
+  };
+
+  const reactToMessage = async (messageId: string, emoji: string) => {
+    if (!user || !activeChat) return;
+    try {
+      const msgRef = doc(db, 'chats', activeChat.id, 'messages', messageId);
+      await updateDoc(msgRef, {
+        [`reactions.${user.uid}`]: emoji
+      });
+      setReactingToMessageId(null);
+    } catch (error) {
+      console.error('Message reaction error:', error);
+    }
+  };
+
   const [isScanning, setIsScanning] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1730,11 +1760,12 @@ export default function App() {
     return () => unsubscribe();
   }, [activeChat, user]);
 
-  const handleSendMessage = async () => {
-    if (!activeChat || !user || !messageInput.trim()) return;
+  const handleSendMessage = async (textOverride?: string) => {
+    const textToSubmit = textOverride || messageInput;
+    if (!activeChat || !user || !textToSubmit.trim()) return;
 
-    const text = messageInput;
-    setMessageInput('');
+    const text = textToSubmit;
+    if (!textOverride) setMessageInput('');
 
     try {
       await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
@@ -2930,7 +2961,7 @@ export default function App() {
                   theme={theme}
                   usersRegistry={usersRegistry}
                   onLike={() => withAuth(() => likePost(post.id))}
-                  onReact={(type) => withAuth(() => reactToPost(post.id, type))}
+                  onReact={(postId, type) => withAuth(() => reactToPost(postId, type))}
                   onComment={() => withAuth(() => setCommentingPostId(post.id))}
                   onFollow={() => withAuth(() => followUser(post.authorUid))}
                   onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
@@ -4564,7 +4595,7 @@ export default function App() {
                           theme={theme}
                           usersRegistry={usersRegistry}
                           onLike={() => withAuth(() => likePost(post.id))}
-                          onReact={(type) => withAuth(() => reactToPost(post.id, type))}
+                          onReact={(postId, type) => withAuth(() => reactToPost(postId, type))}
                           onComment={() => withAuth(() => setCommentingPostId(post.id))}
                           onFollow={() => withAuth(() => followUser(post.authorUid))}
                           onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
@@ -5056,14 +5087,57 @@ export default function App() {
          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-inherit">
             {messages.map((m, i) => {
                const isMe = m.senderUid === user?.uid;
+               const messageReactions = m.reactions ? Object.values(m.reactions) : [];
                return (
-                 <div key={m.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-                    <div className={`max-w-[75%] px-4 py-2 text-[15px] ${
+                 <div key={m.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300 relative`}>
+                    <div 
+                       onMouseDown={() => handleMessageLongPressStart(m.id)}
+                       onMouseUp={handleMessageLongPressEnd}
+                       onTouchStart={() => handleMessageLongPressStart(m.id)}
+                       onTouchEnd={handleMessageLongPressEnd}
+                       className={`max-w-[75%] px-4 py-2 text-[15px] relative transition-transform active:scale-[0.98] cursor-pointer ${
                       isMe 
                       ? 'bg-[#0084FF] text-white rounded-[20px] rounded-tr-[4px]' 
                       : 'bg-[#F0F2F5] dark:bg-[#3A3B3C] text-inherit rounded-[20px] rounded-tl-[4px]'
                     }`}>
                        {m.text}
+                       
+                       {/* Display Reactions */}
+                       {messageReactions.length > 0 && (
+                         <div className={`absolute -bottom-2 ${isMe ? 'left-2' : 'right-2'} flex items-center -space-x-1 bg-white dark:bg-[#242526] rounded-full p-0.5 shadow-sm border border-gray-100 dark:border-[#3E4042] z-10`}>
+                           {Array.from(new Set(messageReactions)).slice(0, 3).map((emoji, idx) => (
+                             <span key={idx} className="text-[10px]">{emoji}</span>
+                           ))}
+                           {messageReactions.length > 1 && (
+                             <span className="text-[8px] text-gray-500 font-bold ml-1 self-center">{messageReactions.length}</span>
+                           )}
+                         </div>
+                       )}
+
+                       {/* Reaction Picker Popup */}
+                       <AnimatePresence>
+                         {reactingToMessageId === m.id && (
+                           <>
+                             <div className="fixed inset-0 z-40" onClick={() => setReactingToMessageId(null)} />
+                             <motion.div 
+                               initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                               animate={{ opacity: 1, scale: 1, y: 0 }}
+                               exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                               className={`absolute bottom-full mb-3 ${isMe ? 'right-0' : 'left-0'} bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50`}
+                             >
+                               {REACTION_EMOJIS.map(emoji => (
+                                 <button 
+                                   key={emoji}
+                                   onClick={(e) => { e.stopPropagation(); reactToMessage(m.id, emoji); }}
+                                   className="text-xl hover:scale-125 transition-transform p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"
+                                 >
+                                   {emoji}
+                                 </button>
+                               ))}
+                             </motion.div>
+                           </>
+                         )}
+                       </AnimatePresence>
                     </div>
                  </div>
                );
@@ -5097,13 +5171,54 @@ export default function App() {
                </div>
                
                {messageInput.trim() ? (
-                 <button onClick={handleSendMessage} className="p-2 text-[#0084FF] transition-transform active:scale-90">
+                 <button onClick={() => handleSendMessage()} className="p-2 text-[#0084FF] transition-transform active:scale-90">
                     <SendHorizontal className="w-6 h-6 fill-current" />
                  </button>
                ) : (
-                 <button onClick={() => setMessageInput('👍')} className="p-2 text-[#0084FF] transition-transform active:scale-110">
-                    <ThumbsUp className="w-6 h-6 fill-current" />
-                 </button>
+                 <div className="relative">
+                    <button 
+                      onMouseDown={() => {
+                        messageLongPressTimer.current = setTimeout(() => setShowBottomLikePicker(true), 500);
+                      }}
+                      onMouseUp={() => {
+                        if (messageLongPressTimer.current) clearTimeout(messageLongPressTimer.current);
+                      }}
+                      onTouchStart={() => {
+                        messageLongPressTimer.current = setTimeout(() => setShowBottomLikePicker(true), 500);
+                      }}
+                      onTouchEnd={() => {
+                        if (messageLongPressTimer.current) clearTimeout(messageLongPressTimer.current);
+                      }}
+                      onClick={() => handleSendMessage('👍')} 
+                      className="p-2 text-[#0084FF] transition-transform active:scale-110"
+                    >
+                       <ThumbsUp className="w-6 h-6 fill-current" />
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showBottomLikePicker && (
+                         <>
+                           <div className="fixed inset-0 z-40" onClick={() => setShowBottomLikePicker(false)} />
+                           <motion.div 
+                             initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                             animate={{ opacity: 1, scale: 1, y: 0 }}
+                             exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                             className="absolute bottom-full right-0 mb-3 bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50"
+                           >
+                             {REACTION_EMOJIS.map(emoji => (
+                               <button 
+                                 key={emoji}
+                                 onClick={(e) => { e.stopPropagation(); handleSendMessage(emoji); setShowBottomLikePicker(false); }}
+                                 className="text-xl hover:scale-125 transition-transform p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"
+                               >
+                                 {emoji}
+                               </button>
+                             ))}
+                           </motion.div>
+                         </>
+                      )}
+                    </AnimatePresence>
+                 </div>
                )}
             </div>
          </div>
