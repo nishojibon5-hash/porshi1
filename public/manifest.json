@@ -1,7 +1,7 @@
 {
   "name": "Porsh",
   "short_name": "Porsh",
-  "id": "/?app=porsh",
+  "id": "/",
   "description": "Porsh - Beautiful and artistic real-time messenger.",
   "start_url": "/?app=porsh",
   "scope": "/",
