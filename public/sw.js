@@ -1,10 +1,11 @@
-const CACHE_NAME = 'porsh-v2';
+const CACHE_NAME = 'porsh-v3';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
   '/sw.js',
-  '/porsh-pwa-icon.png'
+  '/porsh-pwa-icon.png',
+  '/?app=porsh'
 ];
 
 self.addEventListener('install', event => {
@@ -33,21 +34,17 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.open(CACHE_NAME).then(cache => {
-          return cache.match('/');
-        });
-      })
-    );
-    return;
-  }
-
+  // Simple fetch handler to satisfy PWA criteria
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request).then(fetchResponse => {
+        // Option: cache new resources here if desired
+        return fetchResponse;
+      });
+    }).catch(() => {
+      if (event.request.mode === 'navigate') {
+        return caches.match('/');
+      }
+    })
   );
 });

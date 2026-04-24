@@ -1,11 +1,12 @@
 {
   "name": "Porsh",
   "short_name": "Porsh",
-  "id": "/",
+  "id": "/porsh-messenger",
   "description": "Porsh - Beautiful and artistic real-time messenger.",
   "start_url": "/?app=porsh",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#0084FF",

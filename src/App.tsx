@@ -293,17 +293,12 @@ export default function App() {
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
-        addLog('Device does not support automatic installation. Please use browser menu.');
+        addLog('Error during installation process.');
       }
     } else {
-       addLog('PWA prompt not ready. Trying to initialize...');
-       // Trigger a small interaction to help browser decide
+       addLog('PWA prompt not ready yet. Please try again in few seconds.');
+       // Try to re-trigger internal state
        window.dispatchEvent(new Event('resize'));
-       
-       if (!isIframe) {
-         // Show a small hint that they can use the browser menu
-         alert("Installation prompt is not ready. You can manually install by clicking the 3-dots menu in your browser and selecting 'Install App' or 'Add to Home Screen'.");
-       }
     }
   };
 
@@ -4770,7 +4765,7 @@ export default function App() {
               className="w-full h-14 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-2"
             >
               <Download className="w-5 h-5" />
-              Install App
+              {deferredPrompt ? "Install App" : (isIOS ? "Add to Home Screen" : (isIframe ? "Install App" : "Install App"))}
             </button>
             
             <button 
@@ -4780,12 +4775,6 @@ export default function App() {
               Not Now
             </button>
           </div>
-          
-          {(!deferredPrompt && !isIframe) && (
-             <div className="mt-4 text-[10px] text-gray-400 font-medium bg-gray-50 p-2 rounded-xl border border-gray-100">
-                Hint: If the button above doesn't work, install from browser menu (⋮) → "Install app"
-             </div>
-          )}
           
           <div className="mt-6 flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
              <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
