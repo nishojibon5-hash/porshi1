@@ -2,14 +2,14 @@
   "name": "Porsh",
   "short_name": "Porsh",
   "id": "/porsh-messenger",
-  "description": "Porsh - Beautiful and artistic real-time messenger.",
-  "start_url": "/?app=porsh",
+  "description": "Porsh - Production-ready native-like messenger experience.",
+  "start_url": "/porsh",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "minimal-ui", "standalone"],
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#0084FF",
+  "background_color": "#0f0f0f",
+  "theme_color": "#1877F2",
   "categories": ["social", "messenger", "communication"],
   "icons": [
     {
@@ -33,9 +33,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Open Porsh",
-      "short_name": "Porsh",
-      "url": "/?app=porsh&view=chats",
+      "name": "Open Chats",
+      "short_name": "Chats",
+      "url": "/porsh?view=chats",
       "icons": [{ "src": "/porsh-pwa-icon.png", "sizes": "192x192" }]
     }
   ],

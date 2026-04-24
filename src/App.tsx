@@ -218,7 +218,8 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('app') === 'porsh') {
+    const path = window.location.pathname;
+    if (params.get('app') === 'porsh' || path.startsWith('/porsh')) {
       setCurrentApp('porsh');
     }
   }, []);
@@ -299,11 +300,24 @@ export default function App() {
     };
   }, []);
 
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const installApp = async () => {
-    addLog('পর্শি মেসেন্জার (Porsh) ইনভেস্টিগেটিং...');
+    addLog('পর্শি অ্যাপ ইনস্টলেশন চেক করা হচ্ছে...');
     
-    // If inside an iframe (like preview), redirect to full page for PWA trigger
     if (isIframe) {
+      addLog('ফুল ভিউতে ওপেন করা হচ্ছে...');
       const url = new URL(window.location.href);
       url.searchParams.set('app', 'porsh');
       window.open(url.toString(), '_blank');
@@ -312,13 +326,13 @@ export default function App() {
 
     if (deferredPrompt) {
       try {
-        addLog('ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
+        addLog('সরাসরি ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
-          addLog('সফলভাবে পর্শি অ্যাপ ইনস্টল করা হয়েছে!');
+          addLog('পর্শি অ্যাপ ইনস্টল সফল!');
         }
         setDeferredPrompt(null);
       } catch (err) {
@@ -326,13 +340,8 @@ export default function App() {
         setShowInstallModal(true);
       }
     } else {
-      // Logic for when no native prompt
+      addLog('ম্যানুয়াল ইনস্টলেশন গাইড দেখানো হচ্ছে...');
       setShowInstallModal(true);
-      if (isIOS) {
-        addLog('আইফোনের জন্য শেয়ার বাটন ব্যবহার করুন');
-      } else {
-        addLog('সরাসরি ইনস্টল সম্ভব নয়, মেনু চেক করুন');
-      }
     }
   };
 
@@ -1728,13 +1737,18 @@ export default function App() {
              <h1 className="text-2xl font-bold tracking-tight lowercase">porsh</h1>
           </div>
           <div className="flex gap-2">
+             {!isOnline && (
+               <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/20 text-red-500 text-[10px] font-black uppercase">
+                 <Wifi className="w-3 h-3" /> Offline
+               </div>
+             )}
              {!isInStandaloneMode && (
                <button 
                  onClick={installApp}
-                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-tighter animate-pulse shadow-lg"
+                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1877F2] text-white text-[12px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 active:scale-95 transition-all"
                >
-                 <Download className="w-3 h-3" />
-                 Install
+                 <Download className="w-4 h-4" />
+                 INSTALL PORSH
                </button>
              )}
              <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C] text-white' : 'bg-gray-100 text-black'}`}>
@@ -4906,14 +4920,14 @@ export default function App() {
                     onClick={() => setAuthView('login')}
                     className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'login' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
                   >
-                    লগইন
+                    লগইন (LOGIN)
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAuthView('register')}
                     className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'register' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
                   >
-                    রেজিস্ট্রেশন
+                    রেজিস্ট্রেশন (JOIN)
                   </button>
                 </div>
 
@@ -5077,19 +5091,26 @@ export default function App() {
                    পর্শি অ্যাপটি আপনার ফোনে <span className="text-white font-bold italic">অরিজিনাল অ্যান্ড্রয়েড অ্যাপ</span> হিসেবে ব্যবহার করতে নিচের ধাপ অনুসরন করুন।
                 </p>
 
-                <div className="space-y-5 pt-2">
+                <div className="space-y-4 pt-2">
                    <div className="flex gap-4 items-start">
                       <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">1</div>
                       <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">সরাসরি ইনস্টল (Quick Install)</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">যদি নিচে <span className="text-accent font-bold">'INSTALL NOW'</span> বাটন দেখেন তবে ক্লিক করুন। নতুবা ব্রাউজার মেনু থেকে <span className="text-accent font-bold">'Install App'</span> বাটনে চাপ দিন।</p>
+                         <div className="text-[10px] font-black text-white uppercase">Direct Install (Recommended)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If the <span className="text-accent font-bold">'INSTALL NOW'</span> button is active below, click it to install instantly.</p>
                       </div>
                    </div>
                    <div className="flex gap-4 items-start">
                       <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">2</div>
                       <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">ব্রাউজার আপডেট (Chrome Update)</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed italic text-red-400">আপনার ব্রাউজার আপডেট না থাকলে ইনস্টল বাটন দেখা যাবে না। দয়া করে আপডেট করুন।</p>
+                         <div className="text-[10px] font-black text-white uppercase">Chrome Menu (Manual)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If not, click the <span className="text-white font-bold">3-dots (⋮)</span> top-right in your browser and select <span className="text-accent font-bold">'Install App'</span> or <span className="text-accent font-bold">'Add to Home screen'</span>.</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-4 items-start">
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">3</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">Requirements</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">Ensure you are using <span className="text-white font-bold">Google Chrome</span> and your browser is updated to the latest version.</p>
                       </div>
                    </div>
                 </div>

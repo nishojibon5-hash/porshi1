@@ -1,17 +1,17 @@
-const CACHE_NAME = 'porsh-v3';
+const CACHE_NAME = 'porsh-messenger-v5';
 const urlsToCache = [
   '/',
+  '/porsh',
   '/index.html',
   '/manifest.json',
-  '/sw.js',
-  '/porsh-pwa-icon.png',
-  '/?app=porsh'
+  '/porsh-pwa-icon.png'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
+        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
@@ -24,6 +24,7 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
+            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -34,17 +35,22 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Simple fetch handler to satisfy PWA criteria
+  const url = new URL(event.request.url);
+  
+  // Handle navigation requests
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match('/porsh') || caches.match('/');
+      })
+    );
+    return;
+  }
+
+  // Cache-first for assets
   event.respondWith(
     caches.match(event.request).then(response => {
-      return response || fetch(event.request).then(fetchResponse => {
-        // Option: cache new resources here if desired
-        return fetchResponse;
-      });
-    }).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('/');
-      }
+      return response || fetch(event.request);
     })
   );
 });
