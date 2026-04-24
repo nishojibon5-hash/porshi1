@@ -57,15 +57,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Porsh">
     <script id="gsi-client-script" src="https://accounts.google.com/gsi/client" async defer></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registered'))
-            .catch(err => console.log('Service Worker registration failed', err));
-        });
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

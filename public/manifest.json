@@ -1,9 +1,9 @@
 {
   "name": "Porsh",
   "short_name": "Porsh",
-  "id": "/porsh-messenger",
-  "description": "Porsh - Production-ready native-like messenger experience.",
-  "start_url": "/porsh",
+  "id": "porsh-app-v1",
+  "description": "Porsh Messenger - Real-time chat app.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "minimal-ui", "standalone"],
@@ -35,7 +35,7 @@
     {
       "name": "Open Chats",
       "short_name": "Chats",
-      "url": "/porsh?view=chats",
+      "url": "/?view=chats",
       "icons": [{ "src": "/porsh-pwa-icon.png", "sizes": "192x192" }]
     }
   ],

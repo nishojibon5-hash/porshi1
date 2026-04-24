@@ -83,7 +83,8 @@ import {
   Phone,
   PlusCircle,
   Mic,
-  SendHorizontal
+  SendHorizontal,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -249,6 +250,8 @@ export default function App() {
   const [isInStandaloneMode, setIsInStandaloneMode] = useState(false);
   const [isIframe, setIsIframe] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+  const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   // Force auth ready after a timeout as a fail-safe against white screen
   useEffect(() => {
@@ -266,9 +269,14 @@ export default function App() {
   // PWA & Environment Detection and Listeners
   useEffect(() => {
     const checkStatus = () => {
-       setIsInStandaloneMode(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+       setIsInStandaloneMode(isStandalone);
        setIsIframe(window.self !== window.top);
        setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+       
+       if (isStandalone) {
+         setCurrentApp('porsh');
+       }
     };
 
     checkStatus();
@@ -277,8 +285,32 @@ export default function App() {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('SW registered:', reg))
+          .then(reg => {
+            console.log('SW registered:', reg);
+            setSwRegistration(reg);
+
+            // Check for updates
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    setIsUpdateAvailable(true);
+                  }
+                });
+              }
+            });
+          })
           .catch(err => console.error('SW registration failed:', err));
+      });
+
+      // Handle controller change (reload on skipWaiting)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          window.location.reload();
+          refreshing = true;
+        }
       });
     }
 
@@ -346,7 +378,11 @@ export default function App() {
   };
 
   const handleRefreshApp = () => {
-    window.location.reload();
+    if (swRegistration && swRegistration.waiting) {
+      swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      window.location.reload();
+    }
   };
 
   useEffect(() => {
@@ -1742,13 +1778,13 @@ export default function App() {
                  <Wifi className="w-3 h-3" /> Offline
                </div>
              )}
-             {!isInStandaloneMode && (
+             {!isInStandaloneMode && deferredPrompt && (
                <button 
                  onClick={installApp}
                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1877F2] text-white text-[12px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 active:scale-95 transition-all"
                >
                  <Download className="w-4 h-4" />
-                 INSTALL PORSH
+                 INSTALL
                </button>
              )}
              <button className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C] text-white' : 'bg-gray-100 text-black'}`}>
@@ -1759,6 +1795,22 @@ export default function App() {
              </button>
           </div>
         </div>
+
+        {/* Update Notification */}
+        {isUpdateAvailable && (
+          <div className="mx-4 mt-2 p-3 bg-[#1877F2] text-white rounded-2xl flex items-center justify-between shadow-lg animate-pulse border border-white/20">
+            <div className="flex items-center gap-2">
+               <RefreshCw className="w-4 h-4 animate-spin-slow" />
+               <span className="text-[11px] font-black uppercase tracking-widest">New version ready!</span>
+            </div>
+            <button 
+              onClick={handleRefreshApp}
+              className="px-4 py-1.5 bg-white text-[#1877F2] rounded-xl text-[10px] font-black uppercase transition-all active:scale-95"
+            >
+              Update Now
+            </button>
+          </div>
+        )}
 
         {/* Dynamic Install Promo */}
         {!isInStandaloneMode && (
