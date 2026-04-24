@@ -271,11 +271,20 @@ export default function App() {
     };
 
     checkStatus();
+    
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW registered:', reg))
+          .catch(err => console.error('SW registration failed:', err));
+      });
+    }
 
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      addLog('পর্শি মেসেন্জার ইনস্টল করার জন্য প্রস্তুত!');
+      addLog('পর্শি মেসেন্জার (Porsh App) সিষ্টেমে ইনস্টল করার জন্য প্রস্তুত!');
     };
     
     window.addEventListener('beforeinstallprompt', handler);
@@ -303,13 +312,13 @@ export default function App() {
 
     if (deferredPrompt) {
       try {
-        addLog('ইনস্টল প্রম্পট দেখানো হচ্ছে...');
+        addLog('ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
-          addLog('পর্শি অ্যাপ ইনস্টল গ্রহণ করা হয়েছে!');
+          addLog('সফলভাবে পর্শি অ্যাপ ইনস্টল করা হয়েছে!');
         }
         setDeferredPrompt(null);
       } catch (err) {
@@ -317,10 +326,18 @@ export default function App() {
         setShowInstallModal(true);
       }
     } else {
-      // If no prompt, show the modal with guidance
+      // Logic for when no native prompt
       setShowInstallModal(true);
-      addLog('ইনস্টল গাইড চেক করুন (Browser Limitations)');
+      if (isIOS) {
+        addLog('আইফোনের জন্য শেয়ার বাটন ব্যবহার করুন');
+      } else {
+        addLog('সরাসরি ইনস্টল সম্ভব নয়, মেনু চেক করুন');
+      }
     }
+  };
+
+  const handleRefreshApp = () => {
+    window.location.reload();
   };
 
   useEffect(() => {
@@ -4876,6 +4893,7 @@ export default function App() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {errorMessage && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-red-500 text-[10px] uppercase font-black text-center">{errorMessage}</div>}
                 {authSuccessMessage && (
                   <div className="p-3 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-xs font-bold text-center">
                     {authSuccessMessage}
@@ -4970,19 +4988,6 @@ export default function App() {
 
          {/* Messages Area */}
          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-inherit">
-            <div className="flex flex-col items-center justify-center py-12">
-               <div className="w-24 h-24 rounded-full overflow-hidden mb-4 ring-4 ring-blue-500/10">
-                  {usersRegistry[activeChat.partnerId]?.photoURL ? 
-                    <img src={usersRegistry[activeChat.partnerId].photoURL} className="w-full h-full object-cover" /> : 
-                    <UserIcon className="w-full h-full p-6 bg-gray-100 dark:bg-[#3A3B3C]" />
-                  }
-               </div>
-               <h2 className="text-xl font-bold text-center">{activeChat.partnerName}</h2>
-               <p className="text-[13px] text-gray-500 font-medium text-center mt-1">Facebook · You're friends on Porsh</p>
-               <p className="text-[12px] text-gray-400 text-center">Lives in {usersRegistry[activeChat.partnerId]?.currentCity || 'Bangladesh'}</p>
-               <Button variant="ghost" size="sm" className="mt-4 bg-gray-100 dark:bg-[#3A3B3C] font-bold text-xs px-4" onClick={() => navigateToProfile(activeChat.partnerId)}>View Profile</Button>
-            </div>
-
             {messages.map((m, i) => {
                const isMe = m.senderUid === user?.uid;
                return (
@@ -5030,7 +5035,7 @@ export default function App() {
                     <SendHorizontal className="w-6 h-6 fill-current" />
                  </button>
                ) : (
-                 <button className="p-2 text-[#0084FF] transition-transform active:scale-110">
+                 <button onClick={() => setMessageInput('👍')} className="p-2 text-[#0084FF] transition-transform active:scale-110">
                     <ThumbsUp className="w-6 h-6 fill-current" />
                  </button>
                )}
@@ -5052,43 +5057,58 @@ export default function App() {
           <div className="relative w-full max-w-sm bg-[#1C1C1E] border border-white/10 rounded-[44px] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.9)]">
              <div className="p-10 space-y-8">
                 <div className="w-24 h-24 mx-auto bg-bg-dark rounded-3xl border-2 border-accent/30 p-4 shadow-2xl relative group">
-                   <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-full h-full object-contain" alt="" />
+                   <img 
+                      src={appConfig?.appIcon || '/porsh-pwa-icon.png'} 
+                      className="w-full h-full object-contain" 
+                      alt="Logo" 
+                      onError={(e) => {
+                        e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
+                      }}
+                   />
                    <div className="absolute inset-0 bg-accent/20 animate-pulse rounded-3xl" />
                 </div>
                 
                 <div className="text-center space-y-2">
-                   <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">INSTALL PORSH</h2>
-                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">অরিজিনাল পর্শি মেসেন্জার অ্যাপ</p>
+                   <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Native PWA App</h2>
+                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার</p>
                 </div>
 
                 <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
-                  এটি কোন সাধারণ ওয়েবপেজ নয়, এটি একটি <span className="text-white font-bold italic">অ্যান্ড্রয়েড অ্যাপ</span> যা আপনার ফোনের অ্যাপ ড্রয়ারে থাকবে।
+                   পর্শি অ্যাপটি আপনার ফোনে <span className="text-white font-bold italic">অরিজিনাল অ্যান্ড্রয়েড অ্যাপ</span> হিসেবে ব্যবহার করতে নিচের ধাপ অনুসরন করুন।
                 </p>
 
-                <div className="space-y-6 pt-2">
+                <div className="space-y-5 pt-2">
                    <div className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-xs shrink-0">1</div>
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">1</div>
                       <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">ইনস্টল বাটন খুজুন</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">আপনার ব্রাউজারের উপরে থাকা ৩টি ডট (৩-ডট) মেনু থেকে <span className="text-accent font-bold">'Install App'</span> বাটনে ক্লিক করবেন।</p>
+                         <div className="text-[10px] font-black text-white uppercase">সরাসরি ইনস্টল (Quick Install)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">যদি নিচে <span className="text-accent font-bold">'INSTALL NOW'</span> বাটন দেখেন তবে ক্লিক করুন। নতুবা ব্রাউজার মেনু থেকে <span className="text-accent font-bold">'Install App'</span> বাটনে চাপ দিন।</p>
                       </div>
                    </div>
                    <div className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-xs shrink-0">2</div>
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">2</div>
                       <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">ডেস্কটপে অ্যাড করুন</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">কনফার্ম করলেই এটি আপনার সিষ্টেমের অরিজিনাল অ্যান্ড্রয়েড অ্যাপ হিসেবে অ্যাপ ড্রয়ারে চলে যাবে।</p>
+                         <div className="text-[10px] font-black text-white uppercase">ব্রাউজার আপডেট (Chrome Update)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed italic text-red-400">আপনার ব্রাউজার আপডেট না থাকলে ইনস্টল বাটন দেখা যাবে না। দয়া করে আপডেট করুন।</p>
                       </div>
                    </div>
                 </div>
 
                 <div className="pt-4 flex flex-col gap-3">
-                   {deferredPrompt && (
+                   {deferredPrompt ? (
                      <Button 
                         onClick={installApp}
-                        className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95"
+                        className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                      >
-                        এখনই অ্যাপ ইনস্টল করুন
+                        <Download className="w-4 h-4" />
+                        এখনই ইনস্টল (INSTALL NOW)
+                     </Button>
+                   ) : (
+                     <Button 
+                        onClick={handleRefreshApp}
+                        className="w-full bg-white/10 text-white font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                     >
+                        অ্যাপ রিফ্রেশ করুন (Refresh App)
                      </Button>
                    )}
                    <Button 
@@ -5096,10 +5116,9 @@ export default function App() {
                       onClick={() => setShowInstallModal(false)}
                       className="w-full text-text-dim text-[10px] uppercase font-black py-4 hover:text-white"
                    >
-                      পরে জানাবো
+                      পরে করব
                    </Button>
                 </div>
-
                 <div className="mt-2 text-center">
                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-[2px]">Note: Porsh and Porshi are separate apps</p>
                 </div>
@@ -5109,6 +5128,7 @@ export default function App() {
       )}
     </AnimatePresence>
   );
+
 
   const renderEditProfileModal = () => (
     <AnimatePresence>
