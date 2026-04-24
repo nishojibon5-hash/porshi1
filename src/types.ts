@@ -118,6 +118,14 @@ export interface AppConfig {
   cloudinaryUploadPreset?: string;
   adPaidMode: boolean;
   adPaymentNumber: string;
+  appIcon?: string;
+  appName?: string;
+  pwaThemeColor?: string;
+  pwaBackgroundColor?: string;
+  enableChat?: boolean;
+  enableFeed?: boolean;
+  enableStories?: boolean;
+  enableAds?: boolean;
 }
 
 export interface Advertisement {

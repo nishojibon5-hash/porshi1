@@ -177,6 +177,7 @@ export default function App() {
   const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
@@ -236,11 +237,11 @@ export default function App() {
     // Update Chrome/Android theme-color meta tag
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const color = '#ffffff';
+      const color = appConfig?.pwaThemeColor || (theme === 'dark' ? '#18191A' : '#ffffff');
       metaThemeColor.setAttribute('content', color);
       document.body.style.backgroundColor = color;
     }
-  }, [theme]);
+  }, [theme, appConfig?.pwaThemeColor]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInStandaloneMode, setIsInStandaloneMode] = useState(false);
@@ -332,7 +333,6 @@ export default function App() {
   const commentMediaInputRef = useRef<HTMLInputElement>(null);
   const [postComments, setPostComments] = useState<any[]>([]);
   const [commentInput, setCommentInput] = useState('');
-  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [isAppActive, setIsAppActive] = useState(true);
@@ -2933,6 +2933,7 @@ export default function App() {
                   { id: 'users', name: 'ইউজার লিস্ট', icon: Users },
                   { id: 'monetization', name: 'রোজগার', icon: DollarSign },
                   { id: 'notifs', name: 'নটিফিকেশন', icon: Bell },
+                  { id: 'settings', name: 'অ্যাপ সেটিংস', icon: Settings2 },
                 ].map(item => (
                   <button
                     key={item.id}
@@ -3566,6 +3567,142 @@ export default function App() {
                         নটিফিকেশন পাঠান
                       </Button>
                     </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {adminActiveTab === 'settings' && (
+                    <motion.div 
+                      key="settings"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="space-y-8"
+                    >
+                      <div className="geometric-card p-4 lg:p-8 space-y-8">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-accent flex items-center gap-2">
+                             <Settings2 className="w-5 h-5" /> PWA & SYSTEM SETTINGS
+                          </h2>
+                          <Button 
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'appConfig', 'remote-settings'), appConfig || {});
+                                setAuthSuccessMessage('Settings updated successfully!');
+                              } catch (e: any) {
+                                setErrorMessage('Update failed: ' + e.message);
+                              }
+                            }}
+                            className="bg-accent text-bg-dark font-black px-8 rounded-xl shadow-lg shadow-accent/20"
+                          >
+                             SAVE CHANGES
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                           {/* PWA & Visuals */}
+                           <div className="space-y-6">
+                              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-widest border-b border-white/5 pb-2">PWA & Visuals</h3>
+                              
+                              <div className="space-y-3">
+                                 <label className="text-[9px] uppercase font-bold text-accent ml-1">App Icon URL</label>
+                                 <div className="flex gap-4 items-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden flex-shrink-0">
+                                       <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-10 h-10 object-contain" alt="" />
+                                    </div>
+                                    <Input 
+                                       value={appConfig?.appIcon || ''}
+                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, appIcon: e.target.value } : null)}
+                                       placeholder="Paste image URL (e.g., Cloudinary)"
+                                       className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                    />
+                                 </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                 <div className="space-y-2">
+                                    <label className="text-[9px] uppercase font-bold text-accent ml-1">App Name</label>
+                                    <Input 
+                                       value={appConfig?.appName || 'Porsh'}
+                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, appName: e.target.value } : null)}
+                                       className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                    />
+                                 </div>
+                                 <div className="space-y-2">
+                                    <label className="text-[9px] uppercase font-bold text-accent ml-1">Theme Color (Hex)</label>
+                                    <div className="flex gap-2">
+                                       <div className="w-10 h-10 rounded-xl border border-border-custom flex-shrink-0" style={{ backgroundColor: appConfig?.pwaThemeColor || '#0084FF' }} />
+                                       <Input 
+                                          value={appConfig?.pwaThemeColor || '#0084FF'}
+                                          onChange={(e) => setAppConfig(prev => prev ? { ...prev, pwaThemeColor: e.target.value } : null)}
+                                          className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                       />
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+
+                           {/* Feature Management */}
+                           <div className="space-y-6">
+                              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-widest border-b border-white/5 pb-2">Feature Management</h3>
+                              
+                              <div className="grid grid-cols-1 gap-3">
+                                 {[
+                                    { id: 'enableChat', label: 'Real-time Messaging', icon: MessageCircle },
+                                    { id: 'enableFeed', label: 'Discovery Feed', icon: Search },
+                                    { id: 'enableStories', label: '24h Stories', icon: PlayCircle },
+                                    { id: 'enableAds', label: 'Ad Monetization System', icon: Megaphone },
+                                    { id: 'maintenanceMode', label: 'Maintenance Mode', icon: AlertCircle },
+                                 ].map(feat => (
+                                    <div key={feat.id} className="p-4 bg-bg-dark/50 rounded-2xl border border-white/5 flex items-center justify-between group">
+                                       <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                                             <feat.icon className="w-5 h-5 text-accent" />
+                                          </div>
+                                          <div>
+                                             <div className="text-[10px] font-black uppercase tracking-widest">{feat.label}</div>
+                                             <div className="text-[8px] text-text-dim uppercase font-bold">{((appConfig as any)?.[feat.id] ?? true) ? 'Active' : 'Disabled'}</div>
+                                          </div>
+                                       </div>
+                                       <button 
+                                          onClick={() => setAppConfig(prev => prev ? { ...prev, [feat.id]: !(prev as any)[feat.id] } : null)}
+                                          className={`w-12 h-6 rounded-full transition-all relative ${((appConfig as any)?.[feat.id] ?? true) ? 'bg-accent shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'bg-white/10'}`}
+                                       >
+                                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${((appConfig as any)?.[feat.id] ?? true) ? 'right-1' : 'left-1'}`} />
+                                       </button>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        </div>
+
+                        {/* Additional Config */}
+                        <div className="pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                           <div className="space-y-2">
+                              <label className="text-[9px] uppercase font-bold text-accent ml-1">Cloudinary Cloud Name</label>
+                              <Input 
+                                 value={appConfig?.cloudinaryCloudName || ''}
+                                 onChange={(e) => setAppConfig(prev => prev ? { ...prev, cloudinaryCloudName: e.target.value } : null)}
+                                 className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[9px] uppercase font-bold text-accent ml-1">Cloudinary Preset</label>
+                              <Input 
+                                 value={appConfig?.cloudinaryUploadPreset || ''}
+                                 onChange={(e) => setAppConfig(prev => prev ? { ...prev, cloudinaryUploadPreset: e.target.value } : null)}
+                                 className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[9px] uppercase font-bold text-accent ml-1">Contact Email</label>
+                              <Input 
+                                 value={appConfig?.contactEmail || ''}
+                                 onChange={(e) => setAppConfig(prev => prev ? { ...prev, contactEmail: e.target.value } : null)}
+                                 className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                              />
+                           </div>
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -4993,7 +5130,7 @@ export default function App() {
           transition={{ delay: 0.2, duration: 0.8 }}
           className={`text-6xl md:text-8xl font-black tracking-widest drop-shadow-sm select-none ${theme === 'dark' ? 'text-white' : 'text-[#000080]'}`}
         >
-          {currentApp === 'porsh' ? 'PORSH' : 'PORSHI'}
+          {currentApp === 'porsh' ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
         </motion.h1>
         
         <div className="flex flex-col items-center gap-3">
@@ -5038,13 +5175,13 @@ export default function App() {
         <div className="flex items-center gap-4 mb-12">
             <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-accent flex items-center justify-center">
               <img 
-                src="https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png" 
+                src={appConfig?.appIcon || "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png"} 
                 alt="Logo" 
                 className={`w-full h-full object-contain p-2 ${theme === 'dark' ? 'brightness-200 invert' : ''}`}
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="text-xl font-black tracking-tighter">PORSH</div>
+            <div className="text-xl font-black tracking-tighter">{appConfig?.appName || "PORSH"}</div>
         </div>
         
         <nav className="flex-1 space-y-1">
@@ -5098,7 +5235,7 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            <span className="text-xl font-black tracking-tighter text-accent">PORSH</span>
+            <span className="text-xl font-black tracking-tighter text-accent">{appConfig?.appName || "PORSH"}</span>
           </div>
           <div className="flex items-center gap-1">
             <button 
@@ -5241,9 +5378,9 @@ export default function App() {
                <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
-                       <img src="/porsh-pwa-icon.png" className="w-full h-full object-contain brightness-200 invert" alt="" />
+                       <img src={appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
-                    <span className="text-xl font-black tracking-tighter italic">PORSH</span>
+                    <span className="text-xl font-black tracking-tighter italic">{appConfig?.appName || "PORSH"}</span>
                   </div>
                   <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
                     <X className="w-6 h-6" />

@@ -173,7 +173,15 @@
         "announcement": { "type": "string" },
         "themeColor": { "type": "string" },
         "adPaidMode": { "type": "boolean" },
-        "adPaymentNumber": { "type": "string" }
+        "adPaymentNumber": { "type": "string" },
+        "appIcon": { "type": "string" },
+        "pwaThemeColor": { "type": "string" },
+        "pwaBackgroundColor": { "type": "string" },
+        "appName": { "type": "string" },
+        "enableChat": { "type": "boolean" },
+        "enableFeed": { "type": "boolean" },
+        "enableStories": { "type": "boolean" },
+        "enableAds": { "type": "boolean" }
       }
     },
     "Advertisement": {
