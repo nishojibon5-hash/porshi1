@@ -287,29 +287,21 @@ export default function App() {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
           addLog('Porsh successfully installed!');
-        } else {
-          addLog('Installation cancelled by user.');
         }
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
-        addLog('Error during installation process.');
       }
     } else {
-       addLog('PWA prompt not ready yet. Please try again in few seconds.');
-       // Try to re-trigger internal state
+       // Refresh state quietly
        window.dispatchEvent(new Event('resize'));
     }
   };
 
   useEffect(() => {
-    // If we are in messenger and not already in standalone mode, show the invite
+    // We no longer auto-show the install modal per user request
     if (currentApp === 'porsh' && !isInStandaloneMode) {
-      // Force prompt on every refresh as requested
-      const timer = setTimeout(() => {
-        setShowInstallModal(true);
-      }, 1500);
-      return () => clearTimeout(timer);
+      // Logic for background readiness if needed in future
     }
   }, [currentApp, isInStandaloneMode]);
 
@@ -1694,7 +1686,7 @@ export default function App() {
           <div className="flex gap-2">
              {!isInStandaloneMode && (
                <button 
-                 onClick={() => setShowInstallModal(true)}
+                 onClick={installApp}
                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-tighter animate-pulse shadow-lg"
                >
                  <Download className="w-3 h-3" />
@@ -1713,7 +1705,7 @@ export default function App() {
         {/* Dynamic Install Promo */}
         {!isInStandaloneMode && (
           <div 
-             onClick={() => setShowInstallModal(true)}
+             onClick={installApp}
              className={`mx-4 mt-2 mb-4 p-4 rounded-3xl cursor-pointer border-2 border-dashed ${theme === 'dark' ? 'bg-blue-500/5 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-100 text-blue-600'} flex items-center justify-between group transition-all hover:bg-blue-500/10`}
           >
              <div className="flex items-center gap-3">
