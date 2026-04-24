@@ -242,39 +242,44 @@ export default function App() {
       document.body.style.backgroundColor = color;
     }
   }, [theme, appConfig?.pwaThemeColor]);
+
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInStandaloneMode, setIsInStandaloneMode] = useState(false);
   const [isIframe, setIsIframe] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
-  const [messengerSearch, setMessengerSearch] = useState('');
 
+  // PWA & Environment Detection and Listeners
   useEffect(() => {
-    setIsInStandaloneMode(window.matchMedia('(display-mode: standalone)').matches);
-    setIsIframe(window.self !== window.top);
-    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+    const checkStatus = () => {
+       setIsInStandaloneMode(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+       setIsIframe(window.self !== window.top);
+       setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+    };
+
+    checkStatus();
 
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      addLog('PWA Installation ready for ' + window.location.hostname);
+      addLog('ইন্সটল প্রম্পট তৈরি (PORSH Setup Ready)');
     };
     
     window.addEventListener('beforeinstallprompt', handler);
-    
-    // Check if app is already installed
     window.addEventListener('appinstalled', () => {
       addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
       setIsInStandaloneMode(true);
       setShowInstallModal(false);
     });
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
   }, []);
 
   const installApp = async () => {
     if (isIframe) {
+      addLog('ব্রাউজার থেকে মেসেন্জার ওপেন হচ্ছে...');
       const targetUrl = `${window.location.origin}${window.location.pathname}?app=porsh`;
       window.open(targetUrl, '_blank');
       return;
@@ -287,15 +292,15 @@ export default function App() {
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
-          addLog('Porsh successfully installed!');
+          addLog('ইনস্টল শুরু হচ্ছে (Installing Porsh)...');
         }
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
       }
     } else {
-       // Refresh state quietly
-       window.dispatchEvent(new Event('resize'));
+      addLog('সরাসরি ইন্সটল সম্ভব নয়, ব্রাউজার অপশন দেখুন (Use 3-dots if button fails)');
+      setShowInstallModal(true);
     }
   };
 
@@ -306,6 +311,9 @@ export default function App() {
     }
   }, [currentApp, isInStandaloneMode]);
 
+  const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
+  const [messengerSearch, setMessengerSearch] = useState('');
+  
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const [adForm, setAdForm] = useState({
     title: '',
@@ -3600,42 +3608,50 @@ export default function App() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                           {/* PWA & Visuals */}
+                           {/* App Branding Ecosystem */}
                            <div className="space-y-6">
-                              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-widest border-b border-white/5 pb-2">PWA & Visuals</h3>
+                              <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px] border-b border-accent/20 pb-2">App Identity & Icon</h3>
                               
-                              <div className="space-y-3">
-                                 <label className="text-[9px] uppercase font-bold text-accent ml-1">App Icon URL</label>
-                                 <div className="flex gap-4 items-center">
-                                    <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden flex-shrink-0">
-                                       <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-10 h-10 object-contain" alt="" />
-                                    </div>
-                                    <Input 
-                                       value={appConfig?.appIcon || ''}
-                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, appIcon: e.target.value } : null)}
-                                       placeholder="Paste image URL (e.g., Cloudinary)"
-                                       className="bg-bg-dark/50 border-border-custom font-bold text-xs"
-                                    />
-                                 </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-4">
                                  <div className="space-y-2">
-                                    <label className="text-[9px] uppercase font-bold text-accent ml-1">App Name</label>
+                                    <label className="text-[9px] uppercase font-bold text-text-dim ml-1">App Name (Messenger/Social Title)</label>
                                     <Input 
-                                       value={appConfig?.appName || 'Porsh'}
+                                       value={appConfig?.appName || ''}
+                                       placeholder="ex: Porsh Messenger"
                                        onChange={(e) => setAppConfig(prev => prev ? { ...prev, appName: e.target.value } : null)}
-                                       className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                       className="h-14 font-black text-lg bg-bg-dark border-border-custom text-white"
                                     />
                                  </div>
+
                                  <div className="space-y-2">
-                                    <label className="text-[9px] uppercase font-bold text-accent ml-1">Theme Color (Hex)</label>
-                                    <div className="flex gap-2">
-                                       <div className="w-10 h-10 rounded-xl border border-border-custom flex-shrink-0" style={{ backgroundColor: appConfig?.pwaThemeColor || '#0084FF' }} />
+                                    <label className="text-[9px] uppercase font-bold text-text-dim ml-1">App Icon URL (Cloudinary Link)</label>
+                                    <div className="flex gap-4 items-center">
+                                       <div className="w-20 h-20 rounded-3xl bg-bg-dark border-2 border-accent/20 flex items-center justify-center overflow-hidden flex-shrink-0 group relative">
+                                          <img src={appConfig?.appIcon || '/porsh-pwa-icon.png'} className="w-full h-full object-contain p-2" alt="" />
+                                          <div className="absolute inset-0 bg-accent/90 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all cursor-help">
+                                             <Info className="w-6 h-6 text-bg-dark" />
+                                          </div>
+                                       </div>
+                                       <div className="flex-1 space-y-2">
+                                          <Input 
+                                             value={appConfig?.appIcon || ''}
+                                             onChange={(e) => setAppConfig(prev => prev ? { ...prev, appIcon: e.target.value } : null)}
+                                             placeholder="https://..."
+                                             className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                          />
+                                          <p className="text-[8px] text-text-dim italic leading-tight">আইকন পরিবর্তন করলে ইউজারের ফোনেও তা আপডেট হবে। (PWA Sync)</p>
+                                       </div>
+                                    </div>
+                                 </div>
+
+                                 <div className="space-y-2">
+                                    <label className="text-[9px] uppercase font-bold text-text-dim ml-1">App Theme Color (Hex)</label>
+                                    <div className="flex gap-3">
+                                       <div className="w-14 h-14 rounded-2xl border-2 border-border-custom" style={{ backgroundColor: appConfig?.pwaThemeColor || '#0084FF' }} />
                                        <Input 
                                           value={appConfig?.pwaThemeColor || '#0084FF'}
                                           onChange={(e) => setAppConfig(prev => prev ? { ...prev, pwaThemeColor: e.target.value } : null)}
-                                          className="bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                          className="h-14 font-mono bg-bg-dark border-border-custom"
                                        />
                                     </div>
                                  </div>
@@ -4529,15 +4545,17 @@ export default function App() {
       }
     });
 
-    // Artificial delay for splash screen as requested (2-4 seconds)
+    // Artificial delay for splash screen to prevent infinite wait
     const splashTimeout = setTimeout(() => {
       setShowSplash(false);
-    }, 3000);
+      setIsAuthReady(true);
+    }, 4000);
 
     return () => {
       unsubscribe();
       clearTimeout(splashTimeout);
       if (userUnsubscribe) userUnsubscribe();
+      if (followingUnsubscribe) followingUnsubscribe();
     };
   }, []);
 
@@ -5181,18 +5199,18 @@ export default function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="text-xl font-black tracking-tighter">{appConfig?.appName || "PORSH"}</div>
+            <div className="text-xl font-black tracking-tighter uppercase italic text-accent">{appConfig?.appName || "PORSH"}</div>
         </div>
         
         <nav className="flex-1 space-y-1">
           {[
-            { id: 'home', icon: Home, label: t('home') },
-            { id: 'scan', icon: Store, label: t('discovery') },
-            { id: 'chat', icon: MessageCircle, label: t('chat') },
-            { id: 'monetization', icon: DollarSign, label: t('monetize') },
-            { id: 'ads', icon: Megaphone, label: t('create_ad') },
-            { id: 'notifications', icon: Bell, label: t('notifications'), badge: unreadNotificationsCount },
-            { id: 'profile', icon: UserIcon, label: t('settings') },
+            { id: 'home', icon: Home, label: 'Feed' },
+            { id: 'scan', icon: Store, label: 'Nearby' },
+            { id: 'chat', icon: MessageCircle, label: 'Messenger' },
+            { id: 'monetization', icon: DollarSign, label: 'Earnings' },
+            { id: 'ads', icon: Megaphone, label: 'Promote' },
+            { id: 'notifications', icon: Bell, label: 'Alerts', badge: unreadNotificationsCount },
+            { id: 'profile', icon: UserIcon, label: 'Profile' },
           ].map(item => (
             <button
               key={item.id}
@@ -5235,14 +5253,15 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            <span className="text-xl font-black tracking-tighter text-accent">{appConfig?.appName || "PORSH"}</span>
+            <span className="text-xl font-black tracking-tighter text-accent uppercase italic">{appConfig?.appName || "PORSH"}</span>
           </div>
           <div className="flex items-center gap-1">
             <button 
-              onClick={() => withAuth(() => setIsMobileCreateMenuOpen(true))}
-              className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
+              onClick={() => installApp()}
+              className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-accent/10'}`}
+              title="Install App"
             >
-              <Plus className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
+              <Download className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-accent'}`} />
             </button>
             <button 
               onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
@@ -5250,9 +5269,9 @@ export default function App() {
             >
               <Search className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            <button onClick={() => withAuth(() => setCurrentApp('porsh'))} className={`p-2 rounded-full relative ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+            <button onClick={() => withAuth(() => setCurrentApp(currentApp === 'porsh' ? 'porshi' : 'porsh'))} className={`p-2 rounded-full relative ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
               <MessageCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
-              <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold w-4 h-4 rounded-full flex items-center justify-center">9+</span>
+              <div className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white dark:border-[#242526]`} />
             </button>
           </div>
         </header>
