@@ -249,6 +249,19 @@ export default function App() {
   const [isIframe, setIsIframe] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
+  // Force auth ready after a timeout as a fail-safe against white screen
+  useEffect(() => {
+    if (isAuthReady) return;
+    const timer = setTimeout(() => {
+      if (!isAuthReady) {
+        addLog('ইনিশিয়ালাইজেশন টাইমআউট! (Forcing Ready)');
+        setIsAuthReady(true);
+        setShowSplash(false);
+      }
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [isAuthReady]);
+
   // PWA & Environment Detection and Listeners
   useEffect(() => {
     const checkStatus = () => {
@@ -4436,11 +4449,11 @@ export default function App() {
     }
 
     return () => {
-      configUnsubscribe();
-      unsubscribePosts();
-      unsubscribeStories();
-      unsubscribeAds();
-      userUnsubscribe();
+      if (typeof configUnsubscribe === 'function') configUnsubscribe();
+      if (typeof unsubscribePosts === 'function') unsubscribePosts();
+      if (typeof unsubscribeStories === 'function') unsubscribeStories();
+      if (typeof unsubscribeAds === 'function') unsubscribeAds();
+      if (typeof userUnsubscribe === 'function') userUnsubscribe();
     };
   }, [postsLimit, selectedUserUid, user?.uid]);
 
@@ -4552,10 +4565,9 @@ export default function App() {
     }, 4000);
 
     return () => {
-      unsubscribe();
-      clearTimeout(splashTimeout);
-      if (userUnsubscribe) userUnsubscribe();
-      if (followingUnsubscribe) followingUnsubscribe();
+      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof userUnsubscribe === 'function') userUnsubscribe();
+      if (typeof followingUnsubscribe === 'function') followingUnsubscribe();
     };
   }, []);
 
