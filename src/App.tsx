@@ -369,7 +369,7 @@ export default function App() {
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      addLog('পর্শি মেসেন্জার (Porsh App) সিষ্টেমে ইনস্টল করার জন্য প্রস্তুত!');
+      addLog('পর্শি মেসেন্জার (Porsh App) সিষ্টেমে DIRECT INSTALL করার জন্য প্রস্তুত!');
     };
     
     window.addEventListener('beforeinstallprompt', handler);
@@ -5032,7 +5032,7 @@ export default function App() {
             onClick={installApp}
             className="bg-white text-[#764ba2] px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-tighter shadow-xl active:scale-95 transition-transform"
           >
-            Install Now
+            DIRECT INSTALL
           </button>
         </div>
       </motion.div>

@@ -1,6 +1,6 @@
-const CACHE_NAME = 'porsh-v9';
-const STATIC_CACHE = 'porsh-static-v9';
-const ASSET_CACHE = 'porsh-assets-v1';
+const CACHE_NAME = 'porsh-v10';
+const STATIC_CACHE = 'porsh-static-v10';
+const ASSET_CACHE = 'porsh-assets-v2';
 
 const urlsToCache = [
   '/',
