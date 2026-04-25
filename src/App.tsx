@@ -162,7 +162,9 @@ export default function App() {
   const { t } = useTranslation();
   const [commentingPostId, setCommentingPostId] = useState<string | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
-  const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>('porshi');
+  const [currentApp, setCurrentApp] = useState<'porshi' | 'porsh'>(() => {
+    return (localStorage.getItem('porsh_current_app') as 'porshi' | 'porsh') || 'porshi';
+  });
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
@@ -229,7 +231,17 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [activeReel, setActiveReel] = useState<Post | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('porsh_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('porsh_current_app', currentApp);
+  }, [currentApp]);
+
+  useEffect(() => {
+    localStorage.setItem('porsh_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (commentingPostId) {
@@ -319,6 +331,16 @@ export default function App() {
             console.log('SW registered:', reg);
             setSwRegistration(reg);
 
+            // Force update check on focus
+            window.addEventListener('focus', () => {
+              reg.update();
+            });
+
+            // Periodic check every 1 hour
+            setInterval(() => {
+              reg.update();
+            }, 1000 * 60 * 60);
+
             // Check for updates
             reg.addEventListener('updatefound', () => {
               const newWorker = reg.installing;
@@ -361,6 +383,14 @@ export default function App() {
       window.removeEventListener('beforeinstallprompt', handler);
     };
   }, []);
+
+  useEffect(() => {
+    if (currentApp === 'porsh') {
+      localStorage.setItem('porsh_messenger_active', 'true');
+    } else {
+      localStorage.removeItem('porsh_messenger_active');
+    }
+  }, [currentApp]);
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -584,6 +614,10 @@ export default function App() {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setAuthLogs(prev => [`[${time}] ${msg}`, ...prev.slice(0, 9)]);
   };
+
+  useEffect(() => {
+    addLog(`অ্যাপ ভার্সন ২.১.০ লোড হয়েছে।`);
+  }, []);
 
   const registrationData = useRef<{ name: string; phone: string } | null>(null);
 
@@ -1767,6 +1801,17 @@ export default function App() {
     const text = textToSubmit;
     if (!textOverride) setMessageInput('');
 
+    // Optimistic UI Update
+    const tempId = 'temp_' + Date.now();
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      senderUid: user.uid,
+      text: text,
+      timestamp: { seconds: Date.now() / 1000 },
+      isRead: false
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+
     try {
       await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
         senderUid: user.uid,
@@ -1777,6 +1822,8 @@ export default function App() {
     } catch (error) {
       console.error('Send message error:', error);
       setErrorMessage('মেসেজ পাঠানো যায়নি।');
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== tempId));
     }
   };
 
@@ -4962,6 +5009,36 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const renderInstallBanner = () => {
+    if (!deferredPrompt || isInStandaloneMode || isIframe) return null;
+    
+    return (
+      <motion.div 
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="fixed top-0 left-0 right-0 z-[2000] p-3"
+      >
+        <div className="install-banner-gradient p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border border-white/20">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
+              <img src="/porsh-pwa-icon.png" alt="Porsh" className="w-8 h-8 object-contain" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-white font-black text-sm uppercase tracking-tight">Porsh Messenger</span>
+              <span className="text-white/70 text-[10px] font-bold uppercase tracking-widest leading-none">High Performance Android App</span>
+            </div>
+          </div>
+          <button 
+            onClick={installApp}
+            className="bg-white text-[#764ba2] px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-tighter shadow-xl active:scale-95 transition-transform"
+          >
+            Install Now
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
   const renderAuthModal = () => (
     <AnimatePresence>
       {showAuthModal && (
@@ -5567,6 +5644,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-background text-foreground font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
+      {renderInstallBanner()}
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-72 flex-col p-8 border-r ${theme === 'dark' ? 'border-border-custom bg-surface' : 'border-gray-200 bg-white'} z-50`}>
         {/* Hidden File Inputs */}
         <input type="file" accept="image/*,video/*" ref={postImageInputRef} onChange={handlePostImageChange} className="hidden" />
