@@ -1,6 +1,6 @@
-const CACHE_NAME = 'porsh-v16';
-const STATIC_CACHE = 'porsh-static-v16';
-const ASSET_CACHE = 'porsh-assets-v6';
+const CACHE_NAME = 'porsh-v17';
+const STATIC_CACHE = 'porsh-static-v17';
+const ASSET_CACHE = 'porsh-assets-v17';
 
 const urlsToCache = [
   '/',
@@ -45,12 +45,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Network-First for HTML navigation
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(async () => {
         const cache = await caches.open(STATIC_CACHE);
-        // Try /, or fall back to returning a basic offline response
-        const cachedRes = await cache.match('/');
+        const cachedRes = await cache.match('/', { ignoreSearch: true });
         if (cachedRes) return cachedRes;
         return new Response('<h3>Porshi (Offline)</h3><p>Please check your internet connection.</p>', {
           headers: { 'Content-Type': 'text/html' }
@@ -60,21 +60,39 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      if (cachedResponse) return cachedResponse;
-      return fetch(event.request).then(networkResponse => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-        const isAsset = url.pathname.includes('/assets/') || 
-                        url.pathname.match(/\.(png|jpe?g|svg|woff2?|css|js)$/);
-        if (isAsset) {
+  const isAsset = url.pathname.includes('/assets/') || 
+                  url.pathname.match(/\.(png|jpe?g|svg|woff2?|css|js)$/);
+
+  // Cache-First only for static hashed assets and images
+  if (isAsset) {
+    event.respondWith(
+      caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(event.request).then(networkResponse => {
+          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+            return networkResponse;
+          }
           const responseClone = networkResponse.clone();
           caches.open(ASSET_CACHE).then(cache => cache.put(event.request, responseClone));
-        }
-        return networkResponse;
-      }).catch(() => new Response(""));
+          return networkResponse;
+        }).catch(() => new Response(""));
+      })
+    );
+    return;
+  }
+
+  // Network-First for everything else (like manifest.json, APIs, etc.)
+  event.respondWith(
+    fetch(event.request).then(networkResponse => {
+      // We can update the STATIC_CACHE here with the fresh response
+      if (networkResponse && networkResponse.status === 200) {
+        const clone = networkResponse.clone();
+        caches.open(STATIC_CACHE).then(cache => cache.put(event.request, clone));
+      }
+      return networkResponse;
+    }).catch(async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      return cache.match(event.request, { ignoreSearch: true });
     })
   );
 });

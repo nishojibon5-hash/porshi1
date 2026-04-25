@@ -418,11 +418,13 @@ export default function App() {
       return;
     }
 
-    if (deferredPrompt) {
+    const promptEvent = deferredPrompt || (window as any).deferredPrompt;
+
+    if (promptEvent) {
       try {
         addLog('সরাসরি ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
-        await deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
         addLog(`ইনস্টলেশন ফলাফল: ${outcome}`);
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
@@ -430,6 +432,7 @@ export default function App() {
           addLog('পর্শি অ্যাপ ইনস্টল সফল!');
         }
         setDeferredPrompt(null);
+        (window as any).deferredPrompt = null;
       } catch (err) {
         console.error('Install prompt error:', err);
         addLog('ইনস্টল প্রম্পট এরর!');
