@@ -4,28 +4,41 @@ import { ThumbsUp, MessageCircle, Share2, X, Globe, Eye, PlayCircle, Heart, Smil
 import { Button } from '@/components/ui/button';
 import { Post, Advertisement, AppUser } from '../types';
 import { db, auth } from '../firebase';
-import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, setDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useInView } from 'react-intersection-observer';
 import { VideoPlayer } from './VideoPlayer';
 
-const REACTION_EMOJIS = ['👍', '❤️', '🥰', '😆', '😁', '😛', '🥴', '😯', '🫤', '😡', '🫦', '🖕'];
+const REACTION_EMOJIS = [
+  { type: 'like', emoji: '👍', label: 'Like', color: 'text-blue-500' },
+  { type: 'love', emoji: '❤️', label: 'Love', color: 'text-red-500' },
+  { type: 'care', emoji: '🥰', label: 'Care', color: 'text-yellow-500' },
+  { type: 'haha', emoji: '😆', label: 'Haha', color: 'text-yellow-500' },
+  { type: 'wow', emoji: '😯', label: 'Wow', color: 'text-yellow-500' },
+  { type: 'sad', emoji: '😢', label: 'Sad', color: 'text-yellow-500' },
+  { type: 'angry', emoji: '😡', label: 'Angry', color: 'text-orange-600' }
+];
 
-const ReactionPicker: React.FC<{ onSelect: (emoji: string) => void, onClose: () => void }> = ({ onSelect, onClose }) => {
+const ReactionPicker: React.FC<{ onSelect: (type: string) => void, onClose: () => void }> = ({ onSelect, onClose }) => {
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.5, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.5, y: 10 }}
-      className="absolute bottom-full mb-2 left-0 bg-white dark:bg-[#242526] p-1 shadow-xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1 z-50"
+      className="absolute bottom-full mb-3 left-0 bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50"
     >
-      {REACTION_EMOJIS.map(emoji => (
-        <button 
-          key={emoji}
-          onClick={(e) => { e.stopPropagation(); onSelect(emoji); onClose(); }}
-          className="text-xl hover:scale-125 transition-transform p-1 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-full"
+      {REACTION_EMOJIS.map(item => (
+        <motion.button 
+          key={item.type}
+          whileHover={{ scale: 1.4, y: -5 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={(e) => { e.stopPropagation(); onSelect(item.emoji); onClose(); }}
+          className="relative group p-1"
         >
-          {emoji}
-        </button>
+          <span className="text-2xl">{item.emoji}</span>
+          <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/80 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            {item.label}
+          </span>
+        </motion.button>
       ))}
     </motion.div>
   );
@@ -115,8 +128,21 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [showMenu, setShowMenu] = React.useState(false);
   const [showReactionPicker, setShowReactionPicker] = React.useState(false);
   const [isSharing, setIsSharing] = React.useState(false);
+  const [userReaction, setUserReaction] = React.useState<string | null>(post.userReaction || null);
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const reachTracked = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!currentUserId) return;
+    const unsub = onSnapshot(doc(db, 'posts', post.id, 'userReactions', currentUserId), (snap) => {
+      if (snap.exists()) {
+        setUserReaction(snap.data().type);
+      } else {
+        setUserReaction(null);
+      }
+    });
+    return () => unsub();
+  }, [post.id, currentUserId]);
 
   const handleLikeStart = () => {
     longPressTimer.current = setTimeout(() => {
@@ -371,25 +397,31 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Reaction Counts Display */}
       {totalReactions > 0 && (
-        <div className="mx-3 py-3 flex items-center justify-between border-b border-gray-200 dark:border-[#3E4042]">
-          <div className="flex items-center gap-1">
-            <div className="flex -space-x-1">
+        <div className="mx-3 py-2 flex items-center justify-between border-b border-gray-200 dark:border-[#3E4042]">
+          <div className="flex items-center gap-1.5 cursor-pointer">
+            <div className="flex -space-x-1.5">
                {post.reactions && Object.entries(post.reactions)
                  .filter(([_, count]) => (count as number) > 0)
+                 .sort((a, b) => (b[1] as number) - (a[1] as number))
                  .slice(0, 3)
                  .map(([emoji]) => (
-                   <div key={emoji} className="w-5 h-5 rounded-full bg-white dark:bg-[#3A3B3C] flex items-center justify-center border border-gray-100 dark:border-[#242526] z-10 text-[10px]">
-                      {emoji === 'like' ? '👍' : emoji}
+                   <div key={emoji} className="w-4.5 h-4.5 rounded-full bg-white dark:bg-[#3A3B3C] shadow-sm flex items-center justify-center border border-white dark:border-[#242526] z-10 text-[10px]">
+                      {emoji}
                    </div>
                  ))
                }
             </div>
-            <span className="text-xs text-gray-500 font-medium ml-1">{totalReactions}</span>
+            <span className="text-[13px] text-gray-500 dark:text-gray-400 font-medium hover:underline">
+              {userReaction ? 
+                (totalReactions === 1 ? 'You' : `You and ${totalReactions - 1} others`) : 
+                totalReactions
+              }
+            </span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-500 font-medium font-sans">
-             <span>{post.commentsCount || 0} comments</span>
+          <div className="flex items-center gap-2 text-[12px] text-gray-500 dark:text-gray-400 font-medium font-sans">
+             <button className="hover:underline">{post.commentsCount || 0} comments</button>
              <span>•</span>
-             <span>{Math.floor((totalReactions as number) * 0.4)} shares</span>
+             <button className="hover:underline">{Math.floor((totalReactions as number) * 0.4)} shares</button>
           </div>
         </div>
       )}
@@ -402,15 +434,20 @@ export const PostCard: React.FC<PostCardProps> = ({
             onMouseUp={handleLikeEnd}
             onTouchStart={handleLikeStart}
             onTouchEnd={handleLikeEnd}
+            onContextMenu={(e) => {
+              if (longPressTimer.current || showReactionPicker) e.preventDefault();
+            }}
             onClick={() => onLike(post.id)}
-            className={`w-full flex items-center justify-center gap-2 py-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors ${post.isLiked ? 'text-[#1877F2]' : 'text-gray-500'}`}
+            className={`w-full flex items-center justify-center gap-2 py-2 hover:bg-gray-100 dark:hover:bg-[#3A3B3C] rounded-md transition-colors select-none ${userReaction ? (REACTION_EMOJIS.find(r => r.emoji === userReaction)?.color || 'text-[#1877F2]') : 'text-gray-500'}`}
           >
-            {post.isLiked ? (
-               <span className="text-xl">{post.userReaction || '👍'}</span>
+            {userReaction ? (
+               <span className="text-xl animate-in zoom-in duration-300">{userReaction}</span>
             ) : (
                <ThumbsUp className="w-5 h-5" />
             )}
-            <span className="text-sm font-bold">{post.isLiked ? (post.userReaction === '👍' ? 'Like' : 'Reacted') : 'Like'}</span>
+            <span className="text-sm font-bold">
+              {userReaction ? (REACTION_EMOJIS.find(r => r.emoji === userReaction)?.label || 'Liked') : 'Like'}
+            </span>
           </button>
           
           <AnimatePresence>

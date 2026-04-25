@@ -428,12 +428,11 @@ export default function App() {
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
-        addLog('প্রম্পট এরর! ম্যানুয়াল গাইড দেখানো হচ্ছে...');
-        setShowInstallModal(true);
+        addLog('ইনস্টল প্রম্পট এরর!');
       }
     } else {
-      addLog('প্রম্পট পাওয়া যায়নি (Check Chrome settings)। ম্যানুয়াল গাইড লোড হচ্ছে...');
-      setShowInstallModal(true);
+      addLog('প্রম্পট পাওয়া যায়নি। ব্রাউজার মেনু থেকে ইনস্টল করুন।');
+      // No longer showing the annoying modal
     }
   };
 
@@ -5239,7 +5238,7 @@ export default function App() {
                               exit={{ opacity: 0, scale: 0.5, y: 10 }}
                               className={`absolute bottom-full mb-3 ${isMe ? 'right-0' : 'left-0'} bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50`}
                             >
-                              {REACTION_EMOJIS.map(emoji => (
+                              {['❤️', '😂', '😮', '😢', '😡', '👍'].map(emoji => (
                                 <button 
                                   key={emoji}
                                   onClick={(e) => { e.stopPropagation(); reactToMessage(m.id, emoji); }}
@@ -5248,10 +5247,10 @@ export default function App() {
                                    {emoji}
                                  </button>
                                ))}
-                             </motion.div>
-                           </>
-                         )}
-                       </AnimatePresence>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
                     </div>
                  </div>
                );
@@ -5340,96 +5339,7 @@ export default function App() {
     );
   };
 
-  const renderInstallModal = () => (
-    <AnimatePresence>
-      {showInstallModal && !isInStandaloneMode && (
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[3000] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6"
-        >
-          <div className="relative w-full max-w-sm bg-[#1C1C1E] border border-white/10 rounded-[44px] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.9)]">
-             <div className="p-10 space-y-8">
-                <div className="w-24 h-24 mx-auto bg-bg-dark rounded-3xl border-2 border-accent/30 p-4 shadow-2xl relative group">
-                   <img 
-                      src={appConfig?.appIcon || '/porsh-pwa-icon.png'} 
-                      className="w-full h-full object-contain" 
-                      alt="Logo" 
-                      onError={(e) => {
-                        e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
-                      }}
-                   />
-                   <div className="absolute inset-0 bg-accent/20 animate-pulse rounded-3xl" />
-                </div>
-                
-                <div className="text-center space-y-2">
-                   <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Native PWA App</h2>
-                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার (PRO)</p>
-                </div>
-
-                <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
-                   পর্শি অ্যাপটি আপনার ফোনে <span className="text-white font-bold italic">অরিজিনাল অ্যান্ড্রয়েড অ্যাপ</span> হিসেবে ব্যবহার করতে নিচের ধাপ অনুসরন করুন।
-                </p>
-
-                <div className="space-y-4 pt-2">
-                   <div className="flex gap-4 items-start">
-                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">1</div>
-                      <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">Direct Install (Recommended)</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If the <span className="text-accent font-bold">'DIRECT INSTALL'</span> button is active below, click it to install instantly.</p>
-                      </div>
-                   </div>
-                   <div className="flex gap-4 items-start">
-                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">2</div>
-                      <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">Chrome Menu (Manual)</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If not, click the <span className="text-white font-bold">3-dots (⋮)</span> top-right in your browser and select <span className="text-accent font-bold">'Install App'</span> or <span className="text-accent font-bold">'Add to Home screen'</span>.</p>
-                      </div>
-                   </div>
-                   <div className="flex gap-4 items-start">
-                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">3</div>
-                      <div className="space-y-1">
-                         <div className="text-[10px] font-black text-white uppercase">Requirements</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">Ensure you are using <span className="text-white font-bold">Google Chrome</span> and your browser is updated to the latest version.</p>
-                      </div>
-                   </div>
-                </div>
-
-                <div className="pt-4 flex flex-col gap-3">
-                   {deferredPrompt ? (
-                     <Button 
-                        onClick={installApp}
-                        className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-                     >
-                        <Download className="w-4 h-4" />
-                        এখনই ইনস্টল (DIRECT INSTALL)
-                     </Button>
-                   ) : (
-                     <Button 
-                        onClick={handleRefreshApp}
-                        className="w-full bg-white/10 text-white font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
-                     >
-                        অ্যাপ রিফ্রেশ করুন (Refresh App)
-                     </Button>
-                   )}
-                   <Button 
-                      variant="ghost" 
-                      onClick={() => setShowInstallModal(false)}
-                      className="w-full text-text-dim text-[10px] uppercase font-black py-4 hover:text-white"
-                   >
-                      পরে করব
-                   </Button>
-                </div>
-                <div className="mt-2 text-center">
-                   <p className="text-[8px] text-white/30 font-bold uppercase tracking-[2px]">Porsh Ecosystem Pro v2.5.0-PRO (Updated)</p>
-                </div>
-             </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  const renderInstallModal = () => null;
 
 
   const renderEditProfileModal = () => (
@@ -5760,10 +5670,11 @@ export default function App() {
           <div className="flex items-center gap-1">
             <button 
               onClick={() => installApp()}
-              className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-accent/10'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl h-9 ${theme === 'dark' ? 'bg-[#3A3B3C] text-accent border border-accent/30' : 'bg-accent/10 text-accent border border-accent/20'} shadow-lg active:scale-95 transition-all`}
               title="Install App"
             >
-              <Download className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-accent'}`} />
+              <Download className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">PORSH INSTALL</span>
             </button>
             <button 
               onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
