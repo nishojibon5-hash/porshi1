@@ -614,7 +614,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    addLog(`অ্যাপ ভার্সন ২.২.০ লোড হয়েছে।`);
+    addLog(`পর্শি ইকোসিস্টেম প্রো (v2.5.0-PRO) লোড হয়েছে।`);
   }, []);
 
   const registrationData = useRef<{ name: string; phone: string } | null>(null);
@@ -2823,7 +2823,34 @@ export default function App() {
     const currentTab = activeTab || 'home';
 
     if (currentApp === 'porsh') {
-      if (!user) return renderLoginRequiredCard('MESSENGER', 'মেসেজ আদান প্রদান করতে দয়া করে লগইন করুন।');
+      if (!user && isInStandaloneMode) {
+        return renderLoginRequiredCard('MESSENGER', 'মেসেজ আদান প্রদান করতে দয়া করে লগইন করুন।');
+      }
+      
+      if (!user && !isInStandaloneMode) {
+        // Show landing/install branding for Porsh app if not installed
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-6 text-center min-h-[80vh]">
+            <div className="w-24 h-24 bg-accent/20 rounded-full flex items-center justify-center animate-bounce">
+              <img src="/porsh-pwa-icon.png" alt="Porsh" className="w-16 h-16 object-contain" />
+            </div>
+            <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Welcome to Porsh</h1>
+            <p className="text-text-dim text-sm max-w-sm">
+              পৃথিবীর যেকোনো প্রান্ত থেকে বন্ধুদের সাথে যুক্ত থাকুন। আল্ট্রা-ফাস্ট ও সিকিউর মেসেন্জিং অভিজ্ঞতা পেতে এখনই শুরু করুন।
+            </p>
+            <div className="flex flex-col w-full max-w-xs gap-3">
+               <Button onClick={installApp} className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl uppercase tracking-widest shadow-xl">
+                 DIRECT INSTALL (APP)
+               </Button>
+               <Button variant="outline" onClick={() => setShowAuthModal(true)} className="w-full border-accent/30 text-accent font-black h-14 rounded-2xl uppercase tracking-widest">
+                 LOGIN / SIGN UP
+               </Button>
+            </div>
+            <div className="pt-8 text-[8px] text-accent font-black uppercase tracking-[4px]">Porsh Ecosystem Pro v2.5.0</div>
+          </div>
+        );
+      }
+      
       return renderMessenger();
     }
 
@@ -4796,6 +4823,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
         if (currentUser) {
+          localStorage.setItem('porsh_auth_active', 'true');
           addLog(`ইউজার পাওয়া গেছে: ${currentUser.uid.slice(0, 6)}...`);
           
           if (userUnsubscribe) userUnsubscribe();
@@ -4856,6 +4884,7 @@ export default function App() {
             setIsAuthLoading(false);
           });
         } else {
+          localStorage.removeItem('porsh_auth_active');
           addLog('লগইন প্রয়োজন (No Active User)');
           setUser(null);
           setIsAuthReady(true);
@@ -5326,7 +5355,7 @@ export default function App() {
                 
                 <div className="text-center space-y-2">
                    <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Native PWA App</h2>
-                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার</p>
+                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার (PRO)</p>
                 </div>
 
                 <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
@@ -5338,7 +5367,7 @@ export default function App() {
                       <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">1</div>
                       <div className="space-y-1">
                          <div className="text-[10px] font-black text-white uppercase">Direct Install (Recommended)</div>
-                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If the <span className="text-accent font-bold">'INSTALL NOW'</span> button is active below, click it to install instantly.</p>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If the <span className="text-accent font-bold">'DIRECT INSTALL'</span> button is active below, click it to install instantly.</p>
                       </div>
                    </div>
                    <div className="flex gap-4 items-start">
@@ -5364,7 +5393,7 @@ export default function App() {
                         className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                      >
                         <Download className="w-4 h-4" />
-                        এখনই ইনস্টল (INSTALL NOW)
+                        এখনই ইনস্টল (DIRECT INSTALL)
                      </Button>
                    ) : (
                      <Button 
@@ -5383,7 +5412,7 @@ export default function App() {
                    </Button>
                 </div>
                 <div className="mt-2 text-center">
-                   <p className="text-[8px] text-white/30 font-bold uppercase tracking-[2px]">Note: Porsh and Porshi are separate apps</p>
+                   <p className="text-[8px] text-white/30 font-bold uppercase tracking-[2px]">Porsh Ecosystem Pro v2.5.0-PRO (Updated)</p>
                 </div>
              </div>
           </div>
@@ -5635,6 +5664,9 @@ export default function App() {
           >
             {currentApp === 'porsh' ? 'Secure Messaging' : 'Initializing Experience'}
           </motion.span>
+          <div className="mt-4 px-3 py-1 rounded-full border border-accent/20 bg-accent/5">
+             <span className="text-[8px] font-black text-accent uppercase tracking-widest">Version v2.5.0-PRO</span>
+          </div>
         </div>
       </motion.div>
     </div>

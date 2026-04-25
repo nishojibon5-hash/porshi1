@@ -1,6 +1,7 @@
-const CACHE_NAME = 'porsh-v12';
-const STATIC_CACHE = 'porsh-static-v12';
-const ASSET_CACHE = 'porsh-assets-v4';
+const CACHE_NAME = 'porsh-v15';
+const STATIC_CACHE = 'porsh-static-v15';
+const ASSET_CACHE = 'porsh-assets-v5';
+// Last Updated: 2026-04-25 10:25 AM (PRO RELEASE)
 
 const urlsToCache = [
   '/',
@@ -25,7 +26,9 @@ self.addEventListener('activate', event => {
       caches.keys().then(keys => {
         return Promise.all(
           keys.map(key => {
+            // Explicitly delete ALL old porsh caches
             if (key !== STATIC_CACHE && key !== ASSET_CACHE) {
+              console.log('[SW] Purging old cache:', key);
               return caches.delete(key);
             }
           })
