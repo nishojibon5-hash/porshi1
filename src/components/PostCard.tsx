@@ -140,6 +140,8 @@ export const PostCard: React.FC<PostCardProps> = ({
       } else {
         setUserReaction(null);
       }
+    }, (err) => {
+      console.error('userReactions onSnapshot error:', err);
     });
     return () => unsub();
   }, [post.id, currentUserId]);

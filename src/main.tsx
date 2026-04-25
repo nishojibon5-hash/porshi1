@@ -17,6 +17,12 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Intercept beforeinstallprompt early
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  (window as any).deferredPrompt = e;
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

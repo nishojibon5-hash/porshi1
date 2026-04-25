@@ -252,7 +252,7 @@ export default function App() {
       );
       const unsubscribe = onSnapshot(q, (snapshot) => {
         setPostComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
+      }, (err) => console.error('post comments error', err));
       return () => unsubscribe();
     } else {
       setPostComments([]);
@@ -367,9 +367,13 @@ export default function App() {
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      (window as any).deferredPrompt = e;
       addLog('পর্শি মেসেন্জার (Porsh App) সিষ্টেমে DIRECT INSTALL করার জন্য প্রস্তুত!');
     };
     
+    if ((window as any).deferredPrompt) {
+      setDeferredPrompt((window as any).deferredPrompt);
+    }
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', () => {
       addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
@@ -863,7 +867,7 @@ export default function App() {
         }
       });
       setNearbyUsers(users.sort((a, b) => a.distance - b.distance));
-    });
+    }, (err) => console.error('nearby users error', err));
     return () => unsubscribe();
   }, [user?.uid, activeTab, user?.lastLat, user?.lastLng]);
 
@@ -1652,7 +1656,7 @@ export default function App() {
         };
         setDoc(doc(db, 'monetization', user.uid), initialData);
       }
-    });
+    }, (err) => console.error('monetization error', err));
     return () => unsub();
   }, [user]);
 
@@ -4738,7 +4742,7 @@ export default function App() {
         };
         setAppConfig(defaultConfig);
       }
-    });
+    }, (err) => console.error('app config error', err));
 
     // 2. Public Content Listeners (No Auth Required)
     const postsQuery = query(collection(db, 'posts'), orderBy('timestamp', 'desc'), limit(postsLimit));
@@ -5771,14 +5775,16 @@ export default function App() {
             <span className="text-xl font-black tracking-tighter text-accent uppercase italic">{appConfig?.appName || "PORSH"}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={() => installApp()}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl h-9 ${theme === 'dark' ? 'bg-[#3A3B3C] text-accent border border-accent/30' : 'bg-accent/10 text-accent border border-accent/20'} shadow-lg active:scale-95 transition-all`}
-              title="Install App"
-            >
-              <Download className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase tracking-widest">PORSH INSTALL</span>
-            </button>
+            {(!isInStandaloneMode || isIframe) && (
+              <button 
+                onClick={() => installApp()}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl h-9 ${theme === 'dark' ? 'bg-[#3A3B3C] text-accent border border-accent/30' : 'bg-accent/10 text-accent border border-accent/20'} shadow-lg active:scale-95 transition-all`}
+                title="Install App"
+              >
+                <Download className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">PORSH INSTALL</span>
+              </button>
+            )}
             <button 
               onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
