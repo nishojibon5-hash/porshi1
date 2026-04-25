@@ -417,8 +417,9 @@ export default function App() {
     if (deferredPrompt) {
       try {
         addLog('সরাসরি ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
-        deferredPrompt.prompt();
+        await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
+        addLog(`ইনস্টলেশন ফলাফল: ${outcome}`);
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
@@ -427,19 +428,31 @@ export default function App() {
         setDeferredPrompt(null);
       } catch (err) {
         console.error('Install prompt error:', err);
+        addLog('প্রম্পট এরর! ম্যানুয়াল গাইড দেখানো হচ্ছে...');
         setShowInstallModal(true);
       }
     } else {
-      addLog('ম্যানুয়াল ইনস্টলেশন গাইড দেখানো হচ্ছে...');
+      addLog('প্রম্পট পাওয়া যায়নি (Check Chrome settings)। ম্যানুয়াল গাইড লোড হচ্ছে...');
       setShowInstallModal(true);
     }
   };
 
   const handleRefreshApp = () => {
+    addLog('সিস্টেম রিবুট ও ক্যাশ রিফ্রেশ করা হচ্ছে...');
     if (swRegistration && swRegistration.waiting) {
-      swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+       swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+    
+    if ('serviceWorker' in navigator) {
+       navigator.serviceWorker.getRegistrations().then(registrations => {
+         for (let registration of registrations) registration.unregister();
+         caches.keys().then(names => {
+           for (let name of names) caches.delete(name);
+         });
+         setTimeout(() => window.location.reload(), 500);
+       });
     } else {
-      window.location.reload();
+       window.location.reload();
     }
   };
 
@@ -5212,27 +5225,24 @@ export default function App() {
                            {Array.from(new Set(messageReactions)).slice(0, 3).map((emoji, idx) => (
                              <span key={idx} className="text-[10px]">{emoji}</span>
                            ))}
-                           {messageReactions.length > 1 && (
-                             <span className="text-[8px] text-gray-500 font-bold ml-1 self-center">{messageReactions.length}</span>
-                           )}
-                         </div>
-                       )}
+                        </div>
+                      )}
 
-                       {/* Reaction Picker Popup */}
-                       <AnimatePresence>
-                         {reactingToMessageId === m.id && (
-                           <>
-                             <div className="fixed inset-0 z-40" onClick={() => setReactingToMessageId(null)} />
-                             <motion.div 
-                               initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                               animate={{ opacity: 1, scale: 1, y: 0 }}
-                               exit={{ opacity: 0, scale: 0.5, y: 10 }}
-                               className={`absolute bottom-full mb-3 ${isMe ? 'right-0' : 'left-0'} bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50`}
-                             >
-                               {REACTION_EMOJIS.map(emoji => (
-                                 <button 
-                                   key={emoji}
-                                   onClick={(e) => { e.stopPropagation(); reactToMessage(m.id, emoji); }}
+                      {/* Reaction Picker Popup */}
+                      <AnimatePresence>
+                        {reactingToMessageId === m.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setReactingToMessageId(null)} />
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                              className={`absolute bottom-full mb-3 ${isMe ? 'right-0' : 'left-0'} bg-white dark:bg-[#242526] p-1.5 shadow-2xl rounded-full border border-gray-100 dark:border-[#3E4042] flex items-center gap-1.5 z-50`}
+                            >
+                              {REACTION_EMOJIS.map(emoji => (
+                                <button 
+                                  key={emoji}
+                                  onClick={(e) => { e.stopPropagation(); reactToMessage(m.id, emoji); }}
                                    className="text-xl hover:scale-125 transition-transform p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full"
                                  >
                                    {emoji}
@@ -6015,6 +6025,11 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {renderAuthModal()}
+      {renderEditProfileModal()}
+      {renderInstallModal()}
+      {renderChatWindow()}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
