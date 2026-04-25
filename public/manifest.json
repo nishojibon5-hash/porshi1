@@ -26,6 +26,12 @@
     },
     {
       "src": "/porsh-pwa-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/porsh-pwa-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

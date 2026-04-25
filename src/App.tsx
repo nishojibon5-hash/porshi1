@@ -429,10 +429,11 @@ export default function App() {
       } catch (err) {
         console.error('Install prompt error:', err);
         addLog('ইনস্টল প্রম্পট এরর!');
+        setShowInstallModal(true);
       }
     } else {
       addLog('প্রম্পট পাওয়া যায়নি। ব্রাউজার মেনু থেকে ইনস্টল করুন।');
-      // No longer showing the annoying modal
+      setShowInstallModal(true);
     }
   };
 
@@ -4747,7 +4748,7 @@ export default function App() {
       setPosts(postsList);
       setHasMorePosts(snapshot.docs.length >= postsLimit);
       setIsLoadingMore(false);
-    });
+    }, (err) => console.error('posts error', err));
 
     const storiesQuery = query(collection(db, 'stories'), orderBy('timestamp', 'desc'), limit(50));
     const unsubscribeStories = onSnapshot(storiesQuery, (snapshot) => {
@@ -4779,12 +4780,12 @@ export default function App() {
           });
         });
       }
-    });
+    }, (err) => console.error('stories error', err));
 
     const adsQuery = query(collection(db, 'ads'), where('status', '==', 'active'));
     const unsubscribeAds = onSnapshot(adsQuery, (snapshot) => {
       setAds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Advertisement)));
-    });
+    }, (err) => console.error('ads error', err));
 
     // 3. Selective User Profile Listener
     let userUnsubscribe: () => void = () => {};
@@ -4793,7 +4794,7 @@ export default function App() {
         if (doc.exists()) {
           setViewingProfileUser({ uid: doc.id, ...doc.data() } as AppUser);
         }
-      });
+      }, (err) => console.error('user profile error', err));
     }
 
     return () => {
@@ -4822,7 +4823,7 @@ export default function App() {
       if (user?.role === 'admin') {
         setAllUsers(usersList);
       }
-    });
+    }, (err) => console.error('All users snapshot error', err));
     return () => unsubscribe();
   }, []); // Run once on mount to maintain global real-time registry
 
@@ -4831,6 +4832,7 @@ export default function App() {
     addLog('পরশ সিস্টেম প্রস্তুত (PORSH System Ready)');
     let userUnsubscribe: (() => void) | null = null;
     let followingUnsubscribe: (() => void) | null = null;
+    let notifUnsubscribe: (() => void) | null = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
@@ -4840,12 +4842,26 @@ export default function App() {
           
           if (userUnsubscribe) userUnsubscribe();
           if (followingUnsubscribe) followingUnsubscribe();
+          if (notifUnsubscribe) notifUnsubscribe();
 
           // Listen for following relationships
           followingUnsubscribe = onSnapshot(collection(db, 'users', currentUser.uid, 'following'), (snap) => {
             setFollowingUids(snap.docs.map(d => d.id));
-          });
+          }, (err) => console.error('following error:', err));
 
+          // Listen for notifications
+          const notifQuery = query(
+            collection(db, 'notifications'),
+            where('toUid', 'in', [currentUser.uid, 'all']),
+            orderBy('timestamp', 'desc'),
+            limit(50)
+          );
+          notifUnsubscribe = onSnapshot(notifQuery, (snap) => {
+            const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+            setNotifications(notifs);
+            setUnreadNotificationsCount(notifs.filter(n => !n.isRead).length);
+          }, (err) => console.error('notifications error:', err));
+          
           // Use onSnapshot for the user document to handle offline states and real-time updates
           userUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
             if (docSnap.exists()) {
@@ -4918,6 +4934,7 @@ export default function App() {
       if (typeof unsubscribe === 'function') unsubscribe();
       if (typeof userUnsubscribe === 'function') userUnsubscribe();
       if (typeof followingUnsubscribe === 'function') followingUnsubscribe();
+      if (typeof notifUnsubscribe === 'function') notifUnsubscribe();
     };
   }, []);
 
@@ -5339,7 +5356,93 @@ export default function App() {
     );
   };
 
-  const renderInstallModal = () => null;
+  const renderInstallModal = () => (
+    <AnimatePresence>
+      {showInstallModal && !isInStandaloneMode && (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[3000] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-6"
+        >
+          <div className="relative w-full max-w-sm bg-[#1C1C1E] border border-white/10 rounded-[44px] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.9)]">
+             <div className="p-10 space-y-8">
+                <div className="w-24 h-24 mx-auto bg-bg-dark rounded-3xl border-2 border-accent/30 p-4 shadow-2xl relative group">
+                   <img 
+                      src={appConfig?.appIcon || '/porsh-pwa-icon.png'} 
+                      className="w-full h-full object-contain" 
+                      alt="Logo" 
+                      onError={(e) => {
+                        e.currentTarget.src = "https://img.icons8.com/fluency/512/chat.png";
+                      }}
+                   />
+                   <div className="absolute inset-0 bg-accent/20 animate-pulse rounded-3xl" />
+                </div>
+                
+                <div className="text-center space-y-2">
+                   <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Native PWA App</h2>
+                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার (PRO)</p>
+                </div>
+
+                <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
+                   পর্শি অ্যাপটি আপনার ফোনে <span className="text-white font-bold italic">অরিজিনাল অ্যান্ড্রয়েড (PWA) অ্যাপ</span> হিসেবে কাজ করবে। এটি কোনো ব্রাউজার শর্টকাট নয়, এটি সম্পূর্ণ অফলাইন, ফুল-স্ক্রিন এবং নেটিভ পারফরম্যান্স দিবে।
+                </p>
+
+                <div className="space-y-4 pt-2">
+                   <div className="flex gap-4 items-start">
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">1</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">Direct Install (Recommended)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If the <span className="text-accent font-bold">'DIRECT INSTALL'</span> button is active below, click it to install instantly.</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-4 items-start">
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">2</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">Chrome Menu (Manual)</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">If not, click the <span className="text-white font-bold">3-dots (⋮)</span> top-right in your browser and select <span className="text-accent font-bold">'Install App'</span> or <span className="text-accent font-bold">'Add to Home screen'</span>. <span className="text-white font-bold italic block mt-1">Note: This DOES install the true Native PWA, not just a shortcut! Chrome will handle the rest.</span></p>
+                      </div>
+                   </div>
+                   <div className="flex gap-4 items-start">
+                      <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-[10px] shrink-0">3</div>
+                      <div className="space-y-1">
+                         <div className="text-[10px] font-black text-white uppercase">Requirements</div>
+                         <p className="text-[9px] text-text-dim lowercase leading-relaxed">Ensure you are using <span className="text-white font-bold">Google Chrome</span> and your browser is updated to the latest version.</p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="pt-4 flex flex-col gap-3">
+                   {deferredPrompt ? (
+                     <Button 
+                        onClick={installApp}
+                        className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                     >
+                        <Download className="w-4 h-4" />
+                        এখনই ইনস্টল (DIRECT INSTALL)
+                     </Button>
+                   ) : (
+                     <Button 
+                        onClick={handleRefreshApp}
+                        className="w-full bg-white/10 text-white font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                     >
+                        অ্যাপ রিফ্রেশ করুন (Refresh App)
+                     </Button>
+                   )}
+                   <Button 
+                      variant="ghost" 
+                      onClick={() => setShowInstallModal(false)}
+                      className="w-full text-text-dim text-[10px] uppercase font-black py-4 hover:text-white"
+                   >
+                      পরে করব
+                   </Button>
+                </div>
+             </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
 
   const renderEditProfileModal = () => (
