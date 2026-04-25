@@ -331,38 +331,36 @@ export default function App() {
             console.log('SW registered:', reg);
             setSwRegistration(reg);
 
+            // Immediate update check
+            reg.update();
+
             // Force update check on focus
             window.addEventListener('focus', () => {
               reg.update();
             });
 
-            // Periodic check every 1 hour
-            setInterval(() => {
-              reg.update();
-            }, 1000 * 60 * 60);
-
             // Check for updates
-            reg.addEventListener('updatefound', () => {
+            reg.onupdatefound = () => {
               const newWorker = reg.installing;
               if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
+                newWorker.onstatechange = () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                     setIsUpdateAvailable(true);
                   }
-                });
+                };
               }
-            });
+            };
           })
           .catch(err => console.error('SW registration failed:', err));
-      });
 
-      // Handle controller change (reload on skipWaiting)
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          window.location.reload();
-          refreshing = true;
-        }
+        // Handle controller change (reload on skipWaiting)
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+          }
+        });
       });
     }
 
@@ -616,7 +614,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    addLog(`অ্যাপ ভার্সন ২.১.০ লোড হয়েছে।`);
+    addLog(`অ্যাপ ভার্সন ২.২.০ লোড হয়েছে।`);
   }, []);
 
   const registrationData = useRef<{ name: string; phone: string } | null>(null);
