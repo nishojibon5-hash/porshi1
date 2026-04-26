@@ -227,6 +227,16 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Auto-clear error messages after 3 seconds
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => {
+        setErrorMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -560,7 +570,7 @@ export default function App() {
               setAuthSuccessMessage('গুগল দিয়ে লগইন সফল!');
             } catch (error: any) {
               console.error('One Tap Error:', error);
-              setErrorMessage('গুগল লগইন এরর');
+              setErrorMessage('Google login error');
             } finally {
               setIsAuthLoading(false);
             }
@@ -968,11 +978,11 @@ export default function App() {
       });
       // Update local state
       setUser({ ...user, displayName: newDisplayName.trim() || user.displayName, bio: newBio.trim() });
-      setErrorMessage('প্রোফাইল আপডেট হয়েছে!');
+      setErrorMessage('Profile updated!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error) {
       console.error('Profile update error:', error);
-      setErrorMessage('প্রোফাইল আপডেট করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।');
+      setErrorMessage('Failed to update profile. Please try again.');
       setTimeout(() => setErrorMessage(null), 4000);
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     } finally {
@@ -1021,12 +1031,12 @@ export default function App() {
         
         setUser({ ...user, photoURL: photoURL });
         addLog('প্রোফাইল ছবি আপডেট সফল!');
-        setErrorMessage('প্রোফাইল ছবি আপডেট হয়েছে!');
+        setErrorMessage('Profile picture updated!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Photo upload error:', error);
         addLog(`ফটো এরর: ${error.message}`);
-        setErrorMessage('ছবি আপডেট করতে সমস্যা হয়েছে।');
+        setErrorMessage('Failed to update picture.');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
         setIsUploadingPhoto(false);
@@ -1056,12 +1066,12 @@ export default function App() {
         
         setUser({ ...user, coverPhotoURL: coverPhotoURL });
         addLog('কভার ফটো আপডেট সফল!');
-        setErrorMessage('কভার ফটো আপডেট হয়েছে!');
+        setErrorMessage('Cover photo updated!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Cover photo error:', error);
         addLog(`কভার ফটো এরর: ${error.message}`);
-        setErrorMessage('কভার ফটো আপডেট করতে সমস্যা হয়েছে।');
+        setErrorMessage('Failed to update cover photo.');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
         setIsUploadingCover(false);
@@ -1081,12 +1091,12 @@ export default function App() {
       setUser({ ...user, ...editProfileData });
       setIsEditProfileModalOpen(false);
       addLog('প্রোফাইল আপডেট সফল!');
-      setErrorMessage('প্রোফাইল আপডেট সফল হয়েছে!');
+      setErrorMessage('Profile update successful!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
       console.error('Update profile error:', error);
       addLog(`প্রোফাইল এরর: ${error.message}`);
-      setErrorMessage('প্রোফাইল আপডেট করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to update profile.');
       setTimeout(() => setErrorMessage(null), 4000);
     } finally {
       setIsEditProfileLoading(false);
@@ -1127,7 +1137,7 @@ export default function App() {
     setPostYoutubeUrl('');
     setIsCreatingPost(true);
     setUploadProgress(0);
-    setErrorMessage('পোস্ট আপলোড হচ্ছে...');
+    setErrorMessage('Uploading post...');
 
     // Progress Simulation
     const progressInterval = setInterval(() => {
@@ -1222,7 +1232,7 @@ export default function App() {
         }, 500);
 
         addLog('পোস্ট সফলভাবে পাবলিশ হয়েছে!');
-        setErrorMessage('পোস্ট সফলভাবে পাবলিশ হয়েছে!');
+        setErrorMessage('Post published successfully!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         clearInterval(progressInterval);
@@ -1240,11 +1250,11 @@ export default function App() {
     if (!user) return;
     try {
       await deleteDoc(doc(db, 'posts', postId));
-      setErrorMessage('পোস্ট ডিলেট করা হয়েছে।');
+      setErrorMessage('Post deleted.');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error) {
       console.error('Delete post error:', error);
-      setErrorMessage('পোস্ট ডিলেট করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to delete post.');
     }
   };
 
@@ -1264,11 +1274,11 @@ export default function App() {
       setPostInput('');
       setPostYoutubeUrl('');
       setPostPrivacy('public');
-      setErrorMessage('পোস্ট আপডেট করা হয়েছে।');
+      setErrorMessage('Post updated.');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error) {
       console.error('Update post error:', error);
-      setErrorMessage('পোস্ট আপডেট করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to update post.');
     }
   };
 
@@ -1341,7 +1351,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Reaction error:', error);
-      setErrorMessage('রিঅ্যাক্ট করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to react.');
       handleFirestoreError(error, OperationType.UPDATE, `posts/${postId}`);
     }
   };
@@ -1389,7 +1399,7 @@ export default function App() {
       await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
         adPaymentNumber: num
       });
-      setErrorMessage('পেমেন্ট নাম্বার আপডেট হয়েছে');
+      setErrorMessage('Payment number updated');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
       setErrorMessage(`এরর: ${error.message}`);
@@ -1968,17 +1978,17 @@ export default function App() {
           if (auth.currentUser) {
             // Attempt to force refresh the token if it's a permission issue
             await auth.currentUser.getIdToken(true);
-            setErrorMessage('সেশন রিফ্রেশ করা হয়েছে। আবার মেসেজ পাঠান।');
+            setErrorMessage('Session refreshed. Please send the message again.');
           } else {
-            setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+            setErrorMessage('Permission denied. Please log in again.');
             setShowAuthModal(true);
           }
         } catch (authErr) {
-          setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+          setErrorMessage('Permission denied. Please log in again.');
           setShowAuthModal(true);
         }
       } else {
-        setErrorMessage('মেসেজ পাঠানো যায়নি।');
+        setErrorMessage('Message could not be sent.');
       }
       
       // Remove optimistic message on error
