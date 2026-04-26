@@ -1962,12 +1962,25 @@ export default function App() {
 
     } catch (error: any) {
       console.error('Send message error:', error);
-      // Better error feedback
+      
       if (error?.message?.includes('permission')) {
-        setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+        try {
+          if (auth.currentUser) {
+            // Attempt to force refresh the token if it's a permission issue
+            await auth.currentUser.getIdToken(true);
+            setErrorMessage('সেশন রিফ্রেশ করা হয়েছে। আবার মেসেজ পাঠান।');
+          } else {
+            setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+            setShowAuthModal(true);
+          }
+        } catch (authErr) {
+          setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+          setShowAuthModal(true);
+        }
       } else {
         setErrorMessage('মেসেজ পাঠানো যায়নি।');
       }
+      
       // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== tempId));
     }
