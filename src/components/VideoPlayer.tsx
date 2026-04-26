@@ -20,9 +20,17 @@ interface VideoPlayerProps {
   currentUserId?: string;
   theme: 'light' | 'dark';
   autoplayEnabled?: boolean;
+  isMonetized?: boolean;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUserId, theme, autoplayEnabled = true }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
+  post, 
+  ads, 
+  currentUserId, 
+  theme, 
+  autoplayEnabled = true,
+  isMonetized = false
+}) => {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
   const [showAd, setShowAd] = React.useState(false);
@@ -38,6 +46,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   const ytIframeRef = React.useRef<HTMLDivElement>(null);
   const viewTracked = React.useRef(false);
   const reachTracked = React.useRef(false);
+
+  // Effective monetization status
+  const effectiveIsMonetized = post.isMonetized || isMonetized;
 
   const getYoutubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -140,7 +151,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   React.useEffect(() => {
     const fetchAd = async () => {
       // Trigger ad only when user clicks play and we haven't shown pre-roll yet
-      if (post.isMonetized && !adFinished && isPlaying && !adVideo && !showAd) {
+      if (effectiveIsMonetized && !adFinished && isPlaying && !adVideo && !showAd) {
         // Step 1: Optional API call to get active ad settings (requirement 3)
         try {
            await fetch(`/api/vast?videoId=${post.id}`);
@@ -198,7 +209,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
     };
 
     fetchAd();
-  }, [post.isMonetized, ads, inView, adFinished, adVideo, post.id, isPlaying, showAd]);
+  }, [effectiveIsMonetized, ads, inView, adFinished, adVideo, post.id, isPlaying, showAd]);
 
   // Skip Timer Logic
   React.useEffect(() => {
@@ -243,7 +254,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ post, ads, currentUser
   };
 
   const onTimeUpdate = () => {
-    if (!videoRef.current || !post.isMonetized || midRollTriggered) return;
+    if (!videoRef.current || !effectiveIsMonetized || midRollTriggered) return;
     
     // Simple mid-roll at 50%
     const progress = videoRef.current.currentTime / videoRef.current.duration;

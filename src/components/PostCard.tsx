@@ -120,7 +120,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 }) => {
   const author = usersRegistry[post.authorUid] || {
     displayName: post.authorName,
-    photoURL: post.authorPhoto
+    photoURL: post.authorPhoto,
+    isMonetized: false
   };
   const totalReactions = post.reactions ? (Object.values(post.reactions) as number[]).reduce((a, b) => a + b, 0) : 0;
   
@@ -131,6 +132,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [userReaction, setUserReaction] = React.useState<string | null>(post.userReaction || null);
   const longPressTimer = React.useRef<NodeJS.Timeout | null>(null);
   const reachTracked = React.useRef(false);
+
+  // Author or Post monetization check
+  const isPostOrAuthorMonetized = post.isMonetized || author.isMonetized;
 
   React.useEffect(() => {
     if (!currentUserId) return;
@@ -182,14 +186,14 @@ export const PostCard: React.FC<PostCardProps> = ({
   };
 
   React.useEffect(() => {
-    if (post.isMonetized && ads.length > 0 && !selectedAd) {
+    if (isPostOrAuthorMonetized && ads.length > 0 && !selectedAd) {
       const activeAds = ads.filter(ad => ad.status === 'active');
       if (activeAds.length > 0) {
         const randomAd = activeAds[Math.floor(Math.random() * activeAds.length)];
         setSelectedAd(randomAd);
       }
     }
-  }, [post.isMonetized, ads, selectedAd]);
+  }, [isPostOrAuthorMonetized, ads, selectedAd]);
 
   React.useEffect(() => {
     if (selectedAd && !reachTracked.current) {
@@ -345,6 +349,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           currentUserId={currentUserId} 
           theme={theme} 
           autoplayEnabled={autoplayVideos}
+          isMonetized={author.isMonetized}
         />
       ) : post.mediaType === 'link' && post.linkUrl ? (
         <a 

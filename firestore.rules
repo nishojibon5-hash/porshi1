@@ -118,6 +118,11 @@ service cloud.firestore {
       allow create: if isEmailVerified() && incoming().senderUid == request.auth.uid;
     }
 
+    match /chats/{chatId}/typing/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid in chatId.split('_'));
+      allow write: if isOwner(uid) && (uid in chatId.split('_'));
+    }
+
     match /notifications/{notificationId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();

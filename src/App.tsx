@@ -175,6 +175,7 @@ export default function App() {
   const [incomingRequest, setIncomingRequest] = useState<PairRequest | null>(null);
   const [activeChat, setActiveChat] = useState<ActiveChat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [partnerIsTyping, setPartnerIsTyping] = useState(false);
   const [messageInput, setMessageInput] = useState('');
   const [marketSearch, setMarketSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1436,6 +1437,35 @@ export default function App() {
     }
   };
 
+  const handleEditUser = async (u: any) => {
+    const newName = window.prompt('Enter new display name:', u.displayName);
+    if (newName === null) return;
+    const newRole = window.prompt('Enter role (user/admin):', u.role || 'user');
+    if (newRole === null) return;
+
+    try {
+      await updateDoc(doc(db, 'users', u.uid), {
+        displayName: newName,
+        role: newRole
+      });
+      setErrorMessage(`${u.displayName} এর তথ্য আপডেট হয়েছে`);
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+    }
+  };
+
+  const handleDeleteUser = async (u: any) => {
+    if (!window.confirm(`Are you sure you want to delete ${u.displayName}? This cannot be undone.`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', u.uid));
+      setErrorMessage(`${u.displayName} কে রিমুভ করা হয়েছে`);
+      setTimeout(() => setErrorMessage(null), 3000);
+    } catch (error: any) {
+      setErrorMessage(`এরর: ${error.message}`);
+    }
+  };
+
   const handleCreateAdminAd = async () => {
     if (!user || user.role !== 'admin') return;
     const isVast = !!adForm.vastUrl.trim();
@@ -1803,32 +1833,64 @@ export default function App() {
       limit(100)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeMessages = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage)));
     }, (error) => {
       console.error('Chat messages error:', error);
     });
 
-    return () => unsubscribe();
+    const unsubscribeTyping = onSnapshot(doc(db, 'chats', activeChat.id, 'typing', activeChat.partnerId), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().isTyping) {
+        setPartnerIsTyping(true);
+      } else {
+        setPartnerIsTyping(false);
+      }
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeTyping();
+    };
   }, [activeChat, user]);
+
+  const handleMessageTyping = (text: string) => {
+    setMessageInput(text);
+    if (!activeChat || !user) return;
+    
+    // Set my typing status to true
+    setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), { isTyping: true }, { merge: true }).catch(console.error);
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Set to false after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), { isTyping: false }, { merge: true }).catch(console.error);
+    }, 2000);
+  };
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToSubmit = textOverride || messageInput;
     if (!activeChat || !user || !textToSubmit.trim()) return;
+    
+    // Once message is sent, we are no longer typing
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    setDoc(doc(db, 'chats', activeChat.id, 'typing', user.uid), { isTyping: false }, { merge: true }).catch(console.error);
 
     const text = textToSubmit;
     if (!textOverride) setMessageInput('');
 
-    // Optimistic UI Update
-    const tempId = 'temp_' + Date.now();
-    const optimisticMsg: ChatMessage = {
+    const tempId = Date.now().toString();
+    const optimisticMsg = {
       id: tempId,
       senderUid: user.uid,
       text: text,
-      timestamp: { seconds: Date.now() / 1000 },
-      isRead: false
+      timestamp: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+      isRead: false,
+      optimistic: true
     };
-    setMessages(prev => [...prev, optimisticMsg]);
+    setMessages(prev => [...prev, optimisticMsg as any]);
 
     try {
       await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
@@ -3833,10 +3895,24 @@ export default function App() {
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => handleUpdateUserMonetization(u)}
-                              className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-[#00D1FF] text-bg-dark' : 'bg-surface-light text-text-dim hover:text-accent'}`}
-                              title="Toggle Monetization"
+                              className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-green-500 text-white' : 'bg-surface-light text-text-dim hover:text-accent'}`}
+                              title={u.isMonetized ? "Monetization: ON" : "Monetization: OFF"}
                             >
                               <DollarSign className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleEditUser(u)}
+                              className="p-2 rounded-lg bg-surface-light text-text-dim hover:text-blue-500 transition-all cursor-pointer"
+                              title="Edit User"
+                            >
+                              <PenLine className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteUser(u)}
+                              className="p-2 rounded-lg bg-surface-light text-text-dim hover:text-red-500 transition-all cursor-pointer"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -4540,11 +4616,12 @@ export default function App() {
                           <Button 
                             onClick={() => withAuth(() => {
                               setActiveChat({
-                                id: profileUser?.uid || '',
+                                id: [user!.uid, profileUser!.uid].sort().join('_'),
                                 partnerId: profileUser?.uid || '',
                                 partnerName: profileUser?.displayName || ''
                               });
                               setCurrentApp('porsh');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
                             })}
                             className="bg-[#E4E6EB] dark:bg-[#3A3B3C] text-foreground font-bold text-xs h-9 px-4 rounded-md hover:bg-gray-200 dark:hover:bg-[#4E4F50]"
                           >
@@ -4814,6 +4891,12 @@ export default function App() {
   }, [postsLimit, selectedUserUid, user?.uid]);
 
   useEffect(() => {
+    if (isPostCreationModalOpen && user?.isMonetized && !editingPost) {
+      setIsPostMonetized(true);
+    }
+  }, [isPostCreationModalOpen, user?.isMonetized, editingPost]);
+
+  useEffect(() => {
     const q = collection(db, 'users');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const registry: Record<string, AppUser> = {};
@@ -5070,7 +5153,7 @@ export default function App() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, partnerIsTyping]);
 
   const renderInstallBanner = () => {
     if (!deferredPrompt || isInStandaloneMode || isIframe) return null;
@@ -5279,6 +5362,18 @@ export default function App() {
                  </div>
                );
             })}
+            
+            {partnerIsTyping && (
+               <div className="flex justify-start mb-4">
+                  <div className={`px-4 py-3 rounded-[20px] rounded-tl-[4px] shadow-sm ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
+                     <div className="flex gap-1">
+                        <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                     </div>
+                  </div>
+               </div>
+            )}
             <div ref={chatEndRef} className="h-4" />
          </div>
 
@@ -5301,7 +5396,7 @@ export default function App() {
                     placeholder="Aa" 
                     className="bg-transparent border-none outline-none text-[15px] w-full placeholder:text-gray-500"
                     value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
+                    onChange={(e) => handleMessageTyping(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   />
                   <button className="p-1 transition-transform active:scale-125"><Smile className="w-5 h-5 text-[#0084FF]" /></button>
@@ -5721,7 +5816,9 @@ export default function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <div className="text-xl font-black tracking-tighter uppercase italic text-accent">{appConfig?.appName || "PORSH"}</div>
+            <div className="text-xl font-black tracking-tighter uppercase italic text-accent">
+              {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+            </div>
         </div>
         
         <nav className="flex-1 space-y-1">
@@ -5775,19 +5872,11 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            <span className="text-xl font-black tracking-tighter text-accent uppercase italic">{appConfig?.appName || "PORSH"}</span>
+            <span className="text-xl font-black tracking-tighter text-accent uppercase italic">
+              {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+            </span>
           </div>
           <div className="flex items-center gap-1">
-            {(!isInStandaloneMode || isIframe) && (
-              <button 
-                onClick={() => installApp()}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl h-9 ${theme === 'dark' ? 'bg-[#3A3B3C] text-accent border border-accent/30' : 'bg-accent/10 text-accent border border-accent/20'} shadow-lg active:scale-95 transition-all`}
-                title="Install App"
-              >
-                <Download className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">PORSH INSTALL</span>
-              </button>
-            )}
             <button 
               onClick={() => withAuth(() => setIsMobileSearchOpen(true))}
               className={`p-2 rounded-full ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}
@@ -5924,7 +6013,9 @@ export default function App() {
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
                        <img src={appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
-                    <span className="text-xl font-black tracking-tighter italic">{appConfig?.appName || "PORSH"}</span>
+                    <span className="text-xl font-black tracking-tighter italic">
+                      {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+                    </span>
                   </div>
                   <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
                     <X className="w-6 h-6" />
