@@ -91,6 +91,36 @@ import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import NearbyDiscovery from './components/NearbyDiscovery';
 
+// Error Boundary Component
+export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: any, errorInfo: any) { console.error("App Crash:", error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen w-full flex flex-col items-center justify-center p-8 bg-bg-dark text-white text-center space-y-6">
+          <AlertCircle className="w-20 h-20 text-red-500 animate-pulse" />
+          <h1 className="text-2xl font-black uppercase tracking-tighter italic">Something Went Wrong</h1>
+          <p className="text-xs text-text-dim max-w-xs uppercase font-bold tracking-widest leading-loose">
+            The application encountered an unexpected error. This usually happens due to a network glitch or a temporary sync issue.
+          </p>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="bg-accent text-bg-dark font-black px-10 py-6 rounded-2xl shadow-xl active:scale-95 transition-all"
+          >
+            RELOAD APPLICATION
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const REACTION_EMOJIS = ['👍', '❤️', '🥰', '😆', '😁', '😛', '🥴', '😯', '🫤', '😡', '🫦', '🖕'];
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -325,7 +355,7 @@ export default function App() {
     if (isAuthReady) return;
     const timer = setTimeout(() => {
       if (!isAuthReady) {
-        addLog('ইনিশিয়ালাইজেশন টাইমআউট! (Forcing Ready)');
+    addLog('Initialization Timeout! (Forcing Ready)');
         setIsAuthReady(true);
         setShowSplash(false);
       }
@@ -393,7 +423,7 @@ export default function App() {
       e.preventDefault();
       setDeferredPrompt(e);
       (window as any).deferredPrompt = e;
-      addLog('পর্শি মেসেন্জার (Porsh App) সিষ্টেমে DIRECT INSTALL করার জন্য প্রস্তুত!');
+      addLog('Porsh Messenger (Porsh App) is ready to be DIRECT INSTALLED!');
     };
     
     if ((window as any).deferredPrompt) {
@@ -401,7 +431,7 @@ export default function App() {
     }
     window.addEventListener('beforeinstallprompt', handler);
     window.addEventListener('appinstalled', () => {
-      addLog('পড়শি অ্যাপ সফলভাবে ইনস্টল করা হয়েছে!');
+      addLog('Porsh App installed successfully!');
       setIsInStandaloneMode(true);
       setShowInstallModal(false);
     });
@@ -433,10 +463,10 @@ export default function App() {
   }, []);
 
   const installApp = async () => {
-    addLog('পর্শি অ্যাপ ইনস্টলেশন চেক করা হচ্ছে...');
+    addLog('Porsh App installation checking...');
     
     if (isIframe) {
-      addLog('ফুল ভিউতে ওপেন করা হচ্ছে...');
+      addLog('Opening in full view...');
       const url = new URL(window.location.href);
       url.searchParams.set('app', 'porsh');
       window.open(url.toString(), '_blank');
@@ -447,30 +477,30 @@ export default function App() {
 
     if (promptEvent) {
       try {
-        addLog('সরাসরি ইনস্টল প্রম্পট এক্টিভ হচ্ছে...');
+        addLog('Direct installation prompt activating...');
         await promptEvent.prompt();
         const { outcome } = await promptEvent.userChoice;
-        addLog(`ইনস্টলেশন ফলাফল: ${outcome}`);
+        addLog(`Installation result: ${outcome}`);
         if (outcome === 'accepted') {
           setIsInStandaloneMode(true);
           setShowInstallModal(false);
-          addLog('পর্শি অ্যাপ ইনস্টল সফল!');
+          addLog('Porsh App installation successful!');
         }
         setDeferredPrompt(null);
         (window as any).deferredPrompt = null;
       } catch (err) {
         console.error('Install prompt error:', err);
-        addLog('ইনস্টল প্রম্পট এরর!');
+        addLog('Installation prompt error!');
         setShowInstallModal(true);
       }
     } else {
-      addLog('প্রম্পট পাওয়া যায়নি। ব্রাউজার মেনু থেকে ইনস্টল করুন।');
+      addLog('Prompt not found. Please install from browser menu.');
       setShowInstallModal(true);
     }
   };
 
   const handleRefreshApp = () => {
-    addLog('সিস্টেম রিবুট ও ক্যাশ রিফ্রেশ করা হচ্ছে...');
+    addLog('System reboot and cache refresh in progress...');
     if (swRegistration && swRegistration.waiting) {
        swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
@@ -533,11 +563,14 @@ export default function App() {
 
   const filteredAllUsers = useMemo(() => {
     return allUsers.filter(u => {
-      const matchesSearch = u.displayName.toLowerCase().includes(adminSearchTerm.toLowerCase()) || 
-                           u.uid.toLowerCase().includes(adminSearchTerm.toLowerCase());
+      if (!u) return false;
+      const name = u.displayName || 'Unknown User';
+      const id = u.uid || u.id || '';
+      const matchesSearch = name.toLowerCase().includes(adminSearchTerm.toLowerCase()) || 
+                           id.toLowerCase().includes(adminSearchTerm.toLowerCase());
       const matchesRole = adminRoleFilter === 'all' || u.role === adminRoleFilter;
       const matchesMonetization = adminMonetizationFilter === 'all' || 
-                                (adminMonetizationFilter === 'monetized' ? u.isMonetized : !u.isMonetized);
+                                (adminMonetizationFilter === 'monetized' ? !!u.isMonetized : !u.isMonetized);
       return matchesSearch && matchesRole && matchesMonetization;
     });
   }, [allUsers, adminSearchTerm, adminRoleFilter, adminMonetizationFilter]);
@@ -580,7 +613,7 @@ export default function App() {
               const credential = GoogleAuthProvider.credential(response.credential);
               await signInWithCredential(auth, credential);
               setShowAuthModal(false);
-              setAuthSuccessMessage('গুগল দিয়ে লগইন সফল!');
+              setAuthSuccessMessage('Login with Google successful!');
             } catch (error: any) {
               console.error('One Tap Error:', error);
               setErrorMessage('Google login error');
@@ -671,7 +704,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    addLog(`পর্শি ইকোসিস্টেম প্রো (v2.5.0-PRO) লোড হয়েছে।`);
+    addLog(`Porsh Ecosystem Pro (v2.5.0-PRO) Loaded.`);
   }, []);
 
   const registrationData = useRef<{ name: string; phone: string } | null>(null);
@@ -1027,11 +1060,11 @@ export default function App() {
     handleFileSelect(e, async (base64Data) => {
       setIsUploadingPhoto(true);
       try {
-        addLog('প্রোফাইল ছবি প্রসেস হচ্ছে...');
+        addLog('Processing profile photo...');
         let photoURL = '';
         
         if (appConfig?.cloudinaryCloudName) {
-          addLog('প্রোফাইল ছবি আলটিমেট মোডে আপলোড হচ্ছে...');
+          addLog('Uploading profile photo in Ultimate Mode...');
           photoURL = await uploadToCloudinary(base64Data, 'image');
         } else {
           // Compress heavily to stay under 1MB Firestore limit
@@ -1043,12 +1076,12 @@ export default function App() {
         });
         
         setUser({ ...user, photoURL: photoURL });
-        addLog('প্রোফাইল ছবি আপডেট সফল!');
+        addLog('Profile photo update successful!');
         setErrorMessage('Profile picture updated!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Photo upload error:', error);
-        addLog(`ফটো এরর: ${error.message}`);
+        addLog(`Photo Error: ${error.message}`);
         setErrorMessage('Failed to update picture.');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
@@ -1063,11 +1096,11 @@ export default function App() {
     handleFileSelect(e, async (base64Data) => {
       setIsUploadingCover(true);
       try {
-        addLog('কভার ফটো প্রসেস হচ্ছে...');
+        addLog('Processing cover photo...');
         let coverPhotoURL = '';
         
         if (appConfig?.cloudinaryCloudName) {
-          addLog('কভার ফটো আলটিমেট মোডে আপলোড হচ্ছে...');
+          addLog('Uploading cover photo in Ultimate Mode...');
           coverPhotoURL = await uploadToCloudinary(base64Data, 'image');
         } else {
           coverPhotoURL = await compressImage(base64Data, 1280, 0.6);
@@ -1078,12 +1111,12 @@ export default function App() {
         });
         
         setUser({ ...user, coverPhotoURL: coverPhotoURL });
-        addLog('কভার ফটো আপডেট সফল!');
+        addLog('Cover photo update successful!');
         setErrorMessage('Cover photo updated!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
         console.error('Cover photo error:', error);
-        addLog(`কভার ফটো এরর: ${error.message}`);
+        addLog(`Cover Photo Error: ${error.message}`);
         setErrorMessage('Failed to update cover photo.');
         setTimeout(() => setErrorMessage(null), 4000);
       } finally {
@@ -1096,19 +1129,19 @@ export default function App() {
     if (!user) return;
     setIsEditProfileLoading(true);
     try {
-      addLog('প্রোফাইল আপডেট হচ্ছে...');
+      addLog('Updating profile...');
       await updateDoc(doc(db, 'users', user.uid), {
         ...editProfileData,
         lastSeen: serverTimestamp()
       });
       setUser({ ...user, ...editProfileData });
       setIsEditProfileModalOpen(false);
-      addLog('প্রোফাইল আপডেট সফল!');
+      addLog('Profile updated successfully!');
       setErrorMessage('Profile update successful!');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
       console.error('Update profile error:', error);
-      addLog(`প্রোফাইল এরর: ${error.message}`);
+      addLog(`Profile Error: ${error.message}`);
       setErrorMessage('Failed to update profile.');
       setTimeout(() => setErrorMessage(null), 4000);
     } finally {
@@ -1181,13 +1214,13 @@ export default function App() {
 
         if (currentImage) {
           mediaType = 'image';
-          addLog('ছবি প্রসেস হচ্ছে... (Firestore)');
+          addLog('Processing image... (Firestore)');
           const dataURL = await compressImage(currentImage, 800, 0.4);
           imageUrl = dataURL; 
-          addLog('ছবি প্রসেস সফল!');
+          addLog('Image process successful!');
         } else if (currentVideo) {
           mediaType = 'video';
-          addLog('ভিডিও প্রসেস হচ্ছে... (Cloudinary)');
+          addLog('Processing video... (Cloudinary)');
           
           // Check Video Duration & Aspect Ratio
           const videoElement = document.createElement('video');
@@ -1196,7 +1229,7 @@ export default function App() {
             videoElement.onloadedmetadata = () => {
               if (videoElement.duration > 31) { // 31 to be generous
                 URL.revokeObjectURL(videoElement.src);
-                reject(new Error('৩০ সেকেন্ডের বেশি বড় ভিডিও আপলোড করা সম্ভব না।'));
+                reject(new Error('Videos longer than 30 seconds cannot be uploaded.'));
               }
               // Detect Aspect Ratio
               if (videoElement.videoHeight > videoElement.videoWidth) {
@@ -1204,12 +1237,12 @@ export default function App() {
               }
               resolve(true);
             };
-            videoElement.onerror = () => reject(new Error('ভিডিও ফাইলটি পড়তে সমস্যা হয়েছে।'));
+            videoElement.onerror = () => reject(new Error('Problem reading video file.'));
           });
           URL.revokeObjectURL(videoElement.src);
 
           videoUrl = await uploadToCloudinary(currentVideo, 'video');
-          addLog('ভিডিও প্রসেস সফল!');
+          addLog('Video process successful!');
         } else if (currentYoutubeUrl) {
           mediaType = currentYoutubeUrl.includes('youtube.com') || currentYoutubeUrl.includes('youtu.be') ? 'video' : 'link';
         } else if (foundLinks && foundLinks.length > 0) {
@@ -1217,7 +1250,7 @@ export default function App() {
           mediaType = 'link';
         }
 
-        addLog('ডাটাবেজে সেভ হচ্ছে...');
+        addLog('Saving to database...');
         await addDoc(collection(db, 'posts'), {
           authorUid: user.uid,
           authorName: user.displayName,
@@ -1244,7 +1277,7 @@ export default function App() {
           setUploadProgress(0);
         }, 500);
 
-        addLog('পোস্ট সফলভাবে পাবলিশ হয়েছে!');
+        addLog('Post published successfully!');
         setErrorMessage('Post published successfully!');
         setTimeout(() => setErrorMessage(null), 3000);
       } catch (error: any) {
@@ -1252,8 +1285,8 @@ export default function App() {
         setIsCreatingPost(false);
         setUploadProgress(0);
         console.error('Background Post error:', error);
-        addLog(`পোস্ট এরর: ${error.message}`);
-        setErrorMessage(`আপলোড ব্যর্থ: ${error.message}`);
+        addLog(`Post Error: ${error.message}`);
+        setErrorMessage(`Upload failed: ${error.message}`);
         setTimeout(() => setErrorMessage(null), 5000);
       }
     })();
@@ -1624,7 +1657,7 @@ export default function App() {
     if (!file) return;
 
     setIsUploadingPhoto(true);
-    addLog('স্টোরি প্রসেস শুরু হচ্ছে...');
+    addLog('Story process initiating...');
     
     try {
       let imageUrl = '';
@@ -1633,20 +1666,20 @@ export default function App() {
       const isVideo = file.type.startsWith('video/');
 
       if (!isImage && !isVideo) {
-        throw new Error('শুধুমাত্র ছবি বা ভিডিও আপলোড করা সম্ভব।');
+        throw new Error('Only image or video uploads are supported.');
       }
 
       if (isImage) {
-        addLog('স্টোরি (ছবি) প্রসেস হচ্ছে...');
+        addLog('Processing story (image)...');
         const reader = new FileReader();
         const imageData = await new Promise<string>((resolve, reject) => {
           reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('ছবি পড়তে সমস্যা হয়েছে।'));
+          reader.onerror = () => reject(new Error('Problem reading image.'));
           reader.readAsDataURL(file);
         });
         imageUrl = await compressImage(imageData, 800, 0.3);
       } else if (isVideo) {
-        addLog('স্টোরি (ভিডিও) প্রসেস হচ্ছে...');
+        addLog('Processing story (video)...');
         
         // Video Duration Check
         const videoElement = document.createElement('video');
@@ -1656,22 +1689,22 @@ export default function App() {
         await new Promise((resolve, reject) => {
           videoElement.onloadedmetadata = () => {
             if (videoElement.duration > 32) { // 32s buffer
-              reject(new Error('৩০ সেকেন্ডের বেশি বড় ভিডিও স্টোরিতে দেওয়া যাবে না।'));
+              reject(new Error('Videos longer than 30 seconds cannot be added to stories.'));
             } else {
               resolve(true);
             }
           };
-          videoElement.onerror = () => reject(new Error('ভিডিও ফাইলটি বৈধ নয়।'));
+          videoElement.onerror = () => reject(new Error('Video file is invalid.'));
           // Safety timeout
-          setTimeout(() => reject(new Error('ভিডিও তথ্য পড়তে অনেক সময় লাগছে।')), 10000);
+          setTimeout(() => reject(new Error('Video metadata taking too long to load.')), 10000);
         });
         URL.revokeObjectURL(videoElement.src);
 
-        addLog('ভিডিও ক্লাউডিনারিতে আপলোড হচ্ছে...');
+        addLog('Uploading video to Cloudinary...');
         videoUrl = await uploadToCloudinary(file, 'video');
       }
 
-      addLog('ডাটাবেজে সেভ হচ্ছে...');
+      addLog('Saving to database...');
       await addDoc(collection(db, 'stories'), {
         authorUid: user.uid,
         authorName: user.displayName,
@@ -1772,11 +1805,11 @@ export default function App() {
       const data = await response.json();
       if (data.secure_url) {
         setCommentImage(data.secure_url);
-        addLog('কমেন্ট মিডিয়া আপলোড সফল!');
+        addLog('Comment media upload successful!');
       }
     } catch (error) {
       console.error('Comment media upload error:', error);
-      setErrorMessage('মিডিয়া আপলোড করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to upload media.');
     } finally {
       setIsUploadingCommentMedia(false);
     }
@@ -2068,8 +2101,8 @@ export default function App() {
                    <MonitorSmartphone className="w-5 h-5" />
                 </div>
                 <div>
-                   <p className="text-[13px] font-black tracking-tight leading-none mb-1">পরশ অ্যাপ ডাউনলোড করুন</p>
-                   <p className="text-[11px] font-medium opacity-70">দ্রুত চ্যাট এবং নোটিফিকেশন পেতে অ্যাপটি ডাউনলোড করে নিন।</p>
+                   <p className="text-[13px] font-black tracking-tight leading-none mb-1">Download Porsh App</p>
+                   <p className="text-[11px] font-medium opacity-70">Download the app for faster chat and instant notifications.</p>
                 </div>
              </div>
              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -2192,7 +2225,7 @@ export default function App() {
                              </div>
                              <div className="flex-1">
                                 <h3 className="font-bold text-sm group-hover:text-accent transition-colors">{u.displayName}</h3>
-                                <p className="text-xs text-gray-400">মেসেজ দিন</p>
+                                <p className="text-xs text-gray-400">Send message</p>
                              </div>
                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-bg-dark transition-all">
                                 <MessageCircle className="w-4 h-4" />
@@ -2218,7 +2251,7 @@ export default function App() {
                              </div>
                              <div className="flex-1">
                                 <h3 className="font-bold text-[15px] group-hover:text-accent transition-colors">{u.displayName}</h3>
-                                <p className="text-[11px] text-gray-400 font-medium">পড়শি বন্ধুকে মেসেজ দিন</p>
+                                <p className="text-[11px] text-gray-400 font-medium">Message Porsh friend</p>
                              </div>
                              <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#3A3B3C] flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-bg-dark transition-all scale-90 group-hover:scale-100 shadow-sm">
                                 <MessageCircle className="w-5 h-5" />
@@ -2396,23 +2429,23 @@ export default function App() {
             <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Wallet className="w-8 h-8 text-accent" />
             </div>
-            <h2 className="text-2xl font-black tracking-tighter uppercase">পেমেন্ট কমপ্লিট করুন</h2>
-            <p className="text-text-dim text-[10px] uppercase tracking-widest leading-relaxed">বিজ্ঞাপনটি লাইভ করতে ১০০ টাকা পেমেন্ট করুন ৫ দিনের জন্য।</p>
+            <h2 className="text-2xl font-black tracking-tighter uppercase">Complete Payment</h2>
+            <p className="text-text-dim text-[10px] uppercase tracking-widest leading-relaxed">Please pay 100 BDT to activate your ad for 5 days.</p>
           </div>
 
           <div className="p-6 bg-accent/5 rounded-2xl border border-accent/20 space-y-4">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-text-dim uppercase font-bold">বিকাশ/নগদ (পার্সোনাল)</span>
+              <span className="text-text-dim uppercase font-bold">Bkash/Nagad (Personal)</span>
               <span className="text-accent font-black tracking-widest">{appConfig?.adPaymentNumber}</span>
             </div>
             <div className="pt-2 border-t border-accent/10 flex justify-between items-center">
-              <span className="text-[10px] text-text-dim uppercase">মোট প্রদেয়</span>
-              <span className="text-xl font-black">৳১০০.০০</span>
+              <span className="text-[10px] text-text-dim uppercase">Total Payable</span>
+              <span className="text-xl font-black">৳100.00</span>
             </div>
           </div>
 
           <div className="space-y-4">
-            <p className="text-[9px] text-text-dim uppercase italic text-center">উপরে দেওয়া নম্বরে সেন্ড মানি (Send Money) করার পর নিচের বাটনে ক্লিক করুন। অ্যাডমিন ভেরিফাই করে বিজ্ঞাপন লাইভ করবেন।</p>
+            <p className="text-[9px] text-text-dim uppercase italic text-center">After sending money to the above number, click the button below. Admin will verify and activate your ad.</p>
             <Button 
               onClick={async () => {
                 if (pendingAdId) {
@@ -2443,7 +2476,7 @@ export default function App() {
                 </button>
                 <h1 className="text-5xl font-black italic tracking-tighter text-accent uppercase">Ad Manager</h1>
               </div>
-              <p className="text-text-dim text-xs uppercase tracking-[4px] ml-12">বিজ্ঞাপন দিন আর ব্যবসার পরিধি বাড়ান</p>
+              <p className="text-text-dim text-xs uppercase tracking-[4px] ml-12">Advertise and grow your business</p>
             </div>
             <div className="flex gap-4">
               <div className="p-6 bg-surface/30 rounded-2xl border border-border-custom text-center min-w-[140px]">
@@ -2462,14 +2495,14 @@ export default function App() {
             <div className="xl:col-span-2 space-y-6">
               <div className="geometric-card p-8 space-y-6 bg-surface/30">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                  <PlusSquare className="w-4 h-4" /> নতুন বিজ্ঞাপন তৈরি করুন
+                  <PlusSquare className="w-4 h-4" /> CREATE NEW AD CAMPAIGN
                 </h2>
                 
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">বিজ্ঞাপনের টাইটেল</Label>
+                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Ad Title</Label>
                     <Input 
-                      placeholder="e.g. বিশেষ ছাড় অফার!" 
+                      placeholder="e.g. Special Offer!" 
                       value={adForm.title}
                       onChange={(e) => setAdForm({...adForm, title: e.target.value})}
                       className="bg-bg-dark/50 border-border-custom text-xs h-12"
@@ -2477,9 +2510,9 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">কি লিখে বিজ্ঞাপন দিতে চান?</Label>
+                    <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">What is your ad about?</Label>
                     <textarea 
-                      placeholder="বিজ্ঞাপনের বিস্তারিত লিখুন এখানে..."
+                      placeholder="Enter ad description here..."
                       value={adForm.description}
                       onChange={(e) => setAdForm({...adForm, description: e.target.value})}
                       className="w-full bg-bg-dark/5 border border-border-custom rounded-xl p-4 text-xs h-32 focus:border-accent transition-colors outline-none text-foreground font-sans"
@@ -2488,35 +2521,35 @@ export default function App() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">বিজ্ঞাপনের ধরণ (Ad Type)</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Ad Type</Label>
                       <select 
                         value={adForm.adType}
                         onChange={(e) => setAdForm({...adForm, adType: e.target.value as any})}
                         className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-3 text-xs outline-none focus:border-accent"
                       >
-                        <option value="banner">ব্যানার অ্যাড (Standard)</option>
-                        <option value="video_skippable">ভিডিও অ্যাড (Skippable)</option>
+                        <option value="banner">Banner Ad (Standard)</option>
+                        <option value="video_skippable">Video Ad (Skippable)</option>
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লক্ষ্য (Objective)</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Objective</Label>
                       <select 
                         value={adForm.objective}
                         onChange={(e) => setAdForm({...adForm, objective: e.target.value})}
                         className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-3 text-xs outline-none focus:border-accent"
                       >
-                        <option value="views">ভিডিও ভিউ</option>
-                        <option value="likes">লাইক ও এঙ্গেজমেন্ট</option>
-                        <option value="followers">ফলোয়ার বৃদ্ধি</option>
-                        <option value="website_views">ওয়েবসাইট ভিউ</option>
-                        <option value="sales">সেলস / অর্ডার</option>
+                        <option value="views">Video Views</option>
+                        <option value="likes">Likes & Engagement</option>
+                        <option value="followers">Followers Growth</option>
+                        <option value="website_views">Website Visits</option>
+                        <option value="sales">Sales / Orders</option>
                       </select>
                     </div>
                   </div>
 
                   {adForm.adType === 'video_skippable' && (
                     <div className="space-y-2 animate-in slide-in-from-top-2">
-                       <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">ভিডিও বিজ্ঞাপন ফাইল</Label>
+                       <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Video Ad File</Label>
                        <div 
                          onClick={selectVideoAd}
                          className={`w-full h-24 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${adForm.videoAdUrl ? 'border-accent bg-accent/5' : 'border-border-custom hover:border-accent/40'}`}
@@ -2531,7 +2564,7 @@ export default function App() {
                           ) : (
                              <>
                                <VideoIcon className="w-6 h-6 text-text-dim mb-1" />
-                               <span className="text-[8px] uppercase font-bold text-text-dim">ভিডিও আপলোড করুন</span>
+                               <span className="text-[8px] uppercase font-bold text-text-dim">Upload Video File</span>
                              </>
                           )}
                        </div>
@@ -2540,7 +2573,7 @@ export default function App() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">লোকেশন (Location)</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Target Location</Label>
                       <Input 
                         placeholder="e.g. Dhaka, Bangladesh" 
                         value={adForm.location}
@@ -2549,7 +2582,7 @@ export default function App() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">অডিয়েন্স (Audience)</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Target Audience</Label>
                       <Input 
                         placeholder="e.g. Students, Tech Lovers" 
                         value={adForm.audience}
@@ -2561,9 +2594,9 @@ export default function App() {
 
                   {adForm.objective === 'website_views' && (
                     <div className="space-y-1 animate-in slide-in-from-top-2">
-                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">ওয়েবসাইট লিঙ্ক</Label>
+                      <Label className="text-[8px] uppercase tracking-widest text-text-dim ml-1">Website URL</Label>
                       <Input 
-                        placeholder="https://example.com" 
+                        placeholder="https://yourwebsite.com" 
                         value={adForm.websiteUrl}
                         onChange={(e) => setAdForm({...adForm, websiteUrl: e.target.value})}
                         className="bg-bg-dark/50 border-border-custom text-xs h-12 text-accent"
@@ -2573,12 +2606,12 @@ export default function App() {
 
                   <div className="p-4 bg-bg-dark rounded-2xl border border-border-custom flex items-center justify-between">
                     <div>
-                      <div className="text-[8px] uppercase font-bold text-text-dim">বিজ্ঞাপনের রেট</div>
-                      <div className="text-sm font-black">৳১০০ / ৫ দিন</div>
+                      <div className="text-[8px] uppercase font-bold text-text-dim">Ad Rate</div>
+                      <div className="text-sm font-black">৳100 / 5 Days</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[8px] uppercase font-bold text-text-dim">আনুমানিক রিচ</div>
-                      <div className="text-sm font-black text-accent">৫০০০ - ১০০০০</div>
+                      <div className="text-[8px] uppercase font-bold text-text-dim">Est. Reach</div>
+                      <div className="text-sm font-black text-accent">5000 - 10000</div>
                     </div>
                   </div>
 
@@ -2587,7 +2620,7 @@ export default function App() {
                     disabled={isCreatingAd}
                     className="geometric-btn w-full h-14"
                   >
-                    {isCreatingAd ? <Loader2 className="w-5 h-5 animate-spin" /> : 'বিজ্ঞাপন চালু করুন'}
+                    {isCreatingAd ? <Loader2 className="w-5 h-5 animate-spin" /> : 'LAUNCH CAMPAIGN'}
                   </Button>
                 </div>
               </div>
@@ -2596,7 +2629,7 @@ export default function App() {
             {/* Campaigns List */}
             <div className="xl:col-span-3 space-y-6">
               <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2 mb-4">
-                <Target className="w-4 h-4" /> আপনার ক্যাম্পেইনসমূহ
+                <Target className="w-4 h-4" /> YOUR CAMPAIGNS
               </h2>
               
               <div className="space-y-4">
@@ -2640,7 +2673,7 @@ export default function App() {
                 {myAds.length === 0 && (
                   <div className="p-20 text-center border-2 border-dashed border-border-custom rounded-3xl opacity-20">
                     <Megaphone className="w-16 h-16 mx-auto mb-4" />
-                    <p className="text-xs uppercase font-bold tracking-[8px]">কোনো বিজ্ঞাপন নেই</p>
+                    <p className="text-xs uppercase font-bold tracking-[8px]">No campaigns found</p>
                   </div>
                 )}
               </div>
@@ -2928,7 +2961,7 @@ export default function App() {
                 </button>
                 <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Notifications</h1>
               </div>
-              <p className="text-text-dim text-[8px] uppercase tracking-[4px] ml-12">আপনার সকল নতুন আপডেট</p>
+              <p className="text-text-dim text-[8px] uppercase tracking-[4px] ml-12">Your latest updates</p>
             </div>
             {unreadNotificationsCount > 0 && (
               <Button 
@@ -2991,7 +3024,7 @@ export default function App() {
             {notifications.length === 0 && (
               <div className="p-32 text-center border-2 border-dashed border-border-custom rounded-[40px] opacity-20">
                 <Bell className="w-20 h-20 mx-auto mb-6" />
-                <p className="text-sm uppercase font-black tracking-[10px]">কোনো নটিফিকেশন নেই</p>
+                <p className="text-sm uppercase font-black tracking-[10px]">No Notifications</p>
               </div>
             )}
           </div>
@@ -3017,8 +3050,8 @@ export default function App() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
-            <Button onClick={() => setShowAuthModal(true)} className="w-full bg-accent text-bg-dark font-black h-12 uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-transform">লগইন / একাউন্ট খুলুন</Button>
-            <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-accent transition-colors">হোমে ফিরে যান</Button>
+            <Button onClick={() => setShowAuthModal(true)} className="w-full bg-accent text-bg-dark font-black h-12 uppercase tracking-widest text-[10px] hover:scale-[1.02] transition-transform">LOGIN / CREATE ACCOUNT</Button>
+            <Button variant="ghost" onClick={() => setActiveTab('home')} className="w-full text-text-dim text-[10px] uppercase font-bold hover:text-accent transition-colors">GO BACK HOME</Button>
           </CardContent>
           <CardFooter className="justify-center border-t border-border-custom/30 py-4 opacity-30">
             <div className="text-[8px] font-black uppercase tracking-[4px]">PORSH PROTECTED</div>
@@ -3038,7 +3071,7 @@ export default function App() {
           </div>
           <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Under Maintenance</h1>
           <p className="text-text-dim text-sm max-w-sm">
-            সিস্টেম আপডেটের কাজ চলছে। পড়শি শীঘ্রই আরও উন্নত ফিচারের সাথে ফিরে আসছে। পাশে থাকার জন্য ধন্যবাদ।
+            System maintenance is ongoing. Porsh will be back soon with improved features. Thanks for staying with us.
           </p>
           <div className="text-[10px] text-accent font-bold uppercase tracking-[4px]">Porsh Team</div>
         </div>
@@ -3049,7 +3082,7 @@ export default function App() {
 
     if (currentApp === 'porsh') {
       if (!user && isInStandaloneMode) {
-        return renderLoginRequiredCard('MESSENGER', 'মেসেজ আদান প্রদান করতে দয়া করে লগইন করুন।');
+        return renderLoginRequiredCard('MESSENGER', 'Please login to exchange messages.');
       }
       
       if (!user && !isInStandaloneMode) {
@@ -3061,7 +3094,7 @@ export default function App() {
             </div>
             <h1 className="text-4xl font-black italic tracking-tighter text-accent uppercase">Welcome to Porsh</h1>
             <p className="text-text-dim text-sm max-w-sm">
-              পৃথিবীর যেকোনো প্রান্ত থেকে বন্ধুদের সাথে যুক্ত থাকুন। আল্ট্রা-ফাস্ট ও সিকিউর মেসেন্জিং অভিজ্ঞতা পেতে এখনই শুরু করুন।
+              Stay connected with friends from anywhere in the world. Start now for an ultra-fast and secure messaging experience.
             </p>
             <div className="flex flex-col w-full max-w-xs gap-3">
                <Button onClick={installApp} className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl uppercase tracking-widest shadow-xl">
@@ -3318,7 +3351,7 @@ export default function App() {
                 <div className="p-10 text-center opacity-30">
                   <Globe className="w-12 h-12 mx-auto mb-4" />
                   <p className="text-xs uppercase font-bold tracking-widest">
-                    {homeFeedTab === 'following' ? 'আপনার ফলো করা কারো পোস্ট নেই' : 'নিউজ ফিড খালি'}
+                    {homeFeedTab === 'following' ? "No posts from people you follow" : "News feed empty"}
                   </p>
                 </div>
               )}
@@ -3331,7 +3364,7 @@ export default function App() {
                     onClick={loadMorePosts}
                     className="text-[8px] uppercase font-bold tracking-[4px] opacity-40 hover:opacity-100"
                   >
-                    আরো দেখুন
+                    See More
                   </Button>
                 </div>
               )}
@@ -3557,7 +3590,7 @@ export default function App() {
 
                       <div className="geometric-card p-8 space-y-6">
                         <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                          <ImageIcon className="w-4 h-4" /> মিডিয়া স্টোরেজ (Ultimate Mode)
+                          <ImageIcon className="w-4 h-4" /> Media Storage (Ultimate Mode)
                         </h2>
                         <div className="space-y-4">
                           <div className="space-y-2">
@@ -3696,7 +3729,7 @@ export default function App() {
                                    <div className="space-y-4">
                                       <div className="flex items-center gap-3">
                                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                         <span className="text-[10px] font-black uppercase text-white">Ecosystem Active</span>
+                                         <span className="text-[10px] font-black uppercase text-white">Ecosystem Online</span>
                                       </div>
                                       <div className="p-4 bg-bg-dark rounded-2xl border border-white/5 space-y-2">
                                          <div className="text-[8px] text-text-dim uppercase font-bold">Total API Calls Today</div>
@@ -3810,24 +3843,24 @@ export default function App() {
 
                     <div className="geometric-card p-8 space-y-6">
                        <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                         <Zap className="w-4 h-4" /> সিস্টেম ইন-স্ট্রিম অ্যাডস (Admin System Ads)
+                         <Zap className="w-4 h-4" /> System In-Stream Ads (Admin System Ads)
                        </h2>
                        <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom space-y-4">
                           <div className="space-y-3">
                              <Input 
-                               placeholder="অ্যাড টাইটেল (Title)" 
+                               placeholder="Ad Title" 
                                value={adForm.title}
                                onChange={(e) => setAdForm(prev => ({ ...prev, title: e.target.value }))}
                                className="bg-bg-dark border-border-custom text-white text-xs h-10"
                              />
                              <textarea 
-                               placeholder="অ্যাড ডিসক্রিপশন (Short Description)"
+                               placeholder="Ad Description (Short Description)"
                                value={adForm.description}
                                onChange={(e) => setAdForm(prev => ({ ...prev, description: e.target.value }))}
                                className="w-full bg-bg-dark border border-border-custom rounded-xl p-3 text-xs h-20 outline-none text-white font-sans"
                              />
                              <Input 
-                               placeholder="লিংক/ইউআরএল (Action URL)" 
+                               placeholder="Link/URL (Action URL)" 
                                value={adForm.websiteUrl}
                                onChange={(e) => setAdForm(prev => ({ ...prev, websiteUrl: e.target.value }))}
                                className="bg-bg-dark border-border-custom text-white text-xs h-10"
@@ -3857,14 +3890,14 @@ export default function App() {
                                     onChange={(e) => setAdForm(prev => ({ ...prev, vastType: e.target.value as any }))}
                                     className="w-full bg-bg-dark border border-border-custom rounded-xl px-4 text-xs h-10 text-white outline-none"
                                   >
-                                    <option value="pre-roll">Pre-roll (ভিডিও শুরুর আগে)</option>
-                                    <option value="mid-roll">Mid-roll (ভিডিওর মাঝে)</option>
-                                    <option value="post-roll">Post-roll (ভিডিও শেষে)</option>
+                                    <option value="pre-roll">Pre-roll (Before video)</option>
+                                    <option value="mid-roll">Mid-roll (Middle of video)</option>
+                                    <option value="post-roll">Post-roll (End of video)</option>
                                   </select>
                                 </div>
 
                                 <div className="space-y-2">
-                                   <Label className="text-[8px] uppercase font-black text-text-dim ml-1">অথবা লোকাল ভিডিও আপলোড (Direct File)</Label>
+                                   <Label className="text-[8px] uppercase font-black text-text-dim ml-1">OR Local Video Upload (Direct File)</Label>
                                    <div 
                                      onClick={selectVideoAd}
                                      className="w-full aspect-video rounded-xl border-2 border-dashed border-border-custom bg-bg-dark flex flex-col items-center justify-center cursor-pointer hover:border-accent group"
@@ -3874,7 +3907,7 @@ export default function App() {
                                      ) : (
                                        <>
                                          {isUploadingPhoto ? <Loader2 className="w-6 h-6 animate-spin text-accent" /> : <VideoIcon className="w-8 h-8 text-text-dim group-hover:text-accent" />}
-                                         <span className="text-[8px] uppercase font-black text-text-dim mt-2 tracking-widest">ভিডিও আপলোড করুন (এমপি৪)</span>
+                                         <span className="text-[8px] uppercase font-black text-text-dim mt-2 tracking-widest">Upload Video (MP4)</span>
                                        </>
                                      )}
                                    </div>
@@ -3886,13 +3919,13 @@ export default function App() {
                                disabled={isCreatingAd}
                                className="w-full h-11 bg-accent text-bg-dark font-black uppercase tracking-widest text-[10px] shadow-[0_4px_15px_rgba(0,209,255,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
                              >
-                               {isCreatingAd ? <Loader2 className="w-4 h-4 animate-spin" /> : 'সিস্টেম ভিডিও অ্যাড লাইভ করুন'}
+                               {isCreatingAd ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Launch System Video Ad'}
                              </Button>
                           </div>
                        </div>
                        
                        <div className="space-y-3 mt-6">
-                          <h3 className="text-[8px] uppercase font-black text-accent tracking-widest">সক্রিয় সিস্টেম অ্যাডস</h3>
+                          <h3 className="text-[8px] uppercase font-black text-accent tracking-widest">ACTIVE SYSTEM ADS</h3>
                           {allAds.filter(a => a.isAdminAd && a.status === 'active').map(ad => (
                              <div key={ad.id} className="p-3 bg-bg-dark/80 rounded-xl border border-border-custom flex items-center justify-between group">
                                 <div className="flex items-center gap-3">
@@ -3943,23 +3976,23 @@ export default function App() {
                         <div className="geometric-card p-6 bg-accent/5 border-accent/20">
                            <Eye className="w-5 h-5 text-accent mb-2" />
                            <div className="text-3xl font-black">{posts.reduce((acc, p) => acc + (p.viewsCount || 0), 0)}</div>
-                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট কন্টেন্ট ভিউ</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">Total Content Views</div>
                         </div>
                         <div className="geometric-card p-6 bg-green-500/5 border-green-500/20">
                            <Activity className="w-5 h-5 text-green-500 mb-2" />
                            <div className="text-3xl font-black">{posts.reduce((acc, p) => acc + (p.reachCount || 0), 0)}</div>
-                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মোট কন্টেন্ট রিচ</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">Total Content Reach</div>
                         </div>
                         <div className="geometric-card p-6 bg-yellow-500/5 border-yellow-500/20">
                            <Zap className="w-5 h-5 text-yellow-500 mb-2" />
                            <div className="text-3xl font-black">{allUsers.filter(u => u.isMonetized).length}</div>
-                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">মনিটাইজড ক্রিয়েটর</div>
+                           <div className="text-[8px] uppercase font-bold text-text-dim tracking-widest">Monetized Creators</div>
                         </div>
                      </div>
 
                      <div className="geometric-card p-8">
                         <h2 className="text-xs font-bold uppercase tracking-widest text-accent mb-6 flex items-center gap-2">
-                           <Play className="w-4 h-4" /> মনিটাইজড কন্টেন্ট পারফরম্যান্স (Real-time)
+                           <Play className="w-4 h-4" /> Monetized Content Performance (Real-time)
                         </h2>
                         <div className="space-y-4">
                            {posts.filter(p => p.isMonetized).map(p => (
@@ -4099,7 +4132,7 @@ export default function App() {
                                         <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
                                       ) : (
                                         <div className="w-full h-full flex items-center justify-center text-accent font-black text-xl bg-accent/5">
-                                          {u.displayName.charAt(0)}
+                                          {(u.displayName || '?').charAt(0)}
                                         </div>
                                       )}
                                     </div>
@@ -4109,13 +4142,13 @@ export default function App() {
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <div className="text-[11px] font-black tracking-tight text-white">{u.displayName}</div>
+                                      <div className="text-[11px] font-black tracking-tight text-white">{u.displayName || 'Unnamed User'}</div>
                                       {u.role === 'admin' && <Badge className="bg-accent/20 text-accent text-[6px] tracking-widest uppercase px-1">Admin</Badge>}
                                       {u.isMonetized && <Badge className="bg-green-500/20 text-green-500 text-[6px] tracking-widest uppercase px-1">Monetized</Badge>}
                                     </div>
-                                    <div className="text-[8px] text-text-dim uppercase font-bold tracking-tighter truncate w-32 md:w-auto">{u.uid}</div>
+                                    <div className="text-[8px] text-text-dim uppercase font-bold tracking-tighter truncate w-32 md:w-auto">{u.uid || u.id}</div>
                                     <div className="text-[7px] text-text-dim/60 uppercase mt-0.5">
-                                      {u.lastSeen ? `Last seen: ${u.lastSeen.toDate?.().toLocaleString() || 'Unknown'}` : 'Never seen'}
+                                      {u.lastSeen ? `Last seen: ${typeof u.lastSeen?.toDate === 'function' ? u.lastSeen.toDate().toLocaleString() : new Date(u.lastSeen).toLocaleString()}` : 'Never seen'}
                                     </div>
                                   </div>
                                 </div>
@@ -4212,41 +4245,41 @@ export default function App() {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-[8px] uppercase text-text-dim ml-1">নটিফিকেশন টাইপ</label>
+                          <label className="text-[8px] uppercase text-text-dim ml-1">Notification Type</label>
                           <select 
                             value={adminNoticeType}
                             onChange={(e) => setAdminNoticeType(e.target.value as any)}
                             className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
                           >
-                            <option value="system" className="bg-bg-dark">সিস্টেম বার্তা</option>
-                            <option value="link" className="bg-bg-dark">লিংক/ইউআরএল</option>
-                            <option value="event" className="bg-bg-dark">ইভেন্ট/অফার</option>
-                            <option value="message" className="bg-bg-dark">ব্যক্তিগত মেসেজ</option>
+                            <option value="system" className="bg-bg-dark">System Message</option>
+                            <option value="link" className="bg-bg-dark">Link/URL</option>
+                            <option value="event" className="bg-bg-dark">Event/Offer</option>
+                            <option value="message" className="bg-bg-dark">Private Message</option>
                           </select>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[8px] uppercase text-text-dim ml-1">টাইটেল (Title)</label>
+                          <label className="text-[8px] uppercase text-text-dim ml-1">Title</label>
                           <Input 
                             value={adminNoticeTitle}
                             onChange={(e) => setAdminNoticeTitle(e.target.value)}
-                            placeholder="যেমন: নতুন আপডেট"
+                            placeholder="e.g. New Update"
                             className="bg-bg-dark/50 border-border-custom text-white font-black"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">মেসেজ (Message)</label>
+                        <label className="text-[8px] uppercase text-text-dim ml-1">Message Body</label>
                         <textarea 
                           value={adminNoticeMessage}
                           onChange={(e) => setAdminNoticeMessage(e.target.value)}
-                          placeholder="আপনার বার্তাটি এখানে লিখুন..."
+                          placeholder="Type your message here..."
                           className="w-full bg-bg-dark/50 border border-border-custom rounded-xl p-4 text-xs h-24 focus:border-accent transition-colors outline-none text-white font-sans"
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[8px] uppercase text-text-dim ml-1">লিংক (ঐচ্ছিক)</label>
+                        <label className="text-[8px] uppercase text-text-dim ml-1">Link (Optional)</label>
                         <Input 
                           value={adminNoticeLink}
                           onChange={(e) => setAdminNoticeLink(e.target.value)}
@@ -4261,7 +4294,7 @@ export default function App() {
                         className="w-full bg-accent text-bg-dark font-black uppercase tracking-widest py-6 rounded-2xl shadow-[0_0_20px_rgba(0,209,255,0.3)] hover:shadow-[0_0_30px_rgba(0,209,255,0.5)] transition-all"
                       >
                         {isSendingNotice ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
-                        নটিফিকেশন পাঠান
+                        SEND NOTIFICATION
                       </Button>
                     </div>
                       </div>
@@ -4328,7 +4361,7 @@ export default function App() {
                                              placeholder="https://..."
                                              className="bg-bg-dark/50 border-border-custom font-bold text-xs"
                                           />
-                                          <p className="text-[8px] text-text-dim italic leading-tight">আইকন পরিবর্তন করলে ইউজারের ফোনেও তা আপডেট হবে। (PWA Sync)</p>
+                                          <p className="text-[8px] text-text-dim italic leading-tight">Changing the icon will update it on user phones too. (PWA Sync)</p>
                                        </div>
                                     </div>
                                  </div>
@@ -4417,7 +4450,7 @@ export default function App() {
           </div>
         );
       case 'notifications':
-        if (!user) return renderLoginRequiredCard('NOTIFICATIONS', 'নটিফিকেশন দেখতে দয়া করে লগইন করুন।');
+        if (!user) return renderLoginRequiredCard('NOTIFICATIONS', 'Please login to view notifications.');
         return renderNotifications();
       case 'video':
         return (
@@ -4438,7 +4471,7 @@ export default function App() {
                    onClick={() => withAuth(() => setIsPostCreationModalOpen(true))}
                    className="w-full py-4 rounded-2xl bg-[#1877F2] text-white font-black uppercase tracking-widest text-xs shadow-lg hover:bg-[#166FE5] transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                  >
-                   <Plus className="w-5 h-5" /> রিল ভিডিও আপলোড করুন
+                   <Plus className="w-5 h-5" /> Upload Reel Video
                  </button>
                </div>
                
@@ -4615,7 +4648,7 @@ export default function App() {
           </div>
         );
       case 'monetization':
-        if (!user) return renderLoginRequiredCard('MONETIZATION', 'মনিটাইজেশন পারফরম্যান্স দেখতে দয়া করে লগইন করুন।');
+        if (!user) return renderLoginRequiredCard('MONETIZATION', 'Please login to view monetization performance.');
         if (!user?.isMonetized) {
           return (
             <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col items-center">
@@ -4629,33 +4662,33 @@ export default function App() {
                   <DollarSign className="w-10 h-10 text-accent animate-bounce" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-black tracking-tighter uppercase">মনিটাইজেশন এলিজিবিলিটি</h2>
+                  <h2 className="text-2xl font-black tracking-tighter uppercase">Monetization Eligibility</h2>
                   <p className="text-text-dim text-xs uppercase tracking-widest leading-relaxed">
-                    আপনার প্রোফাইল এখনো মনিটাইজেশনের জন্য উপযুক্ত নয়। মনিটাইজেশন পেতে দয়া করে আরও বেশি কোয়ালিটি কন্টেন্ট শেয়ার করুন এবং ফলোয়ার বাড়ান।
+                    Your profile is not yet eligible for monetization. Please share more quality content and grow your followers to get monetized.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 py-6 border-y border-border-custom/30 text-left">
                   <div className="space-y-1">
-                    <div className="text-[8px] uppercase font-black text-text-dim">ফলোয়ার রিকোয়ারমেন্ট</div>
+                    <div className="text-[8px] uppercase font-black text-text-dim">Followers Requirement</div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-bold">{user?.followersCount || 0}/১০০০</div>
+                      <div className="text-sm font-bold">{user?.followersCount || 0}/1000</div>
                       <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
                         <div className="h-full bg-accent" style={{ width: `${Math.min(((user?.followersCount || 0) / 1000) * 100, 100)}%` }} />
                       </div>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-[8px] uppercase font-black text-text-dim">এনগেজমেন্ট রিকোয়ারমেন্ট</div>
+                    <div className="text-[8px] uppercase font-black text-text-dim">Engagement Requirement</div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-bold">৭৮%</div>
+                      <div className="text-sm font-bold">78%</div>
                       <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
                         <div className="h-full bg-accent w-[78%]" />
                       </div>
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">অ্যাডমিন আপনার প্রোফাইল রিভিউ করার পর মনিটাইজেশন অন করে দিতে পারবেন।</p>
-                <Button className="geometric-btn w-full" disabled>আবেদন করুন (Coming Soon)</Button>
+                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">Admin can enable monetization after reviewing your profile.</p>
+                <Button className="geometric-btn w-full" disabled>Apply Now (Coming Soon)</Button>
               </div>
             </div>
           );
@@ -4665,14 +4698,14 @@ export default function App() {
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex items-center gap-3 mb-2">
                 <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 font-bold text-sm text-[#1877F2] dark:text-accent">
-                  <ArrowLeft className="w-5 h-5" /> পরশি হোম
+                  <ArrowLeft className="w-5 h-5" /> Porsh Home
                 </button>
               </div>
               <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
                 <div className="flex justify-between items-center mb-8">
                   <div>
-                    <h2 className="text-2xl font-black tracking-tighter uppercase">মনিটাইজেশন ড্যাশবোর্ড</h2>
-                    <p className="text-text-dim text-xs uppercase tracking-widest">আপনার কন্টেন্ট পারফরম্যান্স</p>
+                    <h2 className="text-2xl font-black tracking-tighter uppercase">Monetization Dashboard</h2>
+                    <p className="text-text-dim text-xs uppercase tracking-widest">Your content performance</p>
                   </div>
                   <div className="p-3 rounded-2xl bg-accent/10">
                     <TrendingUp className="w-6 h-6 text-accent" />
@@ -4683,26 +4716,26 @@ export default function App() {
                   <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 rounded-lg bg-green-500/10"><DollarSign className="w-4 h-4 text-green-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">মোট আয়</span>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">Total Earnings</span>
                     </div>
                     <div className="text-3xl font-black tracking-tighter">${monetizationData?.totalEarnings.toFixed(2)}</div>
-                    <div className="text-[10px] text-green-500 mt-1 font-bold">+১২% গত মাস থেকে</div>
+                    <div className="text-[10px] text-green-500 mt-1 font-bold">+12% from last month</div>
                   </div>
                   <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 rounded-lg bg-blue-500/10"><Activity className="w-4 h-4 text-blue-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">রিচ (Reach)</span>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">Reach</span>
                     </div>
                     <div className="text-3xl font-black tracking-tighter">{monetizationData?.reach.toLocaleString()}</div>
-                    <div className="text-[10px] text-blue-500 mt-1 font-bold">+৫.৪% গত সপ্তাহ</div>
+                    <div className="text-[10px] text-blue-500 mt-1 font-bold">+5.4% from last week</div>
                   </div>
                   <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 rounded-lg bg-purple-500/10"><Users className="w-4 h-4 text-purple-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">ফলোয়ার</span>
+                      <span className="text-[10px] uppercase font-bold text-text-dim">Followers</span>
                     </div>
                     <div className="text-3xl font-black tracking-tighter">{monetizationData?.followers.toLocaleString()}</div>
-                    <div className="text-[10px] text-purple-500 mt-1 font-bold">+৮৬ নতুন আজ</div>
+                    <div className="text-[10px] text-purple-500 mt-1 font-bold">+86 new today</div>
                   </div>
                 </div>
               </div>
@@ -4711,7 +4744,7 @@ export default function App() {
                 <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
                   <h3 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
                     <BarChart className="w-4 h-4 text-accent" />
-                    আয়ের পরিসংখ্যান
+                    Earnings Stats
                   </h3>
                   <div className="h-48 flex items-end gap-2 px-2">
                     {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
@@ -4735,12 +4768,12 @@ export default function App() {
                 </div>
 
                 <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
-                  <h3 className="text-sm font-bold uppercase mb-6">সাম্প্রতিক আপডেট</h3>
+                  <h3 className="text-sm font-bold uppercase mb-6">Recent Updates</h3>
                   <div className="space-y-4">
                     {[
-                      { label: 'ভিডিও বোনাস', amount: '+$১২.৪০', date: '২ ঘণ্টা আগে' },
-                      { label: 'স্টারস (Stars)', amount: '+$৫.০০', date: '৫ ঘণ্টা আগে' },
-                      { label: 'অ্যাড রেভিনিউ', amount: '+$২৮.১০', date: 'গতকাল' },
+                      { label: 'Video Bonus', amount: '+$12.40', date: '2 hours ago' },
+                      { label: 'Stars', amount: '+$5.00', date: '5 hours ago' },
+                      { label: 'Ad Revenue', amount: '+$28.10', date: 'Yesterday' },
                     ].map((item, i) => (
                       <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-accent/5">
                         <div>
@@ -4757,11 +4790,11 @@ export default function App() {
           </div>
         );
       case 'ads':
-        if (!user) return renderLoginRequiredCard('ADS MANAGER', 'বিজ্ঞাপন ম্যানেজ করতে দয়া করে লগইন করুন।');
+        if (!user) return renderLoginRequiredCard('ADS MANAGER', 'Please login to manage advertisements.');
         return renderAdsContent();
       case 'profile':
         const profileUid = selectedUserUid || user?.uid;
-        if (!profileUid) return renderLoginRequiredCard('PROFILE', 'আপনার প্রোফাইল দেখতে দয়া করে লগইন করুন।');
+        if (!profileUid) return renderLoginRequiredCard('PROFILE', 'Please login to view your profile.');
         
         // Find user data for the profile we are viewing
         const profileUser = profileUid === user?.uid ? user : viewingProfileUser;
@@ -5203,7 +5236,17 @@ export default function App() {
       try {
         if (currentUser) {
           localStorage.setItem('porsh_auth_active', 'true');
-          addLog(`ইউজার পাওয়া গেছে: ${currentUser.uid.slice(0, 6)}...`);
+          addLog(`User found: ${currentUser.uid.slice(0, 6)}...`);
+          
+          // Bootstrap Admin privileges for site owner
+          if (currentUser.email === 'salman1000790@gmail.com') {
+            const userRef = doc(db, 'users', currentUser.uid);
+            getDoc(userRef).then(snap => {
+              if (snap.exists() && snap.data().role !== 'admin') {
+                updateDoc(userRef, { role: 'admin' }).then(() => addLog('Security clearance elevated.'));
+              }
+            });
+          }
           
           if (userUnsubscribe) userUnsubscribe();
           if (followingUnsubscribe) followingUnsubscribe();
@@ -5482,7 +5525,7 @@ export default function App() {
                 </div>
                 <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSH - SIGN IN</CardTitle>
                 <CardDescription className="text-text-dim text-xs">
-                  পরশ এ কোনো কিছু করতে হলে দয়া করে লগইন করুন।
+                  Please login to perform any action on Porsh.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -5499,30 +5542,30 @@ export default function App() {
                     onClick={() => setAuthView('login')}
                     className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'login' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
                   >
-                    লগইন (LOGIN)
+                    LOGIN
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAuthView('register')}
                     className={`flex-1 py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all ${authView === 'register' ? 'bg-accent text-bg-dark' : 'text-text-dim hover:text-white'}`}
                   >
-                    রেজিস্ট্রেশন (JOIN)
+                    JOIN
                   </button>
                 </div>
 
                 <form onSubmit={handleEmailAuth} className="space-y-3">
                   {authView === 'register' && (
-                    <Input placeholder="আপনার নাম" value={authName} onChange={e => setAuthName(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                    <Input placeholder="Your Full Name" value={authName} onChange={e => setAuthName(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
                   )}
-                  <Input placeholder="ফোন নাম্বার" value={authPhone} onChange={e => setAuthPhone(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
-                  <Input placeholder="পাসওয়ার্ড" type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                  <Input placeholder="Phone Number" value={authPhone} onChange={e => setAuthPhone(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
+                  <Input placeholder="Password" type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} className="bg-bg-dark border-border-custom h-10 text-sm" />
                   <Button type="submit" disabled={isAuthLoading} className="w-full bg-accent text-bg-dark font-black h-12 text-[10px] uppercase tracking-[4px]">
-                    {isAuthLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto text-bg-dark" /> : (authView === 'login' ? 'লগইন (LOGIN)' : 'নিবন্ধন (JOIN)')}
+                    {isAuthLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto text-bg-dark" /> : (authView === 'login' ? 'LOGIN' : 'JOIN')}
                   </Button>
                 </form>
 
                 <div className="text-center">
-                  <span className="text-[10px] text-text-dim uppercase font-bold tracking-widest">বা</span>
+                  <span className="text-[10px] text-text-dim uppercase font-bold tracking-widest">OR</span>
                 </div>
                 
                 <Button 
@@ -5530,7 +5573,7 @@ export default function App() {
                   onClick={login} 
                   className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px]"
                 >
-                  <Globe className="w-4 h-4" /> গুগল দিয়ে লগইন
+                  <Globe className="w-4 h-4" /> LOGIN WITH GOOGLE
                 </Button>
               </CardContent>
             </Card>
@@ -5788,7 +5831,7 @@ export default function App() {
                 
                 <div className="text-center space-y-2">
                    <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Native PWA App</h2>
-                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">ফাস্ট ও সিকিউর মেসেন্জার (PRO)</p>
+                   <p className="text-[10px] text-accent font-black uppercase tracking-[4px]">Fast & Secure Messenger (PRO)</p>
                 </div>
 
                 <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
@@ -6042,7 +6085,7 @@ export default function App() {
             <div className={`p-4 border-t flex gap-3 sticky bottom-0 z-10 ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-[#E4E6EB]'}`}>
                <Button variant="ghost" onClick={() => setIsEditProfileModalOpen(false)} className="flex-1 h-12 font-bold uppercase text-[10px] tracking-widest">Cancel</Button>
                <Button onClick={handleUpdateProfile} disabled={isEditProfileLoading} className="flex-1 bg-[#1877F2] text-white hover:bg-[#166FE5] h-12 font-black uppercase text-[10px] tracking-widest shadow-[0_4px_14px_rgba(24,119,242,0.4)]">
-                  {isEditProfileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'সব ঠিক আছে (Save)'}
+                  {isEditProfileLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'SAVE CHANGES'}
                </Button>
             </div>
           </motion.div>
@@ -6285,7 +6328,7 @@ export default function App() {
                     <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center"><PenLine className="w-6 h-6 text-accent" /></div>
                     <div className="text-left">
                        <div className="font-bold">Post</div>
-                       <div className="text-[10px] opacity-50 uppercase tracking-widest font-bold">নিউজ ফিডে পোস্ট করুন</div>
+                       <div className="text-[10px] opacity-50 uppercase tracking-widest font-bold">Post to news feed</div>
                     </div>
                  </button>
                  <button onClick={() => { setIsMobileCreateMenuOpen(false); withAuth(createStory); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-black/5 transition-colors">
