@@ -5463,25 +5463,14 @@ export default function App() {
                const isMe = m.senderUid === user?.uid;
                const messageReactions = m.reactions ? Object.values(m.reactions) : [];
                return (
-                 <div key={m.id || i} className={`flex items-end gap-2 ${isMe ? 'justify-end flex-row-reverse' : 'justify-start flex-row'} animate-in slide-in-from-bottom-2 duration-300 relative mb-6`}>
+                 <div key={m.id || i} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300 relative mb-4`}>
                     {!isMe && (
-                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 border border-white/5 shadow-sm">
+                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 border border-white/5 shadow-sm mb-1">
                           {usersRegistry[activeChat.partnerId]?.photoURL ? (
                             <img src={usersRegistry[activeChat.partnerId].photoURL} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-accent text-bg-dark font-black text-xs uppercase">
                               {activeChat.partnerName?.charAt(0)}
-                            </div>
-                          )}
-                       </div>
-                    )}
-                    {isMe && (
-                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 border border-white/5 shadow-sm">
-                          {user?.photoURL ? (
-                            <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white font-black text-xs uppercase">
-                              {user?.displayName?.charAt(0)}
                             </div>
                           )}
                        </div>
@@ -5500,23 +5489,20 @@ export default function App() {
                        
                        {/* Seen Status Detail */}
                        {isMe && i === messages.length - 1 && (
-                         <div className="absolute -bottom-5 right-0 flex items-center gap-1.5 opacity-80">
+                         <div className="absolute -bottom-4 right-0 flex items-center h-4">
                            {m.isRead ? (
-                             <>
-                               <span className="text-[10px] font-bold text-gray-400">Seen</span>
-                               <div className="w-4 h-4 rounded-full overflow-hidden border border-white dark:border-[#242526] shadow-sm bg-gray-200">
-                                  {usersRegistry[activeChat.partnerId]?.photoURL ? (
-                                    <img src={usersRegistry[activeChat.partnerId].photoURL} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-300 text-[8px] text-white font-bold">
-                                      {usersRegistry[activeChat.partnerId]?.displayName?.charAt(0)}
-                                    </div>
-                                  )}
-                               </div>
-                             </>
+                             <div className="w-3.5 h-3.5 rounded-full overflow-hidden border border-white dark:border-[#242526] shadow-sm bg-gray-200">
+                                {usersRegistry[activeChat.partnerId]?.photoURL ? (
+                                  <img src={usersRegistry[activeChat.partnerId].photoURL} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-300 text-[6px] text-white font-bold">
+                                    {usersRegistry[activeChat.partnerId]?.displayName?.charAt(0)}
+                                  </div>
+                                )}
+                             </div>
                            ) : (
-                             <div className="w-4 h-4 rounded-full border-2 border-gray-200 dark:border-[#3A3B3C] flex items-center justify-center">
-                               <Check className="w-3 h-3 text-gray-300" />
+                             <div className="w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-[#555] flex items-center justify-center">
+                               <Check className="w-2.5 h-2.5 text-gray-300" />
                              </div>
                            )}
                          </div>
