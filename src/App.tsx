@@ -256,17 +256,12 @@ export default function App() {
 
   const [isScanning, setIsScanning] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null);
 
-  // Auto-clear error messages after 3 seconds
-  useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => {
-        setErrorMessage(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [errorMessage]);
+  const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -527,7 +522,12 @@ export default function App() {
 
   const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
   
-  const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
+  const [monetizationData, setMonetizationData] = useState<MonetizationData | null>({
+    totalEarnings: 0,
+    reach: 0,
+    followers: 0,
+    performance: []
+  });
   const [adForm, setAdForm] = useState({
     title: '',
     description: '',
@@ -613,10 +613,10 @@ export default function App() {
               const credential = GoogleAuthProvider.credential(response.credential);
               await signInWithCredential(auth, credential);
               setShowAuthModal(false);
-              setAuthSuccessMessage('Login with Google successful!');
+              showToast('Login with Google successful!', 'success');
             } catch (error: any) {
               console.error('One Tap Error:', error);
-              setErrorMessage('Google login error');
+              showToast('Google login error', 'error');
             } finally {
               setIsAuthLoading(false);
             }
@@ -694,7 +694,6 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
   const [authProcessingStep, setAuthProcessingStep] = useState<string>('');
   const [authLogs, setAuthLogs] = useState<string[]>([]);
   
@@ -1320,11 +1319,10 @@ export default function App() {
       setPostInput('');
       setPostYoutubeUrl('');
       setPostPrivacy('public');
-      setErrorMessage('Post updated.');
-      setTimeout(() => setErrorMessage(null), 3000);
+      showToast('Post updated.', 'success');
     } catch (error) {
       console.error('Update post error:', error);
-      setErrorMessage('Failed to update post.');
+      showToast('Failed to update post.', 'error');
     }
   };
 
@@ -1491,15 +1489,17 @@ export default function App() {
   };
 
   const handleUpdateUserMonetization = async (u: any) => {
+    if (!u || !u.uid) return;
     try {
       await updateDoc(doc(db, 'users', u.uid), { isMonetized: !u.isMonetized });
-      setErrorMessage(`Monetization for ${u.displayName} ${!u.isMonetized ? 'enabled' : 'disabled'}`);
+      showToast(`Monetization for ${u.displayName} ${!u.isMonetized ? 'enabled' : 'disabled'}`);
     } catch (error: any) {
-      setErrorMessage(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
     }
   };
 
   const handleEditUser = async (u: any) => {
+    if (!u || !u.uid) return;
     const newName = window.prompt('Enter new display name:', u.displayName);
     if (newName === null) return;
     const newRole = window.prompt('Enter role (user/admin):', u.role || 'user');
@@ -1510,19 +1510,20 @@ export default function App() {
         displayName: newName,
         role: newRole
       });
-      setErrorMessage(`${u.displayName} details updated`);
+      showToast(`${u.displayName} details updated`);
     } catch (error: any) {
-      setErrorMessage(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
     }
   };
 
   const handleDeleteUser = async (u: any) => {
+    if (!u || !u.uid) return;
     if (!window.confirm(`Are you sure you want to delete ${u.displayName}? This cannot be undone.`)) return;
     try {
       await deleteDoc(doc(db, 'users', u.uid));
-      setErrorMessage(`${u.displayName} has been removed`);
+      showToast(`${u.displayName} has been removed`);
     } catch (error: any) {
-      setErrorMessage(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
     }
   };
 
@@ -2324,7 +2325,11 @@ export default function App() {
            <button onClick={() => setActiveMessengerTab('chats')} className={`flex flex-col items-center gap-1 flex-1 transition-all ${chatActiveTab === 'chats' ? 'text-[#0084FF]' : 'text-gray-400 hover:text-gray-600'}`}>
               <div className="relative">
                  <MessageCircle className={`w-7 h-7 ${chatActiveTab === 'chats' ? 'fill-current' : ''}`} />
-                 <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center">2</span>
+                 {totalUnreadMessages > 0 && (
+                   <span className="absolute -top-1 -right-1 bg-red-600 text-[9px] text-white font-bold px-1 rounded-full min-w-[16px] h-4 flex items-center justify-center">
+                     {totalUnreadMessages}
+                   </span>
+                 )}
               </div>
               <span className="text-[11px] font-bold">Chats</span>
            </button>
@@ -2436,11 +2441,11 @@ export default function App() {
           <div className="p-6 bg-accent/5 rounded-2xl border border-accent/20 space-y-4">
             <div className="flex justify-between items-center text-xs">
               <span className="text-text-dim uppercase font-bold">Bkash/Nagad (Personal)</span>
-              <span className="text-accent font-black tracking-widest">{appConfig?.adPaymentNumber}</span>
+              <span className="text-accent font-black tracking-widest">{appConfig?.adPaymentNumber || '01XXXXXXX'}</span>
             </div>
             <div className="pt-2 border-t border-accent/10 flex justify-between items-center">
               <span className="text-[10px] text-text-dim uppercase">Total Payable</span>
-              <span className="text-xl font-black">৳100.00</span>
+              <span className="text-xl font-black">৳{appConfig?.adRate || 100}.00</span>
             </div>
           </div>
 
@@ -3166,7 +3171,7 @@ export default function App() {
                   })}
                   className={`flex-1 h-10 rounded-full px-4 text-left text-sm ${theme === 'dark' ? 'bg-[#3A3B3C] text-gray-300' : 'bg-[#F0F2F5] text-gray-600'}`}
                 >
-                  {user ? `What's on your mind, ${user.displayName.split(' ')[0]}?` : "What's on your mind?"}
+                  {user ? `What's on your mind, ${(user?.displayName || 'User').split(' ')[0]}?` : "What's on your mind?"}
                 </button>
                 <button onClick={() => withAuth(selectPostImage)} className="p-2 transition-transform active:scale-90">
                   <ImageIcon className="w-6 h-6 text-green-500" />
@@ -3637,9 +3642,9 @@ export default function App() {
                                    onClick={async () => {
                                       try {
                                          await updateDoc(doc(db, 'appConfig', 'remote-settings'), appConfig || {});
-                                         setAuthSuccessMessage('Ecosystem updated successfully!');
+                                         showToast('Ecosystem updated successfully!', 'success');
                                       } catch (e: any) {
-                                         setErrorMessage('Sync failed: ' + e.message);
+                                         showToast('Sync failed: ' + e.message, 'error');
                                       }
                                    }}
                                    className="bg-accent text-bg-dark font-black px-8 py-6 rounded-2xl shadow-[0_0_30px_rgba(0,209,255,0.3)] hover:shadow-accent/50 transition-all"
@@ -4148,7 +4153,17 @@ export default function App() {
                                     </div>
                                     <div className="text-[8px] text-text-dim uppercase font-bold tracking-tighter truncate w-32 md:w-auto">{u.uid || u.id}</div>
                                     <div className="text-[7px] text-text-dim/60 uppercase mt-0.5">
-                                      {u.lastSeen ? `Last seen: ${typeof u.lastSeen?.toDate === 'function' ? u.lastSeen.toDate().toLocaleString() : new Date(u.lastSeen).toLocaleString()}` : 'Never seen'}
+                                      {(() => {
+                                        if (!u.lastSeen) return 'Never seen';
+                                        try {
+                                          if (u.lastSeen?.toDate) return `Last seen: ${u.lastSeen.toDate().toLocaleString()}`;
+                                          if (u.lastSeen?.seconds) return `Last seen: ${new Date(u.lastSeen.seconds * 1000).toLocaleString()}`;
+                                          const d = new Date(u.lastSeen);
+                                          return isNaN(d.getTime()) ? 'Last seen: Recent' : `Last seen: ${d.toLocaleString()}`;
+                                        } catch (e) {
+                                          return 'Last seen: Recent';
+                                        }
+                                      })()}
                                     </div>
                                   </div>
                                 </div>
@@ -4209,7 +4224,7 @@ export default function App() {
                     >
                       <div className="max-w-2xl mx-auto geometric-card p-8 space-y-6">
                     <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                      <Bell className="w-4 h-4" /> সিস্টেম নটিফিকেশন ম্যানেজার
+                      <Bell className="w-4 h-4" /> SYSTEM NOTIFICATION MANAGER
                     </h2>
                     <div className="space-y-4">
                       <div className="flex bg-bg-dark/50 p-1 rounded-xl border border-border-custom">
@@ -4318,9 +4333,9 @@ export default function App() {
                             onClick={async () => {
                               try {
                                 await updateDoc(doc(db, 'appConfig', 'remote-settings'), appConfig || {});
-                                setAuthSuccessMessage('Settings updated successfully!');
+                                showToast('Settings updated successfully!', 'success');
                               } catch (e: any) {
-                                setErrorMessage('Update failed: ' + e.message);
+                                showToast('Update failed: ' + e.message, 'error');
                               }
                             }}
                             className="bg-accent text-bg-dark font-black px-8 rounded-xl shadow-lg shadow-accent/20"
@@ -4718,7 +4733,7 @@ export default function App() {
                       <div className="p-2 rounded-lg bg-green-500/10"><DollarSign className="w-4 h-4 text-green-500" /></div>
                       <span className="text-[10px] uppercase font-bold text-text-dim">Total Earnings</span>
                     </div>
-                    <div className="text-3xl font-black tracking-tighter">${monetizationData?.totalEarnings.toFixed(2)}</div>
+                    <div className="text-3xl font-black tracking-tighter">${monetizationData?.totalEarnings?.toFixed(2) || '0.00'}</div>
                     <div className="text-[10px] text-green-500 mt-1 font-bold">+12% from last month</div>
                   </div>
                   <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
@@ -4726,7 +4741,7 @@ export default function App() {
                       <div className="p-2 rounded-lg bg-blue-500/10"><Activity className="w-4 h-4 text-blue-500" /></div>
                       <span className="text-[10px] uppercase font-bold text-text-dim">Reach</span>
                     </div>
-                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.reach.toLocaleString()}</div>
+                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.reach?.toLocaleString() || '0'}</div>
                     <div className="text-[10px] text-blue-500 mt-1 font-bold">+5.4% from last week</div>
                   </div>
                   <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
@@ -4734,7 +4749,7 @@ export default function App() {
                       <div className="p-2 rounded-lg bg-purple-500/10"><Users className="w-4 h-4 text-purple-500" /></div>
                       <span className="text-[10px] uppercase font-bold text-text-dim">Followers</span>
                     </div>
-                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.followers.toLocaleString()}</div>
+                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.followers?.toLocaleString() || '0'}</div>
                     <div className="text-[10px] text-purple-500 mt-1 font-bold">+86 new today</div>
                   </div>
                 </div>
@@ -5203,31 +5218,31 @@ export default function App() {
     const q = collection(db, 'users');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const registry: Record<string, AppUser> = {};
-      const usersList: any[] = [];
       
       snapshot.docs.forEach(doc => {
         const data = doc.data() as AppUser;
+        if (!data) return;
         const u = { ...data, uid: doc.id, id: doc.id };
         registry[doc.id] = u;
-        usersList.push(u);
       });
 
       setUsersRegistry(registry);
-      // allUsers sync is handled by a separate useEffect to avoid stale closure
     }, (err) => console.error('All users snapshot error', err));
     return () => unsubscribe();
   }, []); 
 
   // Sync allUsers list if current user is admin
   useEffect(() => {
-    if (user?.role === 'admin') {
-      setAllUsers(Object.values(usersRegistry));
+    if (user?.role === 'admin' || user?.role === 'master_admin') {
+      const usersList = Object.values(usersRegistry);
+      console.log(`Admin Sync: Found ${usersList.length} users in registry`);
+      setAllUsers(usersList);
     }
   }, [user?.role, usersRegistry]);
 
   // Auth Listener
   useEffect(() => {
-    addLog('পরশ সিস্টেম প্রস্তুত (PORSH System Ready)');
+    addLog('PORSH System Ready');
     let userUnsubscribe: (() => void) | null = null;
     let followingUnsubscribe: (() => void) | null = null;
     let notifUnsubscribe: (() => void) | null = null;
@@ -5257,7 +5272,7 @@ export default function App() {
             setFollowingUids(snap.docs.map(d => d.id));
           }, (err) => console.error('following error:', err));
 
-          // Listen for notifications
+          // Listen for notifications with safety checks
           const notifQuery = query(
             collection(db, 'notifications'),
             where('toUid', 'in', [currentUser.uid, 'all']),
@@ -5267,13 +5282,13 @@ export default function App() {
           notifUnsubscribe = onSnapshot(notifQuery, (snap) => {
             const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
             setNotifications(notifs);
-            setUnreadNotificationsCount(notifs.filter(n => !n.isRead).length);
+            setUnreadNotificationsCount(notifs.filter(n => n && !n.isRead).length);
           }, (err) => console.error('notifications error:', err));
           
           // Use onSnapshot for the user document to handle offline states and real-time updates
           userUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
             if (docSnap.exists()) {
-              addLog('পড়শি প্রোফাইল লোড হচ্ছে...');
+              addLog('PORSHI profile loading...');
               const userData = { ...docSnap.data(), uid: docSnap.id } as any;
               
               // Bootstrap admin if email matches
@@ -5283,9 +5298,9 @@ export default function App() {
               }
               
               setUser(userData);
-              addLog('পড়শি লগইন সফল! (Login Verified)');
+              addLog('PORSHI Login Success!');
             } else {
-              addLog('নতুন প্রোফাইল তৈরি করা হচ্ছে...');
+              addLog('Creating new profile...');
               // New User Registration Handling
               const name = registrationData.current?.name || currentUser.displayName || 'Porshi User';
               const phone = registrationData.current?.phone || '';
@@ -5302,7 +5317,7 @@ export default function App() {
               };
               
               await setDoc(doc(db, 'users', currentUser.uid), newUser);
-              addLog('প্রোফাইল তৈরি সম্পন্ন (Profile Created)');
+              addLog('Profile registration complete');
               setUser(newUser);
             }
             setShowSplash(false);
@@ -5310,18 +5325,17 @@ export default function App() {
             setIsAuthLoading(false);
           }, (error) => {
             console.error('User doc snapshot error:', error);
-            // If snapshot fails, it might be a permissions issue or truly offline
             if (error.message.includes('offline')) {
-              addLog('অফলাইন মোডে আছে (Working Offline)');
+              addLog('Running in offline mode');
             } else {
-              addLog(`ডাটা এরর: ${error.message}`);
+              addLog(`Data Error: ${error.message}`);
             }
             setIsAuthReady(true);
             setIsAuthLoading(false);
           });
         } else {
           localStorage.removeItem('porsh_auth_active');
-          addLog('লগইন প্রয়োজন (No Active User)');
+          addLog('Authentication Required (No Active User)');
           setUser(null);
           setIsAuthReady(true);
           setIsAuthLoading(false);
@@ -5355,26 +5369,26 @@ export default function App() {
 
     try {
       if (authView === 'register') {
-        addLog(`রেজিস্ট্রেশন চেষ্টা: ${authPhone.trim()}`);
-        setAuthProcessingStep('নতুন অ্যাকাউন্ট তৈরি হচ্ছে...');
+        addLog(`Registration attempt: ${authPhone.trim()}`);
+        setAuthProcessingStep('Creating your account...');
         registrationData.current = { name: authName, phone: authPhone.trim() };
         await createUserWithEmailAndPassword(auth, email, password);
-        addLog('সার্ভার রেসপন্স: সাকসেস (Registered)');
-        setAuthSuccessMessage('নিবন্ধন সফল!');
+        addLog('Server Response: Success (Registered)');
+        showToast('Registration successful!', 'success');
         setShowAuthModal(false);
       } else {
-        addLog(`লগইন চেষ্টা: ${authPhone.trim()}`);
-        setAuthProcessingStep('লগইন করা হচ্ছে...');
+        addLog(`Login attempt: ${authPhone.trim()}`);
+        setAuthProcessingStep('Verifying credentials...');
         await signInWithEmailAndPassword(auth, email, password);
-        addLog('সার্ভার রেসপন্স: ভেরিফাইড (Login Success)');
-        setAuthSuccessMessage('লগইন সফল!');
+        addLog('Server Response: Verified (Login Success)');
+        showToast('Login successful!', 'success');
         setShowAuthModal(false);
       }
     } catch (error: any) {
       setIsAuthLoading(false);
       registrationData.current = null;
       console.error('Email Auth Error:', error);
-      addLog(`এরর (Auth): ${error.code}`);
+      addLog(`Error (Auth): ${error.code}`);
       
       let msg = 'An error occurred. Please try again.';
       if (error.code === 'auth/email-already-in-use') msg = 'This number is already in use.';
@@ -5382,7 +5396,7 @@ export default function App() {
       if (error.code === 'auth/wrong-password') msg = 'Incorrect password.';
       if (error.code === 'auth/user-not-found') msg = 'No account found with this number.';
       
-      setErrorMessage(msg);
+      showToast(msg, 'error');
     }
   };
 
@@ -5392,10 +5406,11 @@ export default function App() {
       addLog('Attempting Google login...');
       await signInWithPopup(auth, googleProvider);
       addLog('Auth successful');
+      showToast('Welcome to Porsh!', 'success');
       setShowAuthModal(false);
     } catch (error: any) {
       console.error('Login Error:', error);
-      setErrorMessage('Failed to login with Google.');
+      showToast('Failed to login with Google.', 'error');
     } finally {
       setIsAuthLoading(false);
     }
@@ -5403,10 +5418,11 @@ export default function App() {
 
   const logout = async () => {
     try {
-      addLog('লগআউট করা হচ্ছে...');
+      addLog('Signing out...');
       await signOut(auth);
       setUser(null);
-      addLog('সেশন শেষ (Logged Out)');
+      addLog('Session Ended (Logged Out)');
+      showToast('Logged out successfully');
     } catch (error: any) {
       console.error('Logout Error:', error);
     }
@@ -5429,7 +5445,7 @@ export default function App() {
         timestamp: serverTimestamp() 
       });
       await batch.commit();
-      addLog(`ফলো করা হয়েছে: ${targetUid.slice(0, 6)}...`);
+      addLog(`Followed: ${targetUid.slice(0, 6)}...`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     }
@@ -5444,7 +5460,7 @@ export default function App() {
       batch.delete(doc(db, 'users', user.uid, 'following', targetUid));
       batch.delete(doc(db, 'users', targetUid, 'followers', user.uid));
       await batch.commit();
-      addLog(`আনফলো করা হয়েছে: ${targetUid.slice(0, 6)}...`);
+      addLog(`Unfollowed: ${targetUid.slice(0, 6)}...`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     }
@@ -5461,7 +5477,7 @@ export default function App() {
         timestamp: serverTimestamp()
       }, { merge: true });
       addLog(`Pair request sent to: ${targetUid.slice(0, 6)}...`);
-      setErrorMessage('Request sent!');
+      showToast('Request sent successfully!', 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `pairs`);
     }
@@ -5835,7 +5851,7 @@ export default function App() {
                 </div>
 
                 <p className="text-center text-[11px] text-text-dim leading-relaxed px-2">
-                   পর্শি অ্যাপটি আপনার ফোনে <span className="text-white font-bold italic">অরিজিনাল অ্যান্ড্রয়েড (PWA) অ্যাপ</span> হিসেবে কাজ করবে। এটি কোনো ব্রাউজার শর্টকাট নয়, এটি সম্পূর্ণ অফলাইন, ফুল-স্ক্রিন এবং নেটিভ পারফরম্যান্স দিবে।
+                   The Porsh app will work as an <span className="text-white font-bold italic">Original Android (PWA) app</span> on your phone. It is not just a browser shortcut, it offers full-screen and native performance.
                 </p>
 
                 <div className="space-y-4 pt-2">
@@ -5869,14 +5885,14 @@ export default function App() {
                         className="w-full bg-accent text-bg-dark font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-accent/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                      >
                         <Download className="w-4 h-4" />
-                        এখনই ইনস্টল (DIRECT INSTALL)
+                        INSTALL NOW (DIRECT)
                      </Button>
                    ) : (
                      <Button 
                         onClick={handleRefreshApp}
                         className="w-full bg-white/10 text-white font-black h-14 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
                      >
-                        অ্যাপ রিফ্রেশ করুন (Refresh App)
+                        REFRESH APP
                      </Button>
                    )}
                    <Button 
@@ -5884,7 +5900,7 @@ export default function App() {
                       onClick={() => setShowInstallModal(false)}
                       className="w-full text-text-dim text-[10px] uppercase font-black py-4 hover:text-white"
                    >
-                      পরে করব
+                      MAYBE LATER
                    </Button>
                 </div>
              </div>
@@ -5975,25 +5991,25 @@ export default function App() {
                {/* Bio Section */}
                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                     <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Bio / স্লোগান</h3>
+                     <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Bio / Tagline</h3>
                      <span className="text-[10px] font-bold text-text-dim">{editProfileData.bio.length}/101</span>
                   </div>
-                  <textarea 
-                    value={editProfileData.bio}
-                    onChange={e => setEditProfileData({...editProfileData, bio: e.target.value})}
-                    placeholder="পড়শিতে আপনার সম্পর্কে কিছু বলুন..."
-                    maxLength={101}
+                    <textarea 
+                      value={editProfileData.bio}
+                      onChange={e => setEditProfileData({...editProfileData, bio: e.target.value})}
+                      placeholder="Tell something about yourself..."
+                      maxLength={101}
                     className={`w-full p-4 rounded-xl border-2 resize-none h-24 text-sm font-medium focus:border-[#1877F2] transition-colors outline-none ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}
                   />
                </div>
 
                {/* Settings Section */}
                <div className="space-y-6">
-                  <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Settings / সেটিংস</h3>
+                  <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Settings</h3>
                   <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`}>
                     <div>
                       <div className="text-sm font-bold uppercase tracking-tight">Video Autoplay</div>
-                      <div className="text-[10px] text-text-dim font-medium uppercase">অটোমেটিক ভিডিও প্লে হবে</div>
+                      <div className="text-[10px] text-text-dim font-medium uppercase">Automatically play videos</div>
                     </div>
                     <button 
                       onClick={() => setEditProfileData(prev => ({ ...prev, autoplayVideos: !prev.autoplayVideos }))}
@@ -6009,7 +6025,7 @@ export default function App() {
                   <h3 className="font-bold uppercase text-xs tracking-widest text-[#1877F2]">Customize your intro</h3>
                   <div className="grid gap-6">
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Display Name / আপনার নাম</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Display Name</Label>
                         <Input 
                           value={editProfileData.displayName} 
                           onChange={e => setEditProfileData({...editProfileData, displayName: e.target.value})} 
@@ -6018,44 +6034,44 @@ export default function App() {
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">বর্তমান শহর</Label>
+                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Current City</Label>
                            <Input 
                              value={editProfileData.currentCity} 
                              onChange={e => setEditProfileData({...editProfileData, currentCity: e.target.value})} 
                              className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
-                             placeholder="যেমন: ঢাকা, বাংলাদেশ"
+                             placeholder="e.g. Dhaka, Bangladesh"
                            />
                         </div>
                         <div className="space-y-2">
-                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">স্থায়ী ঠিকানা</Label>
+                           <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Permanent Address</Label>
                            <Input 
                              value={editProfileData.hometown} 
                              onChange={e => setEditProfileData({...editProfileData, hometown: e.target.value})} 
                              className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
-                             placeholder="যেমন: চট্টগ্রাম"
+                             placeholder="e.g. Chittagong"
                            />
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">কর্মসংস্থান (Work)</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Employment (Work)</Label>
                         <Input 
                           value={editProfileData.work} 
                           onChange={e => setEditProfileData({...editProfileData, work: e.target.value})} 
                           className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
-                          placeholder="যেমন: গ্রাফিক ডিজাইনার"
+                          placeholder="e.g. Software Engineer"
                         />
                      </div>
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">শিক্ষা প্রতিষ্ঠান</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Education</Label>
                         <Input 
                           value={editProfileData.education} 
                           onChange={e => setEditProfileData({...editProfileData, education: e.target.value})} 
                           className={`h-12 border-2 ${theme === 'dark' ? 'bg-[#3A3B3C] border-[#3E4042]' : 'bg-[#F0F2F5] border-gray-200'}`} 
-                          placeholder="স্কুল বা কলেজ"
+                          placeholder="School or College"
                         />
                      </div>
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">সম্পর্কের অবস্থা</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Relationship Status</Label>
                         <select 
                           value={editProfileData.relationshipStatus} 
                           onChange={e => setEditProfileData({...editProfileData, relationshipStatus: e.target.value})}
@@ -6070,7 +6086,7 @@ export default function App() {
                         </select>
                      </div>
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">ওয়েবসাইট / প্রোফাইল লিংক</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-widest ml-1">Website / Profile Link</Label>
                         <Input 
                           value={editProfileData.website} 
                           onChange={e => setEditProfileData({...editProfileData, website: e.target.value})} 
@@ -6480,24 +6496,25 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Error Message */}
+      {/* Toast Notification */}
       <AnimatePresence>
-        {errorMessage && (
+        {toast && (
           <motion.div 
-            initial={{ opacity: 0, y: 50 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-accent text-bg-dark px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest shadow-2xl"
+            initial={{ opacity: 0, y: 50, scale: 0.9 }} 
+            animate={{ opacity: 1, y: 0, scale: 1 }} 
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[3000] px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[2px] shadow-2xl flex items-center gap-3 backdrop-blur-md border border-white/10 ${
+              toast.type === 'error' ? 'bg-red-500 text-white' : 
+              toast.type === 'success' ? 'bg-green-500 text-white' : 
+              'bg-accent text-bg-dark'
+            }`}
           >
-            {errorMessage}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4" />}
+            {toast.type === 'success' && <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">✓</div>}
+            {toast.message}
           </motion.div>
         )}
       </AnimatePresence>
-
-      {renderAuthModal()}
-      {renderEditProfileModal()}
-      {renderInstallModal()}
-      {renderChatWindow()}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }

@@ -304,13 +304,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                         onClick={() => { onEdit?.(post); setShowMenu(false); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                       >
-                        এডিট (Edit)
+                        Edit
                       </button>
                       <button 
                         onClick={() => { if (window.confirm('Delete this post?')) onDelete?.(post.id); setShowMenu(false); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-gray-100 dark:border-[#3E4042]"
                       >
-                        ডিলেট (Delete)
+                        Delete
                       </button>
                     </>
                   ) : (
@@ -318,7 +318,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                       onClick={() => setShowMenu(false)}
                       className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                     >
-                      রিপোর্ট (Report)
+                      Report
                     </button>
                   )}
                 </motion.div>
