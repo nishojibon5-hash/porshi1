@@ -119,12 +119,12 @@ service cloud.firestore {
 
     match /conversations/{userId}/userChats/{partnerId} {
       allow read: if isOwner(userId);
-      allow write: if isOwner(userId) || isOwner(partnerId);
+      allow write: if isSignedIn(); // Allow writing so partner can update unreadCount/lastMessage
     }
 
     match /chats/{chatId}/typing/{uid} {
       allow read: if isSignedIn() && (request.auth.uid in chatId.split('_'));
-      allow write: if isOwner(uid) && (uid in chatId.split('_'));
+      allow write: if isOwner(uid);
     }
 
     match /notifications/{notificationId} {

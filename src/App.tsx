@@ -1894,16 +1894,20 @@ export default function App() {
     setMessages(prev => [...prev, optimisticMsg as any]);
 
     try {
-      await addDoc(collection(db, 'chats', activeChat.id, 'messages'), {
+      const batch = writeBatch(db);
+      
+      // 1. Add Message
+      const msgRef = doc(collection(db, 'chats', activeChat.id, 'messages'));
+      batch.set(msgRef, {
         senderUid: user.uid,
         text: text,
         timestamp: serverTimestamp(),
         isRead: false
       });
 
-      // Update recent chats for both
-      const chatDocRef = doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId);
-      await setDoc(chatDocRef, {
+      // 2. Update My Recent Chat
+      const myChatDocRef = doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId);
+      batch.set(myChatDocRef, {
         partnerId: activeChat.partnerId,
         partnerName: activeChat.partnerName,
         lastMessage: text,
@@ -1911,18 +1915,26 @@ export default function App() {
         unreadCount: 0
       }, { merge: true });
 
+      // 3. Update Partner's Recent Chat
       const partnerChatDocRef = doc(db, 'conversations', activeChat.partnerId, 'userChats', user.uid);
-      await setDoc(partnerChatDocRef, {
+      batch.set(partnerChatDocRef, {
         partnerId: user.uid,
-        partnerName: user.displayName,
+        partnerName: user.displayName || 'Friend',
         lastMessage: text,
         timestamp: serverTimestamp(),
         unreadCount: increment(1)
       }, { merge: true });
 
-    } catch (error) {
+      await batch.commit();
+
+    } catch (error: any) {
       console.error('Send message error:', error);
-      setErrorMessage('মেসেজ পাঠানো যায়নি।');
+      // Better error feedback
+      if (error?.message?.includes('permission')) {
+        setErrorMessage('অনুমতি নেই। দয়া করে আবার লগইন করুন।');
+      } else {
+        setErrorMessage('মেসেজ পাঠানো যায়নি।');
+      }
       // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== tempId));
     }
@@ -2085,8 +2097,8 @@ export default function App() {
                           </div>
                           <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
                              <div className="flex justify-between items-center mb-0.5">
-                                <span className={`text-[17px] truncate pr-2 ${chat.unreadCount > 0 ? 'font-black' : 'font-semibold'}`}>{partner.displayName}</span>
-                                <span className="text-[11px] text-gray-400 font-medium">
+                                <span className={`text-[17px] truncate pr-2 ${chat.unreadCount > 0 ? 'font-bold text-foreground' : 'font-semibold text-foreground/90'}`}>{partner.displayName}</span>
+                                <span className={`text-[11px] font-medium ${chat.unreadCount > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
                                   {chat.timestamp ? new Date(chat.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
                              </div>
@@ -2098,7 +2110,7 @@ export default function App() {
                                 </div>
                                 {chat.unreadCount > 0 && (
                                   <div className="flex-shrink-0 ml-2">
-                                     <div className="w-3 h-3 rounded-full bg-blue-500" />
+                                     <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                                   </div>
                                 )}
                              </div>
@@ -2106,37 +2118,30 @@ export default function App() {
                         </button>
                       );
                     })
-                  ) : filteredUsers.length > 0 ? (
-                    filteredUsers.map(u => (
-                      <button 
-                        key={u.uid}
-                        onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left"
-                      >
-                        <div className="relative flex-shrink-0">
-                          <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
-                            {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
-                          </div>
-                          {u.isOnline && (
-                             <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
-                           <div className="flex justify-between items-center mb-0.5">
-                              <span className="font-semibold text-[17px] truncate pr-2">{u.displayName}</span>
-                           </div>
-                           <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1 min-w-0">
-                                 <p className="text-[14px] text-gray-500 truncate">হাই, কেমন আছেন বন্ধু?</p>
-                              </div>
-                           </div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
+                  ) : messengerSearch && filteredUsers.length === 0 ? (
                     <div className="py-20 text-center opacity-30">
                        <MessageSquare className="w-16 h-16 mx-auto mb-4" />
-                       <p className="font-bold text-sm tracking-widest uppercase">No chats found</p>
+                       <p className="font-bold text-sm tracking-widest uppercase">No users found</p>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6">
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Suggest Friends</p>
+                      <div className="space-y-4">
+                        {onlineUsers.filter(u => u.uid !== user?.uid).slice(0, 10).map(u => (
+                          <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex items-center gap-3 cursor-pointer group">
+                             <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 relative">
+                                {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-gray-400" />}
+                             </div>
+                             <div className="flex-1">
+                                <h3 className="font-bold text-sm group-hover:text-blue-500 transition-colors">{u.displayName}</h3>
+                                <p className="text-xs text-gray-400">নতুন বন্ধুকে মেসেজ দিন</p>
+                             </div>
+                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                                <MessageCircle className="w-4 h-4" />
+                             </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                </div>
