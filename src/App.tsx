@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
@@ -183,6 +183,17 @@ export default function App() {
   const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
   const [reactingToMessageId, setReactingToMessageId] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<any[]>([]);
+  const totalUnreadMessages = useMemo(() => {
+    return recentChats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+  }, [recentChats]);
+
+  const displayedRecentChats = useMemo(() => {
+    if (!messengerSearch) return recentChats;
+    return recentChats.filter(chat => 
+      chat.partnerName?.toLowerCase().includes(messengerSearch.toLowerCase())
+    );
+  }, [recentChats, messengerSearch]);
+
   const [showBottomLikePicker, setShowBottomLikePicker] = useState(false);
   const messageLongPressTimer = useRef<NodeJS.Timeout | null>(null);
   
@@ -1828,6 +1839,11 @@ export default function App() {
       return;
     }
 
+    // Mark as read when opening chat
+    setDoc(doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId), {
+      unreadCount: 0
+    }, { merge: true }).catch(console.error);
+
     const q = query(
       collection(db, 'chats', activeChat.id, 'messages'),
       orderBy('timestamp', 'asc'),
@@ -1836,6 +1852,12 @@ export default function App() {
 
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage)));
+      // Clear unread count when receiving messages in active chat
+      if (!snapshot.metadata.hasPendingWrites) {
+        setDoc(doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId), {
+          unreadCount: 0
+        }, { merge: true }).catch(console.error);
+      }
     }, (error) => {
       console.error('Chat messages error:', error);
     });
@@ -2126,6 +2148,26 @@ export default function App() {
                     <div className="py-20 text-center opacity-30">
                        <MessageSquare className="w-16 h-16 mx-auto mb-4" />
                        <p className="font-bold text-sm tracking-widest uppercase">No users found</p>
+                    </div>
+                  ) : messengerSearch && filteredUsers.length > 0 ? (
+                    <div className="px-4 py-6">
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Users Found</p>
+                      <div className="space-y-4">
+                        {filteredUsers.map(u => (
+                          <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex items-center gap-3 cursor-pointer group">
+                             <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 relative">
+                                {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-gray-400" />}
+                             </div>
+                             <div className="flex-1">
+                                <h3 className="font-bold text-sm group-hover:text-accent transition-colors">{u.displayName}</h3>
+                                <p className="text-xs text-gray-400">মেসেজ দিন</p>
+                             </div>
+                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-bg-dark transition-all">
+                                <MessageCircle className="w-4 h-4" />
+                             </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="px-4 py-6">
@@ -5923,7 +5965,7 @@ export default function App() {
           {[
             { id: 'home', icon: Home, label: 'Feed' },
             { id: 'scan', icon: Store, label: 'Nearby' },
-            { id: 'chat', icon: MessageCircle, label: 'Messenger' },
+            { id: 'chat', icon: MessageCircle, label: 'Messenger', badge: totalUnreadMessages },
             { id: 'monetization', icon: DollarSign, label: 'Earnings' },
             { id: 'ads', icon: Megaphone, label: 'Promote' },
             { id: 'notifications', icon: Bell, label: 'Alerts', badge: unreadNotificationsCount },
@@ -5983,7 +6025,13 @@ export default function App() {
             </button>
             <button onClick={() => withAuth(() => setCurrentApp(currentApp === 'porsh' ? 'porshi' : 'porsh'))} className={`p-2 rounded-full relative ${theme === 'dark' ? 'bg-[#3A3B3C]' : 'bg-[#F0F2F5]'}`}>
               <MessageCircle className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
-              <div className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white dark:border-[#242526]`} />
+              {totalUnreadMessages > 0 ? (
+                <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 border-2 border-white dark:border-[#242526] flex items-center justify-center text-[10px] font-black text-white shadow-sm animate-in zoom-in duration-300">
+                  {totalUnreadMessages > 99 ? '99+' : totalUnreadMessages}
+                </div>
+              ) : (
+                <div className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white dark:border-[#242526]`} />
+              )}
             </button>
           </div>
         </header>
@@ -6124,7 +6172,7 @@ export default function App() {
                   {[
                     { id: 'home', icon: Home, label: t('home') },
                     { id: 'scan', icon: Store, label: t('discovery') },
-                    { id: 'chat', icon: MessageCircle, label: t('chat') },
+                    { id: 'chat', icon: MessageCircle, label: t('chat'), badge: totalUnreadMessages },
                     { id: 'monetization', icon: DollarSign, label: t('monetize') },
                     { id: 'ads', icon: Megaphone, label: 'Promote Ads' },
                     { id: 'notifications', icon: Bell, label: t('notifications'), badge: unreadNotificationsCount },
