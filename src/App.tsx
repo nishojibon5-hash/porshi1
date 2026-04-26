@@ -183,6 +183,8 @@ export default function App() {
   const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
   const [reactingToMessageId, setReactingToMessageId] = useState<string | null>(null);
   const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [messengerSearch, setMessengerSearch] = useState('');
+
   const totalUnreadMessages = useMemo(() => {
     return recentChats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
   }, [recentChats]);
@@ -484,7 +486,6 @@ export default function App() {
   }, [currentApp, isInStandaloneMode]);
 
   const [activeMessengerTab, setActiveMessengerTab] = useState<'chats' | 'stories' | 'alerts'>('chats');
-  const [messengerSearch, setMessengerSearch] = useState('');
   
   const [monetizationData, setMonetizationData] = useState<MonetizationData | null>(null);
   const [adForm, setAdForm] = useState({
