@@ -7,9 +7,8 @@ service cloud.firestore {
 
     // 1. Primitive Definitions
     function isSignedIn() { return request.auth != null; }
-    function isEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
-    function isMasterAdmin() { return isEmailVerified() && request.auth.token.email == "salman1000790@gmail.com"; }
+    function isMasterAdmin() { return isSignedIn() && request.auth.token.email == "salman1000790@gmail.com"; }
     
     function isAdmin() { 
       return isMasterAdmin() || 
@@ -115,7 +114,12 @@ service cloud.firestore {
 
     match /chats/{chatId}/messages/{messageId} {
       allow read: if isSignedIn() && (request.auth.uid in chatId.split('_'));
-      allow create: if isEmailVerified() && incoming().senderUid == request.auth.uid;
+      allow create: if isSignedIn() && incoming().senderUid == request.auth.uid;
+    }
+
+    match /conversations/{userId}/userChats/{partnerId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) || isOwner(partnerId);
     }
 
     match /chats/{chatId}/typing/{uid} {

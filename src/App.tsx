@@ -182,6 +182,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<AppUser[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<(AppUser & { distance: number })[]>([]);
   const [reactingToMessageId, setReactingToMessageId] = useState<string | null>(null);
+  const [recentChats, setRecentChats] = useState<any[]>([]);
   const [showBottomLikePicker, setShowBottomLikePicker] = useState(false);
   const messageLongPressTimer = useRef<NodeJS.Timeout | null>(null);
   
@@ -1899,6 +1900,26 @@ export default function App() {
         timestamp: serverTimestamp(),
         isRead: false
       });
+
+      // Update recent chats for both
+      const chatDocRef = doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId);
+      await setDoc(chatDocRef, {
+        partnerId: activeChat.partnerId,
+        partnerName: activeChat.partnerName,
+        lastMessage: text,
+        timestamp: serverTimestamp(),
+        unreadCount: 0
+      }, { merge: true });
+
+      const partnerChatDocRef = doc(db, 'conversations', activeChat.partnerId, 'userChats', user.uid);
+      await setDoc(partnerChatDocRef, {
+        partnerId: user.uid,
+        partnerName: user.displayName,
+        lastMessage: text,
+        timestamp: serverTimestamp(),
+        unreadCount: increment(1)
+      }, { merge: true });
+
     } catch (error) {
       console.error('Send message error:', error);
       setErrorMessage('মেসেজ পাঠানো যায়নি।');
@@ -1928,7 +1949,7 @@ export default function App() {
                    {unreadNotificationsCount > 0 ? unreadNotificationsCount : 0}
                 </div>
              </button>
-             <h1 className="text-2xl font-bold tracking-tight lowercase">porsh</h1>
+             <h1 className="text-2xl font-black tracking-tighter uppercase italic text-accent">{appConfig?.appName || 'PORSH'}</h1>
           </div>
           <div className="flex gap-2">
              {!isOnline && (
@@ -2045,7 +2066,47 @@ export default function App() {
 
                {/* Chat List */}
                <div className="space-y-0.5">
-                  {filteredUsers.length > 0 ? (
+                  {recentChats.length > 0 ? (
+                    recentChats.map(chat => {
+                      const partner = usersRegistry[chat.partnerId] || { displayName: chat.partnerName, photoURL: null, isOnline: false };
+                      return (
+                        <button 
+                          key={chat.id}
+                          onClick={() => setActiveChat({ id: [user!.uid, chat.partnerId].sort().join('_'), partnerId: chat.partnerId, partnerName: partner.displayName })}
+                          className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left ${chat.unreadCount > 0 ? 'bg-blue-50/50 dark:bg-blue-500/5' : ''}`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
+                              {partner.photoURL ? <img src={partner.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
+                            </div>
+                            {partner.isOnline && (
+                               <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
+                             <div className="flex justify-between items-center mb-0.5">
+                                <span className={`text-[17px] truncate pr-2 ${chat.unreadCount > 0 ? 'font-black' : 'font-semibold'}`}>{partner.displayName}</span>
+                                <span className="text-[11px] text-gray-400 font-medium">
+                                  {chat.timestamp ? new Date(chat.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
+                             </div>
+                             <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1 min-w-0">
+                                   <p className={`text-[14px] truncate ${chat.unreadCount > 0 ? 'text-foreground font-bold' : 'text-gray-500'}`}>
+                                     {chat.lastMessage}
+                                   </p>
+                                </div>
+                                {chat.unreadCount > 0 && (
+                                  <div className="flex-shrink-0 ml-2">
+                                     <div className="w-3 h-3 rounded-full bg-blue-500" />
+                                  </div>
+                                )}
+                             </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : filteredUsers.length > 0 ? (
                     filteredUsers.map(u => (
                       <button 
                         key={u.uid}
@@ -2063,14 +2124,10 @@ export default function App() {
                         <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
                            <div className="flex justify-between items-center mb-0.5">
                               <span className="font-semibold text-[17px] truncate pr-2">{u.displayName}</span>
-                              <span className="text-[12px] text-gray-400 font-medium">Wed</span>
                            </div>
                            <div className="flex justify-between items-center">
                               <div className="flex items-center gap-1 min-w-0">
-                                 <p className="text-[14px] text-gray-500 truncate">You: হাই, কেমন আছেন পড়শি বন্ধু?</p>
-                              </div>
-                              <div className="flex-shrink-0 ml-2">
-                                 <div className="w-3 h-3 rounded-full bg-blue-500" />
+                                 <p className="text-[14px] text-gray-500 truncate">হাই, কেমন আছেন বন্ধু?</p>
                               </div>
                            </div>
                         </div>
@@ -4584,7 +4641,14 @@ export default function App() {
                     </div>
 
                     <div className="flex-1 text-center md:text-left pb-4 md:mb-2">
-                       <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">{profileUser?.displayName}</h1>
+                       <div className="flex items-center justify-center md:justify-start gap-2">
+                         <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">{profileUser?.displayName}</h1>
+                         {profileUser?.isMonetized && (
+                           <div className="bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-500/20">
+                             Monetized
+                           </div>
+                         )}
+                       </div>
                        <p className="text-gray-500 font-bold mt-1 uppercase text-xs tracking-widest">{profileUser?.followersCount || 0} followers • {profileUser?.followingCount || 0} following</p>
                     </div>
 
@@ -4895,6 +4959,25 @@ export default function App() {
       setIsPostMonetized(true);
     }
   }, [isPostCreationModalOpen, user?.isMonetized, editingPost]);
+
+  useEffect(() => {
+    if (activeChat && user) {
+      const chatDocRef = doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId);
+      updateDoc(chatDocRef, { unreadCount: 0 }).catch(() => {});
+    }
+  }, [activeChat, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'conversations', user.uid, 'userChats'),
+      orderBy('timestamp', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRecentChats(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   useEffect(() => {
     const q = collection(db, 'users');
@@ -5817,7 +5900,7 @@ export default function App() {
               />
             </div>
             <div className="text-xl font-black tracking-tighter uppercase italic text-accent">
-              {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+              {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
             </div>
         </div>
         
@@ -5873,7 +5956,7 @@ export default function App() {
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
             <span className="text-xl font-black tracking-tighter text-accent uppercase italic">
-              {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+              {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -6014,7 +6097,7 @@ export default function App() {
                        <img src={appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
                     <span className="text-xl font-black tracking-tighter italic">
-                      {(currentApp === 'porsh' || activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
+                      {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
                     </span>
                   </div>
                   <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 rounded-full hover:bg-black/5 transition-colors">
