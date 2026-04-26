@@ -2077,7 +2077,7 @@ export default function App() {
                </div>
 
                {/* Chat List */}
-               <div className="space-y-0.5">
+               <div className="space-y-0.5 min-h-[400px]">
                   {recentChats.length > 0 ? (
                     recentChats.map(chat => {
                       const partner = usersRegistry[chat.partnerId] || { displayName: chat.partnerName, photoURL: null, isOnline: false };
@@ -2088,29 +2088,33 @@ export default function App() {
                           className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F0F2F5] dark:hover:bg-[#242526] transition-colors group text-left ${chat.unreadCount > 0 ? 'bg-blue-50/50 dark:bg-blue-500/5' : ''}`}
                         >
                           <div className="relative flex-shrink-0">
-                            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C]">
-                              {partner.photoURL ? <img src={partner.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-3 text-gray-400" />}
+                            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C] border border-gray-100 dark:border-white/5">
+                              {partner.photoURL ? <img src={partner.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-accent text-bg-dark font-black text-xl">{partner.displayName.charAt(0)}</div>}
                             </div>
                             {partner.isOnline && (
-                               <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full" />
+                               <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full shadow-sm" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0 border-b border-gray-100 dark:border-[#242526] pb-3 group-last:border-none">
                              <div className="flex justify-between items-center mb-0.5">
-                                <span className={`text-[17px] truncate pr-2 ${chat.unreadCount > 0 ? 'font-bold text-foreground' : 'font-semibold text-foreground/90'}`}>{partner.displayName}</span>
-                                <span className={`text-[11px] font-medium ${chat.unreadCount > 0 ? 'text-blue-500' : 'text-gray-400'}`}>
-                                  {chat.timestamp ? new Date(chat.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                <span className={`text-[17px] truncate pr-2 ${chat.unreadCount > 0 ? 'font-black text-foreground' : 'font-bold text-foreground/90'}`}>{partner.displayName}</span>
+                                <span className={`text-[11px] font-bold ${chat.unreadCount > 0 ? 'text-accent' : 'text-gray-400'}`}>
+                                  {chat.timestamp ? (
+                                     Math.floor(Date.now() / 1000) - chat.timestamp.seconds < 86400
+                                     ? new Date(chat.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                     : new Date(chat.timestamp.seconds * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })
+                                  ) : ''}
                                 </span>
                              </div>
                              <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-1 min-w-0">
-                                   <p className={`text-[14px] truncate ${chat.unreadCount > 0 ? 'text-foreground font-bold' : 'text-gray-500'}`}>
+                                   <p className={`text-[14px] truncate ${chat.unreadCount > 0 ? 'text-foreground font-black' : 'text-gray-500 font-medium'}`}>
                                      {chat.lastMessage}
                                    </p>
                                 </div>
                                 {chat.unreadCount > 0 && (
-                                  <div className="flex-shrink-0 ml-2">
-                                     <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                  <div className="flex-shrink-0 ml-2 px-2 py-0.5 bg-accent rounded-full text-[10px] font-black text-bg-dark shadow-sm">
+                                     {chat.unreadCount}
                                   </div>
                                 )}
                              </div>
@@ -2125,19 +2129,25 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="px-4 py-6">
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Suggest Friends</p>
-                      <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-6">
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Suggest Friends</p>
+                        <button className="text-[10px] font-bold text-accent uppercase tracking-tighter">View All</button>
+                      </div>
+                      <div className="space-y-5">
                         {onlineUsers.filter(u => u.uid !== user?.uid).slice(0, 10).map(u => (
-                          <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex items-center gap-3 cursor-pointer group">
-                             <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 relative">
-                                {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-gray-400" />}
+                          <div key={u.uid} onClick={() => setActiveChat({ id: [user!.uid, u.uid].sort().join('_'), partnerId: u.uid, partnerName: u.displayName })} className="flex items-center gap-4 cursor-pointer group">
+                             <div className="relative">
+                                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 dark:bg-[#3A3B3C] border-2 border-transparent group-hover:border-accent transition-all shadow-sm">
+                                   {u.photoURL ? <img src={u.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-accent bg-accent/5 font-black text-lg">{u.displayName.charAt(0)}</div>}
+                                </div>
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-[#18191A] rounded-full shadow-sm" />
                              </div>
                              <div className="flex-1">
-                                <h3 className="font-bold text-sm group-hover:text-blue-500 transition-colors">{u.displayName}</h3>
-                                <p className="text-xs text-gray-400">নতুন বন্ধুকে মেসেজ দিন</p>
+                                <h3 className="font-bold text-[15px] group-hover:text-accent transition-colors">{u.displayName}</h3>
+                                <p className="text-[11px] text-gray-400 font-medium">পড়শি বন্ধুকে মেসেজ দিন</p>
                              </div>
-                             <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                                <MessageCircle className="w-4 h-4" />
+                             <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#3A3B3C] flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-bg-dark transition-all scale-90 group-hover:scale-100 shadow-sm">
+                                <MessageCircle className="w-5 h-5" />
                              </div>
                           </div>
                         ))}
