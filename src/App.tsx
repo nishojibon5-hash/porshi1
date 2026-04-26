@@ -1345,8 +1345,8 @@ export default function App() {
           fromName: user.displayName,
           fromPhoto: user.photoURL,
           type: 'like',
-          title: reactionType === '👍' ? 'নতুন লাইক!' : 'নতুন রিঅ্যাকশন!',
-          message: `${user.displayName} আপনার পোস্টে ${reactionType === '👍' ? 'লাইক দিয়েছেন' : 'রিঅ্যাক্ট করেছেন'}।`
+          title: reactionType === '👍' ? 'New Like!' : 'New Reaction!',
+          message: `${user.displayName} ${reactionType === '👍' ? 'liked' : 'reacted to'} your post.`
         });
       }
     } catch (error) {
@@ -1385,12 +1385,10 @@ export default function App() {
       await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
         adPaidMode: !currentStatus
       });
-      setErrorMessage(`পেইড মোড ${!currentStatus ? 'চালু' : 'বন্ধ'} হয়েছে`);
-      setTimeout(() => setErrorMessage(null), 3000);
+      setErrorMessage(`Paid mode ${!currentStatus ? 'enabled' : 'disabled'}`);
     } catch (error: any) {
       console.error('Paid mode toggle error:', error);
-      setErrorMessage(`এরর: ${error.message}`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
@@ -1402,8 +1400,7 @@ export default function App() {
       setErrorMessage('Payment number updated');
       setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
@@ -1425,9 +1422,9 @@ export default function App() {
         });
         const data = await res.json();
         setAdForm(prev => ({ ...prev, videoAdUrl: data.secure_url, adType: 'video_skippable' }));
-        setErrorMessage('ভিডিও এড আপলোড হয়েছে!');
+        setErrorMessage('Video ad uploaded!');
       } catch (err) {
-        setErrorMessage('ভিডিও আপলোড ব্যর্থ হয়েছে।');
+        setErrorMessage('Video upload failed.');
       } finally {
         setIsUploadingPhoto(false);
       }
@@ -1441,22 +1438,18 @@ export default function App() {
       await updateDoc(doc(db, 'appConfig', 'remote-settings'), {
         maintenanceMode: !currentVal
       });
-      setErrorMessage(`মেইনটেন্যান্স মোড ${!currentVal ? 'চালু' : 'বন্ধ'} হয়েছে`);
-      setTimeout(() => setErrorMessage(null), 3000);
+      setErrorMessage(`Maintenance mode ${!currentVal ? 'enabled' : 'disabled'}`);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
   const handleUpdateUserMonetization = async (u: any) => {
     try {
       await updateDoc(doc(db, 'users', u.uid), { isMonetized: !u.isMonetized });
-      setErrorMessage(`${u.displayName} এর মনিটাইজেশন ${!u.isMonetized ? 'চালু' : 'বন্ধ'} হয়েছে`);
-      setTimeout(() => setErrorMessage(null), 3000);
+      setErrorMessage(`Monetization for ${u.displayName} ${!u.isMonetized ? 'enabled' : 'disabled'}`);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
@@ -1471,10 +1464,9 @@ export default function App() {
         displayName: newName,
         role: newRole
       });
-      setErrorMessage(`${u.displayName} এর তথ্য আপডেট হয়েছে`);
-      setTimeout(() => setErrorMessage(null), 3000);
+      setErrorMessage(`${u.displayName} details updated`);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
@@ -1482,10 +1474,9 @@ export default function App() {
     if (!window.confirm(`Are you sure you want to delete ${u.displayName}? This cannot be undone.`)) return;
     try {
       await deleteDoc(doc(db, 'users', u.uid));
-      setErrorMessage(`${u.displayName} কে রিমুভ করা হয়েছে`);
-      setTimeout(() => setErrorMessage(null), 3000);
+      setErrorMessage(`${u.displayName} has been removed`);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
+      setErrorMessage(`Error: ${error.message}`);
     }
   };
 
@@ -1495,12 +1486,12 @@ export default function App() {
     const isAdSense = !!adForm.adCode.trim();
     
     if (!adForm.title.trim() && !isAdSense) {
-      setErrorMessage('টাইটেল অথবা এডসেন্স কোড দিন।');
+      setErrorMessage('Please provide a title or ad code.');
       return;
     }
     
     if (!isVast && !isAdSense && !adForm.videoAdUrl) {
-      setErrorMessage('ভিডিও, VAST URL অথবা এডসেন্স কোড দিন।');
+      setErrorMessage('Please provide video, VAST URL or ad code.');
       return;
     }
 
@@ -1508,7 +1499,7 @@ export default function App() {
     try {
       const adData: Omit<Advertisement, 'id'> = {
         advertiserUid: 'admin',
-        advertiserName: 'পড়শি টীম (Official)',
+        advertiserName: 'Porshi Team (Official)',
         title: adForm.title.trim() || 'Google AdSense Banner',
         description: adForm.description.trim() || 'Third party display advertisement',
         objective: 'website_views',
@@ -1532,7 +1523,7 @@ export default function App() {
       };
 
       await addDoc(collection(db, 'ads'), adData);
-      setErrorMessage('সিস্টেম এড সফলভাবে চালু হয়েছে!');
+      setErrorMessage('System ad activated successfully!');
       
       setAdForm({
         title: '',
@@ -1549,10 +1540,8 @@ export default function App() {
         vastType: 'pre-roll',
         adCode: ''
       });
-      setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(`Error: ${error.message}`);
     } finally {
       setIsCreatingAd(false);
     }
@@ -1581,11 +1570,11 @@ export default function App() {
   const handleSendAdminNotice = async () => {
     if (!user) return;
     if (!isAdminNoticeAll && !adminNoticeTargetUid) {
-      setErrorMessage('দয়া করে একজন ইউজার সিলেক্ট করুন।');
+      setErrorMessage('Please select a user.');
       return;
     }
     if (!adminNoticeTitle.trim() || !adminNoticeMessage.trim()) {
-      setErrorMessage('টাইটেল এবং মেসেজ লিখুন।');
+      setErrorMessage('Please enter title and message.');
       return;
     }
 
@@ -1594,20 +1583,19 @@ export default function App() {
       await sendNotification({
         toUid: isAdminNoticeAll ? 'all' : adminNoticeTargetUid,
         fromUid: user.uid,
-        fromName: 'পড়শি টীম (Admin)',
+        fromName: 'Porshi Team (Admin)',
         fromPhoto: user.photoURL,
         type: adminNoticeType,
         title: adminNoticeTitle.trim(),
         message: adminNoticeMessage.trim(),
         link: adminNoticeLink.trim() || undefined
       });
-      setErrorMessage('নটিফিকেশন পাঠানো হয়েছে!');
+      setErrorMessage('Notification sent!');
       setAdminNoticeTitle('');
       setAdminNoticeMessage('');
       setAdminNoticeLink('');
-      setTimeout(() => setErrorMessage(null), 3000);
     } catch (error: any) {
-      setErrorMessage(`এরর: ${error.message}`);
+      setErrorMessage(`Error: ${error.message}`);
     } finally {
       setIsSendingNotice(false);
     }
@@ -1682,13 +1670,11 @@ export default function App() {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       });
 
-      addLog('স্টোরি পাবলিশ সফল!');
-      setErrorMessage('স্টোরি আপলোড হয়েছে!');
-      setTimeout(() => setErrorMessage(null), 3000);
+      addLog('Story published successfully!');
+      setErrorMessage('Story uploaded!');
     } catch (err: any) {
       console.error('Story upload error details:', err);
-      setErrorMessage(err.message || 'স্টোরি আপলোড করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(err.message || 'Failed to upload story.');
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -1832,14 +1818,13 @@ export default function App() {
           fromName: user.displayName,
           fromPhoto: user.photoURL,
           type: 'comment',
-          title: 'নতুন কমেন্ট!',
-          message: `${user.displayName} আপনার পোস্টে কমেন্ট করেছেন${savedCommentText ? `: "${savedCommentText.substring(0, 30)}..."` : ' একটি ছবি পোস্ট করেছেন।'}`
+          title: 'New Comment!',
+          message: `${user.displayName} commented on your post${savedCommentText ? `: "${savedCommentText.substring(0, 30)}..."` : ' with a media.'}`
         });
       }
     } catch (error) {
       console.error('Comment error:', error);
-      setErrorMessage('কমেন্ট করতে সমস্যা হয়েছে।');
-      setTimeout(() => setErrorMessage(null), 4000);
+      setErrorMessage('Failed to post comment.');
       handleFirestoreError(error, OperationType.CREATE, `posts/${commentingPostId}/comments`);
     }
   };
@@ -2323,12 +2308,12 @@ export default function App() {
   const handleCreateAd = async () => {
     if (!user) return;
     if (!adForm.title.trim() || !adForm.description.trim()) {
-      setErrorMessage('দয়া করে বিজ্ঞাপনের টাইটেল এবং ডিসক্রিপশন দিন।');
+      setErrorMessage('Please enter ad title and description.');
       return;
     }
 
     setIsCreatingAd(true);
-    addLog('বিজ্ঞাপন তৈরি হচ্ছে...');
+    addLog('Creating ad campaign...');
 
     try {
       const adData: Omit<Advertisement, 'id'> = {
@@ -2362,8 +2347,7 @@ export default function App() {
       if (appConfig?.adPaidMode) {
         setShowAdPaymentModal(true);
       } else {
-        setErrorMessage('বিজ্ঞাপন সফলভাবে লাইভ হয়েছে!');
-        setTimeout(() => setErrorMessage(null), 3000);
+        setErrorMessage('Ad is now live!');
       }
 
       setAdForm({
@@ -2376,10 +2360,9 @@ export default function App() {
         durationDays: 5,
         budget: 100
       });
-      addLog('বিজ্ঞাপন সেভ হয়েছে!');
     } catch (error: any) {
       console.error('Create Ad error:', error);
-      setErrorMessage(`বিজ্ঞাপন তৈরিতে সমস্যা হয়েছে: ${error.message}`);
+      setErrorMessage(`Failed to create ad: ${error.message}`);
     } finally {
       setIsCreatingAd(false);
     }
@@ -2421,14 +2404,13 @@ export default function App() {
               onClick={async () => {
                 if (pendingAdId) {
                   await updateDoc(doc(db, 'ads', pendingAdId), { status: 'pending' });
-                  setErrorMessage('পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে। অনুগ্রহ করে অপেক্ষা করুন।');
-                  setTimeout(() => setErrorMessage(null), 3000);
+                  setErrorMessage('Payment request sent. Please wait for verification.');
                 }
                 setShowAdPaymentModal(false);
               }}
               className="geometric-btn w-full h-14"
             >
-              আমি পেমেন্ট করেছি
+              I have paid
             </Button>
           </div>
         </motion.div>
@@ -5232,28 +5214,26 @@ export default function App() {
       console.error('Email Auth Error:', error);
       addLog(`এরর (Auth): ${error.code}`);
       
-      let msg = 'সমস্যা হয়েছে। আবার চেষ্টা করুন।';
-      if (error.code === 'auth/email-already-in-use') msg = 'এই নাম্বার দিয়ে অলরেডি অ্যাকাউন্ট আছে।';
-      if (error.code === 'auth/invalid-email') msg = 'সঠিক ফোন নাম্বার দিন।';
-      if (error.code === 'auth/wrong-password') msg = 'ভুল পাসওয়ার্ড।';
-      if (error.code === 'auth/user-not-found') msg = 'অ্যাকাউন্ট পাওয়া যায়নি।';
+      let msg = 'An error occurred. Please try again.';
+      if (error.code === 'auth/email-already-in-use') msg = 'This number is already in use.';
+      if (error.code === 'auth/invalid-email') msg = 'Invalid phone number format.';
+      if (error.code === 'auth/wrong-password') msg = 'Incorrect password.';
+      if (error.code === 'auth/user-not-found') msg = 'No account found with this number.';
       
       setErrorMessage(msg);
-      setTimeout(() => setErrorMessage(null), 3000);
     }
   };
 
   const login = async () => {
     setIsAuthLoading(true);
     try {
-      addLog('গুগল লগইন চেষ্টা করা হচ্ছে...');
+      addLog('Attempting Google login...');
       await signInWithPopup(auth, googleProvider);
-      addLog('সার্ভার রেসপন্স: সফল (Verified)');
+      addLog('Auth successful');
       setShowAuthModal(false);
     } catch (error: any) {
       console.error('Login Error:', error);
-      addLog(`এরর (Auth): ${error.code}`);
-      setErrorMessage('গুগল লগইন করতে সমস্যা হয়েছে।');
+      setErrorMessage('Failed to login with Google.');
     } finally {
       setIsAuthLoading(false);
     }
@@ -5318,8 +5298,8 @@ export default function App() {
         status: 'pending',
         timestamp: serverTimestamp()
       }, { merge: true });
-      addLog(`পেয়ার রিকোয়েস্ট পাঠানো হয়েছে: ${targetUid.slice(0, 6)}...`);
-      setErrorMessage('রিকোয়েস্ট পাঠানো হয়েছে!');
+      addLog(`Pair request sent to: ${targetUid.slice(0, 6)}...`);
+      setErrorMessage('Request sent!');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `pairs`);
     }
