@@ -527,7 +527,20 @@ export default function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [isAppActive, setIsAppActive] = useState(true);
-  const [selectedUserUid, setSelectedUserUid] = useState<string | null>(null);
+  const [adminSearchTerm, setAdminSearchTerm] = useState('');
+  const [adminRoleFilter, setAdminRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [adminMonetizationFilter, setAdminMonetizationFilter] = useState<'all' | 'monetized' | 'non-monetized'>('all');
+
+  const filteredAllUsers = useMemo(() => {
+    return allUsers.filter(u => {
+      const matchesSearch = u.displayName.toLowerCase().includes(adminSearchTerm.toLowerCase()) || 
+                           u.uid.toLowerCase().includes(adminSearchTerm.toLowerCase());
+      const matchesRole = adminRoleFilter === 'all' || u.role === adminRoleFilter;
+      const matchesMonetization = adminMonetizationFilter === 'all' || 
+                                (adminMonetizationFilter === 'monetized' ? u.isMonetized : !u.isMonetized);
+      return matchesSearch && matchesRole && matchesMonetization;
+    });
+  }, [allUsers, adminSearchTerm, adminRoleFilter, adminMonetizationFilter]);
   const [viewingProfileUser, setViewingProfileUser] = useState<AppUser | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [postPrivacy, setPostPrivacy] = useState<'public' | 'followers' | 'private'>('public');
@@ -3344,7 +3357,7 @@ export default function App() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h1 className="text-3xl font-black italic tracking-tighter text-accent uppercase">ADMIN</h1>
-                  <p className="text-[8px] text-text-dim uppercase tracking-[3px]">পড়শি অ্যাপ কন্ট্রোল সিস্টেম</p>
+                  <p className="text-[8px] text-text-dim uppercase tracking-[3px]">PORSHI APP CONTROL SYSTEM</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setActiveTab('home')} className="lg:hidden text-accent h-10 w-10">
                    <ArrowLeft className="w-6 h-6" />
@@ -3355,11 +3368,11 @@ export default function App() {
                 {[
                   { id: 'overview', name: 'Dashboard', icon: LayoutDashboard },
                   { id: 'ecosystem', name: 'Ecosystem', icon: Zap },
-                  { id: 'ads', name: 'অ্যাড ম্যানেজার', icon: Megaphone },
-                  { id: 'users', name: 'ইউজার লিস্ট', icon: Users },
-                  { id: 'monetization', name: 'রোজগার', icon: DollarSign },
-                  { id: 'notifs', name: 'নটিফিকেশন', icon: Bell },
-                  { id: 'settings', name: 'অ্যাপ সেটিংস', icon: Settings2 },
+                  { id: 'ads', name: 'Ad Manager', icon: Megaphone },
+                  { id: 'users', name: 'User Management', icon: Users },
+                  { id: 'monetization', name: 'Earnings', icon: DollarSign },
+                  { id: 'notifs', name: 'Notifications', icon: Bell },
+                  { id: 'settings', name: 'App Settings', icon: Settings2 },
                 ].map(item => (
                   <button
                     key={item.id}
@@ -3393,7 +3406,7 @@ export default function App() {
                     >
                       <div className="geometric-card p-8 space-y-6">
                         <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                           <Activity className="w-4 h-4" /> অ্যাপ স্ট্যাটিস্টিকস
+                           <Activity className="w-4 h-4" /> APP STATISTICS
                         </h2>
                         
                         {/* Quick Navigation Buttons */}
@@ -3444,13 +3457,13 @@ export default function App() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="geometric-card p-8 space-y-6">
                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                        <LayoutDashboard className="w-4 h-4" /> অ্যাপ সেটিংস
+                        <LayoutDashboard className="w-4 h-4" /> GLOBAL APP SETTINGS
                       </h2>
                       <div className="space-y-6">
                         <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
                           <div>
                             <div className="text-sm font-bold uppercase">Maintenance Mode</div>
-                            <div className="text-[8px] text-text-dim uppercase">ইউজারদের জন্য অ্যাপ বন্ধ রাখা</div>
+                            <div className="text-[8px] text-text-dim uppercase">Disable app for regular users</div>
                           </div>
                           <button 
                             id="maintenance-mode-toggle-admin"
@@ -3514,13 +3527,13 @@ export default function App() {
                     <div className="space-y-8">
                       <div className="geometric-card p-8 space-y-6">
                         <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                          <Megaphone className="w-4 h-4" /> গেটওয়ে ও পেমেন্ট সেটিংস
+                          <Megaphone className="w-4 h-4" /> GATEWAY & PAYMENT SETTINGS
                         </h2>
                         <div className="space-y-6">
                           <div className="flex items-center justify-between p-4 bg-bg-dark/50 rounded-xl border border-border-custom">
                             <div>
                               <div className="text-sm font-bold uppercase">Paid Ad Mode</div>
-                              <div className="text-[8px] text-text-dim uppercase">পেমেন্ট বাধ্যতামূলক করা</div>
+                              <div className="text-[8px] text-text-dim uppercase">Require payment for ads</div>
                             </div>
                             <button 
                               id="paid-mode-toggle-admin-2"
@@ -3584,7 +3597,7 @@ export default function App() {
                           <div className="flex items-center justify-between">
                              <div className="space-y-1">
                                 <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter">Porsh Ecosystem Panel</h2>
-                                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">মেসেন্জার ও সোশ্যাল নেটওয়ার্ক কন্ট্রোল</p>
+                                <p className="text-[10px] text-accent font-bold uppercase tracking-[2px]">MESSENGER & SOCIAL NETWORK CONTROL</p>
                              </div>
                              <div className="flex items-center gap-2">
                                 <Button 
@@ -3697,9 +3710,9 @@ export default function App() {
                                 </div>
 
                                 <div className="p-6 bg-bg-dark/80 rounded-3xl border border-red-500/20 space-y-4">
-                                   <h3 className="text-[10px] font-black text-red-500 uppercase tracking-[4px]">Danger Zone</h3>
-                                   <p className="text-[8px] text-text-dim leading-relaxed">
-                                      এখানে কোন পরিবর্তন করলে সকল ইউজারের রিয়েল-টাইম এক্সপিরিয়েন্স বদলে যাবে। দয়া করে সতর্কতা অবলম্বন করুন।
+                                   <h3 className="text-10px font-black text-red-500 uppercase tracking-4px">Danger Zone</h3>
+                                   <p className="text-8px text-text-dim leading-relaxed">
+                                      Any changes here will immediately affect the real-time experience of all users. Use with caution.
                                    </p>
                                    <Button 
                                       variant="destructive" 
@@ -3726,22 +3739,22 @@ export default function App() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="geometric-card p-8 space-y-6">
                       <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                        <Target className="w-4 h-4" /> পেন্ডিং ও সচল বিজ্ঞাপন
+                        <Target className="w-4 h-4" /> ACTIVE & PENDING ADVERTISEMENTS
                       </h2>
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
-                          <div className="text-[8px] text-text-dim uppercase font-bold">সচল ভিডিও অ্যাডস</div>
+                          <div className="text-[8px] text-text-dim uppercase font-bold">Active Video Ads</div>
                           <div className="text-xl font-black text-green-500">{allAds.filter(a => a.status === 'active' && a.adType === 'video_skippable').length}</div>
                         </div>
                         <div className="p-4 bg-bg-dark rounded-xl border border-border-custom">
-                          <div className="text-[8px] text-text-dim uppercase font-bold">মোট ব্যানার</div>
+                          <div className="text-[8px] text-text-dim uppercase font-bold">Active Banners</div>
                           <div className="text-xl font-black text-accent">{allAds.filter(a => a.status === 'active' && a.adType !== 'video_skippable').length}</div>
                         </div>
                       </div>
                       <Tabs defaultValue="pending_ads_list" className="w-full">
                         <TabsList className="bg-bg-dark border border-border-custom w-full">
-                          <TabsTrigger value="pending_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">পেন্ডিং</TabsTrigger>
-                          <TabsTrigger value="active_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">সচল</TabsTrigger>
+                          <TabsTrigger value="pending_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">Pending</TabsTrigger>
+                          <TabsTrigger value="active_ads_list" className="flex-1 uppercase text-[8px] font-black tracking-widest">Active</TabsTrigger>
                         </TabsList>
                         <TabsContent value="pending_ads_list" className="mt-4 space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                           {allAds.filter(ad => ad.status === 'pending').map(ad => (
@@ -4004,50 +4017,151 @@ export default function App() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
-                      className="space-y-8"
+                      className="space-y-6"
                     >
+                      {/* User Stats Summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-2xl font-black text-accent">{allUsers.length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Total Users</div>
+                        </div>
+                        <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-2xl font-black text-green-500">{allUsers.filter(u => u.isOnline).length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Online Now</div>
+                        </div>
+                        <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-2xl font-black text-yellow-500">{allUsers.filter(u => u.isMonetized).length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Monetized</div>
+                        </div>
+                        <div className="p-4 bg-bg-dark/50 rounded-2xl border border-border-custom text-center">
+                          <div className="text-2xl font-black text-white">{allUsers.filter(u => u.role === 'admin').length}</div>
+                          <div className="text-[8px] text-text-dim uppercase tracking-widest mt-1">Admins</div>
+                        </div>
+                      </div>
+
                       <div className="geometric-card p-8 space-y-6">
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
-                      <Users className="w-4 h-4" /> ইউজার ম্যানেজমেন্ট
-                    </h2>
-                    <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
-                      {allUsers.map((u: any) => (
-                        <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-surface-light border border-border-custom overflow-hidden">
-                              {u.photoURL && <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <h2 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                            <Users className="w-4 h-4" /> USER MANAGEMENT
+                          </h2>
+                          
+                          <div className="flex items-center gap-2 flex-grow max-w-md">
+                            <div className="relative flex-grow">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dim" />
+                              <Input 
+                                placeholder="Search by name or UID..."
+                                value={adminSearchTerm}
+                                onChange={(e) => setAdminSearchTerm(e.target.value)}
+                                className="bg-bg-dark/50 border-border-custom h-10 pl-10 text-xs text-white"
+                              />
                             </div>
-                            <div>
-                              <div className="text-[10px] font-bold uppercase">{u.displayName}</div>
-                              <div className={`text-[8px] uppercase ${u.role === 'admin' ? 'text-accent' : 'text-text-dim'}`}>{u.role || 'user'}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => handleUpdateUserMonetization(u)}
-                              className={`p-2 rounded-lg transition-all cursor-pointer ${u.isMonetized ? 'bg-green-500 text-white' : 'bg-surface-light text-text-dim hover:text-accent'}`}
-                              title={u.isMonetized ? "Monetization: ON" : "Monetization: OFF"}
-                            >
-                              <DollarSign className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleEditUser(u)}
-                              className="p-2 rounded-lg bg-surface-light text-text-dim hover:text-blue-500 transition-all cursor-pointer"
-                              title="Edit User"
-                            >
-                              <PenLine className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteUser(u)}
-                              className="p-2 rounded-lg bg-surface-light text-text-dim hover:text-red-500 transition-all cursor-pointer"
-                              title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-border-custom/30">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => { setAdminRoleFilter('all'); setAdminMonetizationFilter('all'); setAdminSearchTerm(''); }}
+                            className="text-[8px] font-black uppercase tracking-widest h-8"
+                          >
+                            Reset
+                          </Button>
+                          <select 
+                            value={adminRoleFilter}
+                            onChange={(e) => setAdminRoleFilter(e.target.value as any)}
+                            className="bg-bg-dark border border-border-custom rounded-lg px-3 py-1 text-[8px] font-black uppercase tracking-widest outline-none text-accent"
+                          >
+                            <option value="all">Role: All</option>
+                            <option value="admin">Admins Only</option>
+                            <option value="user">Users Only</option>
+                          </select>
+                          <select 
+                            value={adminMonetizationFilter}
+                            onChange={(e) => setAdminMonetizationFilter(e.target.value as any)}
+                            className="bg-bg-dark border border-border-custom rounded-lg px-3 py-1 text-[8px] font-black uppercase tracking-widest outline-none text-green-500"
+                          >
+                            <option value="all">Monetization: All</option>
+                            <option value="monetized">Monetized Only</option>
+                            <option value="non-monetized">Non-Monetized</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
+                          {filteredAllUsers.length > 0 ? (
+                            filteredAllUsers.map((u: any) => (
+                              <div key={u.id} className="p-4 bg-bg-dark/50 rounded-xl border border-border-custom flex items-center justify-between hover:border-accent/40 transition-colors group">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative">
+                                    <div className="w-12 h-12 rounded-full bg-surface-light border border-border-custom overflow-hidden">
+                                      {u.photoURL ? (
+                                        <img src={u.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-accent font-black text-xl bg-accent/5">
+                                          {u.displayName.charAt(0)}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {u.isOnline && (
+                                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-bg-dark" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-[11px] font-black tracking-tight text-white">{u.displayName}</div>
+                                      {u.role === 'admin' && <Badge className="bg-accent/20 text-accent text-[6px] tracking-widest uppercase px-1">Admin</Badge>}
+                                      {u.isMonetized && <Badge className="bg-green-500/20 text-green-500 text-[6px] tracking-widest uppercase px-1">Monetized</Badge>}
+                                    </div>
+                                    <div className="text-[8px] text-text-dim uppercase font-bold tracking-tighter truncate w-32 md:w-auto">{u.uid}</div>
+                                    <div className="text-[7px] text-text-dim/60 uppercase mt-0.5">
+                                      {u.lastSeen ? `Last seen: ${u.lastSeen.toDate?.().toLocaleString() || 'Unknown'}` : 'Never seen'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
+                                  <button 
+                                    onClick={() => handleUpdateUserMonetization(u)}
+                                    className={`p-2 rounded-xl border transition-all cursor-pointer ${u.isMonetized ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-surface-light border-border-custom text-text-dim hover:text-accent hover:border-accent'}`}
+                                    title={u.isMonetized ? "Monetization: ON" : "Monetization: OFF"}
+                                  >
+                                    <DollarSign className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setAdminNoticeTargetUid(u.uid);
+                                      setAdminActiveTab('notifs');
+                                      setIsAdminNoticeAll(false);
+                                    }}
+                                    className="p-2 rounded-xl border border-border-custom bg-surface-light text-text-dim hover:text-yellow-500 hover:border-yellow-500 transition-all cursor-pointer"
+                                    title="Send Notification"
+                                  >
+                                    <Bell className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleEditUser(u)}
+                                    className="p-2 rounded-xl border border-border-custom bg-surface-light text-text-dim hover:text-blue-500 hover:border-blue-500 transition-all cursor-pointer"
+                                    title="Edit User"
+                                  >
+                                    <PenLine className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteUser(u)}
+                                    className="p-2 rounded-xl border border-border-custom bg-surface-light text-text-dim hover:text-red-500 hover:border-red-500 transition-all cursor-pointer"
+                                    title="Delete User"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4">
+                              <Users className="w-12 h-12" />
+                              <p className="font-black text-sm tracking-widest uppercase">No users found matching filters</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -4070,25 +4184,25 @@ export default function App() {
                           onClick={() => setIsAdminNoticeAll(false)}
                           className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${!isAdminNoticeAll ? 'bg-accent text-bg-dark font-black' : 'text-text-dim hover:text-white'}`}
                         >
-                          সিঙ্গেল ইউজার
+                          Single User
                         </button>
                         <button 
                           onClick={() => setIsAdminNoticeAll(true)}
                           className={`flex-1 py-2 text-[10px] uppercase font-bold rounded-lg transition-all ${isAdminNoticeAll ? 'bg-accent text-bg-dark font-black shadow-[0_0_15px_rgba(0,209,255,0.4)]' : 'text-text-dim hover:text-white'}`}
                         >
-                          সকল ইউজার
+                          All Users
                         </button>
                       </div>
 
                       {!isAdminNoticeAll && (
                         <div className="space-y-2">
-                          <label className="text-[8px] uppercase text-text-dim ml-1">ইউজার সিলেক্ট করুন</label>
+                          <label className="text-[8px] uppercase text-text-dim ml-1">Select Target User</label>
                           <select 
                             value={adminNoticeTargetUid}
                             onChange={(e) => setAdminNoticeTargetUid(e.target.value)}
                             className="w-full h-12 bg-bg-dark/50 border border-border-custom rounded-xl px-4 text-xs text-white focus:border-accent outline-none font-black"
                           >
-                            <option value="" className="bg-bg-dark">সিলেক্ট ইউজার</option>
+                            <option value="" className="bg-bg-dark">Choose a user...</option>
                             {allUsers.map(u => (
                               <option key={u.uid || u.id} value={u.uid || u.id} className="bg-bg-dark">{u.displayName} ({u.role || 'user'})</option>
                             ))}
@@ -5066,12 +5180,17 @@ export default function App() {
       });
 
       setUsersRegistry(registry);
-      if (user?.role === 'admin') {
-        setAllUsers(usersList);
-      }
+      // allUsers sync is handled by a separate useEffect to avoid stale closure
     }, (err) => console.error('All users snapshot error', err));
     return () => unsubscribe();
-  }, []); // Run once on mount to maintain global real-time registry
+  }, []); 
+
+  // Sync allUsers list if current user is admin
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      setAllUsers(Object.values(usersRegistry));
+    }
+  }, [user?.role, usersRegistry]);
 
   // Auth Listener
   useEffect(() => {
