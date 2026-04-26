@@ -1852,12 +1852,22 @@ export default function App() {
     );
 
     const unsubscribeMessages = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage)));
-      // Clear unread count when receiving messages in active chat
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+      setMessages(msgs);
+      
+      // Update unread count and mark messages addressed TO ME as read
       if (!snapshot.metadata.hasPendingWrites) {
         setDoc(doc(db, 'conversations', user.uid, 'userChats', activeChat.partnerId), {
           unreadCount: 0
         }, { merge: true }).catch(console.error);
+
+        // Mark messages from partner as read
+        snapshot.docs.forEach(msgDoc => {
+          const data = msgDoc.data();
+          if (data.senderUid === activeChat.partnerId && !data.isRead) {
+            updateDoc(msgDoc.ref, { isRead: true }).catch(() => {});
+          }
+        });
       }
     }, (error) => {
       console.error('Chat messages error:', error);
@@ -5453,7 +5463,29 @@ export default function App() {
                const isMe = m.senderUid === user?.uid;
                const messageReactions = m.reactions ? Object.values(m.reactions) : [];
                return (
-                 <div key={m.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300 relative`}>
+                 <div key={m.id || i} className={`flex items-end gap-2 ${isMe ? 'justify-end flex-row-reverse' : 'justify-start flex-row'} animate-in slide-in-from-bottom-2 duration-300 relative mb-6`}>
+                    {!isMe && (
+                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 border border-white/5 shadow-sm">
+                          {usersRegistry[activeChat.partnerId]?.photoURL ? (
+                            <img src={usersRegistry[activeChat.partnerId].photoURL} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-accent text-bg-dark font-black text-xs uppercase">
+                              {activeChat.partnerName?.charAt(0)}
+                            </div>
+                          )}
+                       </div>
+                    )}
+                    {isMe && (
+                       <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-200 border border-white/5 shadow-sm">
+                          {user?.photoURL ? (
+                            <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white font-black text-xs uppercase">
+                              {user?.displayName?.charAt(0)}
+                            </div>
+                          )}
+                       </div>
+                    )}
                     <div 
                        onMouseDown={() => handleMessageLongPressStart(m.id)}
                        onMouseUp={handleMessageLongPressEnd}
@@ -5465,6 +5497,30 @@ export default function App() {
                       : 'bg-[#F0F2F5] dark:bg-[#3A3B3C] text-inherit rounded-[20px] rounded-tl-[4px]'
                     }`}>
                        {m.text}
+                       
+                       {/* Seen Status Detail */}
+                       {isMe && i === messages.length - 1 && (
+                         <div className="absolute -bottom-5 right-0 flex items-center gap-1.5 opacity-80">
+                           {m.isRead ? (
+                             <>
+                               <span className="text-[10px] font-bold text-gray-400">Seen</span>
+                               <div className="w-4 h-4 rounded-full overflow-hidden border border-white dark:border-[#242526] shadow-sm bg-gray-200">
+                                  {usersRegistry[activeChat.partnerId]?.photoURL ? (
+                                    <img src={usersRegistry[activeChat.partnerId].photoURL} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-300 text-[8px] text-white font-bold">
+                                      {usersRegistry[activeChat.partnerId]?.displayName?.charAt(0)}
+                                    </div>
+                                  )}
+                               </div>
+                             </>
+                           ) : (
+                             <div className="w-4 h-4 rounded-full border-2 border-gray-200 dark:border-[#3A3B3C] flex items-center justify-center">
+                               <Check className="w-3 h-3 text-gray-300" />
+                             </div>
+                           )}
+                         </div>
+                       )}
                        
                        {/* Display Reactions */}
                        {messageReactions.length > 0 && (
