@@ -1856,6 +1856,32 @@ export default function App() {
     const unsub = onSnapshot(doc(db, 'monetization', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as MonetizationData;
+        
+        // MIGRATION: If user has old mock data exactly matching the previous demo values, reset them
+        // This ensures users don't see the "demo" earnings anymore
+        if (data.totalEarnings === 125.50 && data.reach === 12500 && data.followers === 1200) {
+           const resetData: MonetizationData = {
+              totalEarnings: 0,
+              monthlyEarnings: 0,
+              reach: 0,
+              engagement: 0,
+              followers: 0,
+              lastUpdated: serverTimestamp(),
+              dailyStats: [
+                { day: 'S', amount: 0 },
+                { day: 'M', amount: 0 },
+                { day: 'T', amount: 0 },
+                { day: 'W', amount: 0 },
+                { day: 'T', amount: 0 },
+                { day: 'F', amount: 0 },
+                { day: 'S', amount: 0 },
+              ],
+              recentUpdates: []
+           };
+           updateDoc(doc(db, 'monetization', user.uid), resetData as any);
+           return;
+        }
+
         setMonetizationData({
           ...data,
           dailyStats: data.dailyStats || [
@@ -4841,9 +4867,9 @@ export default function App() {
                   <div className="space-y-1">
                     <div className="text-[8px] uppercase font-black text-text-dim">Engagement Requirement</div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-bold">78%</div>
+                      <div className="text-sm font-bold">0%</div>
                       <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-accent w-[78%]" />
+                        <div className="h-full bg-accent w-0" />
                       </div>
                     </div>
                   </div>
@@ -4884,32 +4910,32 @@ export default function App() {
                    </div>
 
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
-                       <div className="flex items-center gap-3 mb-6">
-                         <div className="w-10 h-10 rounded-2xl bg-green-500/10 flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-500" /></div>
-                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Total Earnings</span>
-                       </div>
-                       <div className="text-4xl font-black tracking-tighter mb-2">${monetizationData?.totalEarnings?.toFixed(2) || '0.00'}</div>
-                       <p className="text-[10px] text-green-500 font-black">+12% from last month</p>
-                     </div>
+                      <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-2xl bg-green-500/10 flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-500" /></div>
+                          <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Total Earnings</span>
+                        </div>
+                        <div className="text-4xl font-black tracking-tighter mb-2">${monetizationData?.totalEarnings?.toFixed(2) || '0.00'}</div>
+                        <p className="text-[10px] text-green-500 font-black">Live updates</p>
+                      </div>
 
-                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
-                       <div className="flex items-center gap-3 mb-6">
-                         <div className="w-10 h-10 rounded-2xl bg-[#1877F2]/10 flex items-center justify-center"><Activity className="w-5 h-5 text-[#1877F2]" /></div>
-                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Reach</span>
-                       </div>
-                       <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.reach?.toLocaleString() || '0'}</div>
-                       <p className="text-[10px] text-[#1877F2] font-black">+5.4% from last week</p>
-                     </div>
+                      <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-2xl bg-[#1877F2]/10 flex items-center justify-center"><Activity className="w-5 h-5 text-[#1877F2]" /></div>
+                          <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Reach</span>
+                        </div>
+                        <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.reach?.toLocaleString() || '0'}</div>
+                        <p className="text-[10px] text-[#1877F2] font-black">Total impressions</p>
+                      </div>
 
-                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
-                       <div className="flex items-center gap-3 mb-6">
-                         <div className="w-10 h-10 rounded-2xl bg-purple-500/10 flex items-center justify-center"><Users className="w-5 h-5 text-purple-500" /></div>
-                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Followers</span>
-                       </div>
-                       <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.followers?.toLocaleString() || user?.followersCount || '0'}</div>
-                       <p className="text-[10px] text-purple-500 font-black">+{user?.followersCount || 0} total growth</p>
-                     </div>
+                      <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 flex items-center justify-center"><Users className="w-5 h-5 text-purple-500" /></div>
+                          <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Followers</span>
+                        </div>
+                        <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.followers?.toLocaleString() || user?.followersCount || '0'}</div>
+                        <p className="text-[10px] text-purple-500 font-black">Community growth</p>
+                      </div>
                    </div>
                 </div>
               </div>
