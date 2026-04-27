@@ -6243,6 +6243,8 @@ export default function App() {
               if (p) sharePost(p);
             }}
             onUserClick={navigateToProfile}
+            onFollow={(uid) => withAuth(() => followUser(uid))}
+            followingUids={followingUids}
           />
         )}
       </AnimatePresence>
