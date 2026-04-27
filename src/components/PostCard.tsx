@@ -98,6 +98,7 @@ interface PostCardProps {
   currentUserId?: string;
   autoplayVideos?: boolean;
   usersRegistry?: Record<string, AppUser>;
+  showToast?: (msg: string, type: 'info' | 'error' | 'success') => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ 
@@ -116,7 +117,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   isFollowing,
   currentUserId,
   autoplayVideos = true,
-  usersRegistry = {}
+  usersRegistry = {},
+  showToast
 }) => {
   const author = usersRegistry[post.authorUid] || {
     displayName: post.authorName,
@@ -315,7 +317,10 @@ export const PostCard: React.FC<PostCardProps> = ({
                     </>
                   ) : (
                     <button 
-                      onClick={() => setShowMenu(false)}
+                      onClick={() => {
+                        showToast?.('Thank you for reporting. Our team will review this post.', 'success');
+                        setShowMenu(false);
+                      }}
                       className="w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                     >
                       Report

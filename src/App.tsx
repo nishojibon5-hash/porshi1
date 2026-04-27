@@ -618,14 +618,17 @@ export default function App() {
           client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
             setIsAuthLoading(true);
+            addLog('Google response received, processing...');
             try {
               const credential = GoogleAuthProvider.credential(response.credential);
               await signInWithCredential(auth, credential);
               setShowAuthModal(false);
-              showToast('Login with Google successful!', 'success');
+              showToast('Welcome back to Porsh!', 'success');
+              addLog('Auth with Google Success');
             } catch (error: any) {
-              console.error('One Tap Error:', error);
-              showToast('Google login error', 'error');
+              console.error('One Tap Auth Error:', error);
+              addLog(`Auth Error: ${error.message}`);
+              showToast(`Login failed: ${error.message}`, 'error');
             } finally {
               setIsAuthLoading(false);
             }
@@ -2909,10 +2912,10 @@ export default function App() {
              <div className="mt-2 space-y-3">
                <div className="flex items-center gap-2 text-[10px] font-black text-accent uppercase tracking-widest bg-accent/5 p-2 rounded-lg border border-accent/10">
                  <LinkIcon className="w-3 h-3" />
-                 <span>লিংক বা ভিডিও যোগ করুন (ঐচ্ছিক)</span>
+                 <span>Add link or video (Optional)</span>
                </div>
                <Input 
-                 placeholder="লিংক বা ইউটিউব লিংক এখানে দিন..."
+                 placeholder="Paste link or YouTube link here..."
                  value={postYoutubeUrl}
                  onChange={(e) => setPostYoutubeUrl(e.target.value)}
                  className="bg-gray-50 dark:bg-[#3A3B3C] border-none text-xs h-10 rounded-xl focus:ring-1 focus:ring-accent transition-all"
@@ -3093,6 +3096,12 @@ export default function App() {
     }
 
     const currentTab = activeTab || 'home';
+
+    // Global Safety: If tab requires user but user is not loaded
+    const protectedTabs = ['monetization', 'ads', 'chat', 'notifications', 'scan', 'profile'];
+    if (protectedTabs.includes(currentTab) && !user) {
+      return renderLoginRequiredCard(currentTab.toUpperCase(), `Please login to access ${currentTab}.`);
+    }
 
     if (currentApp === 'porsh') {
       if (!user && isInStandaloneMode) {
@@ -3317,7 +3326,7 @@ export default function App() {
                         url: window.location.href,
                       }).catch(console.error);
                     } else {
-                      setErrorMessage('Sharing to timeline...');
+                      showToast('Sharing to timeline...', 'info');
                       // Internal sharing logic: create new post with same content
                       withAuth(async () => {
                         try {
@@ -3333,9 +3342,9 @@ export default function App() {
                             commentsCount: 0,
                             reactions: {}
                           });
-                          setErrorMessage('Shared to your timeline!');
+                          showToast('Shared to your timeline!', 'success');
                         } catch (err) {
-                          setErrorMessage('Failed to share.');
+                          showToast('Failed to share.', 'error');
                         }
                       });
                     }
@@ -3352,6 +3361,7 @@ export default function App() {
                   isFollowing={user ? followingUids.includes(post.authorUid) : false}
                   currentUserId={user?.uid}
                   autoplayVideos={user ? (user.autoplayVideos ?? true) : true}
+                  showToast={showToast}
                 />
               ))}
 
@@ -5410,16 +5420,24 @@ export default function App() {
   };
 
   const login = async () => {
+    if (isAuthLoading) return;
     setIsAuthLoading(true);
+    addLog('Initiating Google Popup...');
     try {
-      addLog('Attempting Google login...');
       await signInWithPopup(auth, googleProvider);
-      addLog('Auth successful');
+      addLog('Popup auth successful');
       showToast('Welcome to Porsh!', 'success');
       setShowAuthModal(false);
     } catch (error: any) {
       console.error('Login Error:', error);
-      showToast('Failed to login with Google.', 'error');
+      addLog(`Popup Error: ${error.message} (Code: ${error.code})`);
+      if (error.code === 'auth/popup-blocked') {
+        showToast('Popup blocked! Please allow popups for this site.', 'error');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // user closed popup
+      } else {
+        showToast(`Login failed: ${error.message}`, 'error');
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -5591,9 +5609,16 @@ export default function App() {
                 <Button 
                   id="google-login-btn"
                   onClick={login} 
-                  className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px]"
+                  disabled={isAuthLoading}
+                  className="w-full bg-accent/10 text-accent border border-accent/30 font-black flex gap-3 h-12 uppercase tracking-widest text-[10px] items-center justify-center"
                 >
-                  <Globe className="w-4 h-4" /> LOGIN WITH GOOGLE
+                  {isAuthLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4" /> LOGIN WITH GOOGLE
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </Card>
@@ -5636,9 +5661,9 @@ export default function App() {
                </div>
             </div>
             <div className="flex items-center gap-0.5">
-               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Phone className="w-5 h-5 fill-current" /></button>
-               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><VideoIcon className="w-6 h-6 fill-current" /></button>
-               <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Info className="w-6 h-6 fill-current" /></button>
+               <button onClick={() => showToast('Voice call is coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><Phone className="w-5 h-5 fill-current" /></button>
+               <button onClick={() => showToast('Video call is coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><VideoIcon className="w-6 h-6 fill-current" /></button>
+               <button onClick={() => showToast('Profile info coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><Info className="w-6 h-6 fill-current" /></button>
             </div>
          </div>
 
@@ -5749,13 +5774,13 @@ export default function App() {
          <div className={`p-3 bg-inherit border-t safe-bottom ${theme === 'dark' ? 'border-[#3E4042]' : 'border-gray-100'}`}>
             <div className="flex items-center gap-1">
                <div className="flex items-center">
-                 <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><PlusCircle className="w-6 h-6" /></button>
+                 <button onClick={() => showToast('More options coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><PlusCircle className="w-6 h-6" /></button>
                  {!messageInput.trim() && (
-                   <>
-                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><CameraIcon className="w-6 h-6" /></button>
-                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><ImageIcon className="w-6 h-6" /></button>
-                     <button className="p-2 text-[#0084FF] transition-transform active:scale-90"><Mic className="w-6 h-6" /></button>
-                   </>
+                    <>
+                      <button onClick={() => showToast('Camera feature coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><CameraIcon className="w-6 h-6" /></button>
+                      <button onClick={() => showToast('Gallery feature coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><ImageIcon className="w-6 h-6" /></button>
+                      <button onClick={() => showToast('Voice messages coming soon', 'info')} className="p-2 text-[#0084FF] transition-transform active:scale-90"><Mic className="w-6 h-6" /></button>
+                    </>
                  )}
                </div>
                
