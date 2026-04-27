@@ -20,6 +20,11 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
 
+    // MASTER OVERRIDE: Admin with email salman1000790@gmail.com has absolute access to everything
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
+    }
+
     // 2. Validation Blueprints
     function isValidUser(data) {
       return (!('uid' in data) || (data.uid == request.auth.uid)) &&
