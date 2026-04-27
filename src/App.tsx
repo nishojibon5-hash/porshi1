@@ -3581,6 +3581,7 @@ export default function App() {
                   { id: 'ads', name: 'Ad Manager', icon: Megaphone },
                   { id: 'users', name: 'User Management', icon: Users },
                   { id: 'monetization', name: 'Earnings', icon: DollarSign },
+                  { id: 'branding', name: 'Branding', icon: CameraIcon },
                   { id: 'notifs', name: 'Notifications', icon: Bell },
                   { id: 'settings', name: 'App Settings', icon: Settings2 },
                 ].map(item => (
@@ -4221,9 +4222,107 @@ export default function App() {
                   </motion.div>
                 )}
 
+                  {adminActiveTab === 'branding' && (
+                    <motion.div 
+                      key="branding"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="space-y-8"
+                    >
+                      <div className="geometric-card p-4 lg:p-8 space-y-8 text-white">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-accent flex items-center gap-2">
+                             <CameraIcon className="w-5 h-5" /> Brand Identity & Logos
+                          </h2>
+                          <Button 
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'appConfig', 'remote-settings'), appConfig || {});
+                                showToast('Branding updated successfully!', 'success');
+                              } catch (e: any) {
+                                showToast('Update failed: ' + e.message, 'error');
+                              }
+                            }}
+                            className="bg-accent text-bg-dark font-black px-8 rounded-xl shadow-lg shadow-accent/20"
+                          >
+                             SAVE CHANGES
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                           {/* Login Logo */}
+                           <div className="space-y-4 bg-bg-dark/30 p-6 rounded-3xl border border-border-custom">
+                              <div className="flex items-center justify-between">
+                                 <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">Sign In Page Logo</h3>
+                                 <span className="text-[8px] font-bold text-text-dim/60">Recommended: 200x200px (1:1)</span>
+                              </div>
+                              
+                              <div className="flex flex-col gap-6">
+                                 <div className="w-full h-40 rounded-3xl bg-bg-dark border-2 border-dashed border-accent/20 flex items-center justify-center overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                                    <div className="relative group">
+                                       <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} className="max-w-[120px] max-h-[120px] object-contain drop-shadow-[0_0_15px_rgba(0,209,255,0.3)]" alt="" />
+                                       <div className="absolute inset-0 bg-accent/20 blur-xl -z-10 animate-pulse" />
+                                    </div>
+                                 </div>
+                                 
+                                 <div className="space-y-3">
+                                    <Input 
+                                       value={appConfig?.loginLogoUrl || ''}
+                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, loginLogoUrl: e.target.value } : null)}
+                                       placeholder="Paste Logo URL here..."
+                                       className="h-12 bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                    />
+                                    <label className="w-full h-12 bg-accent/10 text-accent border border-accent/20 text-[10px] font-black uppercase cursor-pointer flex items-center justify-center rounded-xl hover:bg-accent/20 transition-all border-dashed">
+                                       <CameraIcon className="w-4 h-4 mr-3" /> UPLOAD NEW LOGIN LOGO
+                                       <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'loginLogoUrl')} />
+                                    </label>
+                                 </div>
+                                 <p className="text-[9px] text-text-dim/80 italic leading-relaxed bg-accent/5 p-4 rounded-xl border border-accent/10">
+                                    This logo appears on the Sign In screen above the "PORSH - SIGN IN" title. It represents your brand's first impression.
+                                 </p>
+                              </div>
+                           </div>
+
+                           {/* Header/Drawer Logo */}
+                           <div className="space-y-4 bg-bg-dark/30 p-6 rounded-3xl border border-border-custom">
+                              <div className="flex items-center justify-between">
+                                 <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">App Header & Drawer Logo</h3>
+                                 <span className="text-[8px] font-bold text-text-dim/60">Recommended: 100x100px (1:1)</span>
+                              </div>
+                              
+                              <div className="flex flex-col gap-6">
+                                 <div className="w-full h-40 rounded-3xl bg-bg-dark border-2 border-dashed border-accent/20 flex items-center justify-center overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                                    <div className="relative group flex items-center gap-4 bg-surface/50 p-6 rounded-2xl border border-white/5">
+                                       <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-12 h-12 object-contain" alt="" />
+                                       <span className="text-xl font-black italic tracking-tighter text-accent">PORSHI</span>
+                                    </div>
+                                 </div>
+                                 
+                                 <div className="space-y-3">
+                                    <Input 
+                                       value={appConfig?.headerLogoUrl || ''}
+                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, headerLogoUrl: e.target.value } : null)}
+                                       placeholder="Paste Header Logo URL here..."
+                                       className="h-12 bg-bg-dark/50 border-border-custom font-bold text-xs"
+                                    />
+                                    <label className="w-full h-12 bg-accent/10 text-accent border border-accent/20 text-[10px] font-black uppercase cursor-pointer flex items-center justify-center rounded-xl hover:bg-accent/20 transition-all border-dashed">
+                                       <CameraIcon className="w-4 h-4 mr-3" /> UPLOAD NEW HEADER LOGO
+                                       <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'headerLogoUrl')} />
+                                    </label>
+                                 </div>
+                                 <p className="text-[9px] text-text-dim/80 italic leading-relaxed bg-accent/5 p-4 rounded-xl border border-accent/10">
+                                    This logo appears in the side drawer next to the app name and in the top header. It's used throughout the active user session.
+                                 </p>
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {adminActiveTab === 'users' && (
                     <motion.div 
-                      key="users"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
