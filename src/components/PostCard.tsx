@@ -94,6 +94,7 @@ interface PostCardProps {
   onEdit?: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onUserClick?: (uid: string) => void;
+  onVideoClick?: (post: Post) => void; // New prop
   isFollowing?: boolean;
   currentUserId?: string;
   autoplayVideos?: boolean;
@@ -114,6 +115,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onEdit,
   onDelete,
   onUserClick,
+  onVideoClick,
   isFollowing,
   currentUserId,
   autoplayVideos = true,
@@ -348,14 +350,26 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Post Media */}
       {post.mediaType === 'video' && (post.videoUrl || post.youtubeUrl) ? (
-        <VideoPlayer 
-          post={post} 
-          ads={ads} 
-          currentUserId={currentUserId} 
-          theme={theme} 
-          autoplayEnabled={autoplayVideos}
-          isMonetized={author.isMonetized}
-        />
+        <div 
+          className="relative cursor-pointer group/video"
+          onClick={() => onVideoClick?.(post)}
+        >
+          <VideoPlayer 
+            post={post} 
+            ads={ads} 
+            currentUserId={currentUserId} 
+            theme={theme} 
+            autoplayEnabled={autoplayVideos}
+            isMonetized={author.isMonetized}
+          />
+          <div className="absolute inset-0 bg-black/10 group-hover/video:bg-black/0 transition-colors pointer-events-none" />
+          <div className="absolute bottom-4 right-4 z-10 pointer-events-none">
+             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-[11px] font-black text-white uppercase tracking-widest shadow-xl">
+                <PlayCircle className="w-3.5 h-3.5 text-accent" />
+                {post.viewsCount || 0}
+             </div>
+          </div>
+        </div>
       ) : post.mediaType === 'link' && post.linkUrl ? (
         <a 
           href={post.linkUrl} 

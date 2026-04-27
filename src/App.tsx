@@ -181,6 +181,7 @@ import {
 } from './types';
 import { PostCard } from './components/PostCard';
 import { StoryViewer } from './components/StoryViewer';
+import { ReelsOverlay } from './components/ReelsOverlay';
 
 interface ActiveChat {
   id: string;
@@ -729,6 +730,67 @@ export default function App() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isEditProfileLoading, setIsEditProfileLoading] = useState(false);
+  const [showReelsOverlay, setShowReelsOverlay] = useState(false);
+  const [reelsList, setReelsList] = useState<Post[]>([]);
+  const [reelsInitialIndex, setReelsInitialIndex] = useState(0);
+
+  const handleOpenReels = (clickedPost: Post) => {
+    // Filter all video posts from the current feed to create the reels list
+    const videoPosts = posts.filter(p => p.mediaType === 'video' && (p.videoUrl || p.youtubeUrl));
+    
+    // Find index of clicked post in the filtered list
+    const idx = videoPosts.findIndex(p => p.id === clickedPost.id);
+    
+    if (idx !== -1) {
+      setReelsList(videoPosts);
+      setReelsInitialIndex(idx);
+    } else {
+      // If for some reason not found, just show the clicked one
+      setReelsList([clickedPost]);
+      setReelsInitialIndex(0);
+    }
+    
+    setShowReelsOverlay(true);
+  };
+
+  const sharePost = async (p: Post) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Porshi Post',
+          text: p.content,
+          url: window.location.href,
+        });
+      } catch (e) {
+        console.log('Share error:', e);
+      }
+    } else {
+      showToast('Sharing to timeline...', 'info');
+      withAuth(async () => {
+        try {
+          await addDoc(collection(db, 'posts'), {
+            authorUid: user!.uid,
+            authorName: user!.displayName,
+            authorPhoto: user!.photoURL,
+            content: p.content,
+            imageUrl: p.imageUrl || null,
+            videoUrl: p.videoUrl || null,
+            youtubeUrl: p.youtubeUrl || null,
+            linkUrl: p.linkUrl || null,
+            mediaType: p.mediaType,
+            timestamp: serverTimestamp(),
+            likesCount: 0,
+            commentsCount: 0,
+            reactions: {}
+          });
+          showToast('Shared to your timeline!', 'success');
+        } catch (err) {
+          showToast('Failed to share.', 'error');
+        }
+      });
+    }
+  };
+
   const [editProfileData, setEditProfileData] = useState({
     displayName: '',
     bio: '',
@@ -3318,37 +3380,7 @@ export default function App() {
                   onComment={() => withAuth(() => setCommentingPostId(post.id))}
                   onFollow={() => withAuth(() => followUser(post.authorUid))}
                   onUnfollow={() => withAuth(() => unfollowUser(post.authorUid))}
-                  onShare={(p) => {
-                    if (navigator.share) {
-                      navigator.share({
-                        title: 'Porshi Post',
-                        text: p.content,
-                        url: window.location.href,
-                      }).catch(console.error);
-                    } else {
-                      showToast('Sharing to timeline...', 'info');
-                      // Internal sharing logic: create new post with same content
-                      withAuth(async () => {
-                        try {
-                          await addDoc(collection(db, 'posts'), {
-                            authorUid: user!.uid,
-                            authorName: user!.displayName,
-                            authorPhoto: user!.photoURL,
-                            content: `[Shared Post]: ${p.content}`,
-                            mediaType: p.imageUrl ? 'image' : 'text',
-                            imageUrl: p.imageUrl || null,
-                            timestamp: serverTimestamp(),
-                            likesCount: 0,
-                            commentsCount: 0,
-                            reactions: {}
-                          });
-                          showToast('Shared to your timeline!', 'success');
-                        } catch (err) {
-                          showToast('Failed to share.', 'error');
-                        }
-                      });
-                    }
-                  }}
+                  onShare={() => sharePost(post)}
                   onEdit={(p) => { 
                     setEditingPost(p); 
                     setPostInput(p.content); 
@@ -3362,6 +3394,7 @@ export default function App() {
                   currentUserId={user?.uid}
                   autoplayVideos={user ? (user.autoplayVideos ?? true) : true}
                   showToast={showToast}
+                  onVideoClick={handleOpenReels}
                 />
               ))}
 
@@ -5095,9 +5128,12 @@ export default function App() {
                           }}
                           onDelete={deletePost}
                           onUserClick={navigateToProfile}
+                          onShare={() => sharePost(post)}
                           isFollowing={user ? followingUids.includes(post.authorUid) : false}
                           currentUserId={user?.uid}
                           autoplayVideos={user ? (user.autoplayVideos ?? true) : true}
+                          onVideoClick={handleOpenReels}
+                          showToast={showToast}
                         />
                       ))}
                       {posts.filter(p => p.authorUid === profileUid).length === 0 && (
@@ -6192,6 +6228,24 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-background text-foreground font-sans selection:bg-accent/30 flex flex-col items-center transition-colors duration-300 ${theme === 'dark' ? 'dark' : ''}`}>
+      <AnimatePresence>
+        {showReelsOverlay && (
+          <ReelsOverlay
+            reels={reelsList}
+            initialIndex={reelsInitialIndex}
+            onClose={() => setShowReelsOverlay(false)}
+            usersRegistry={usersRegistry}
+            currentUserId={user?.uid}
+            onLike={(id) => withAuth(() => likePost(id))}
+            onComment={(id) => setCommentingPostId(id)}
+            onShare={(id) => {
+              const p = reelsList.find(r => r.id === id);
+              if (p) sharePost(p);
+            }}
+            onUserClick={navigateToProfile}
+          />
+        )}
+      </AnimatePresence>
       {renderInstallBanner()}
       <aside className={`hidden lg:flex fixed left-0 top-0 h-full w-72 flex-col p-8 border-r ${theme === 'dark' ? 'border-border-custom bg-surface' : 'border-gray-200 bg-white'} z-50`}>
         {/* Hidden File Inputs */}
@@ -6302,6 +6356,17 @@ export default function App() {
               key={item.id}
               onClick={() => {
                 setCurrentApp('porshi');
+                if (item.id === 'video') {
+                  const videoPosts = posts.filter(p => p.mediaType === 'video' && (p.videoUrl || p.youtubeUrl));
+                  if (videoPosts.length > 0) {
+                    setReelsList(videoPosts);
+                    setReelsInitialIndex(0);
+                    setShowReelsOverlay(true);
+                  } else {
+                    showToast('No videos available right now', 'info');
+                  }
+                  return;
+                }
                 if (item.id !== 'home') {
                   withAuth(() => setActiveTab(item.id));
                 } else {
