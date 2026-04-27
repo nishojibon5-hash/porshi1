@@ -731,25 +731,19 @@ export default function App() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isEditProfileLoading, setIsEditProfileLoading] = useState(false);
   const [showReelsOverlay, setShowReelsOverlay] = useState(false);
-  const [reelsList, setReelsList] = useState<Post[]>([]);
   const [reelsInitialIndex, setReelsInitialIndex] = useState(0);
 
+  const videoPosts = useMemo(() => {
+    return posts.filter(p => p.mediaType === 'video' && (p.videoUrl || p.youtubeUrl));
+  }, [posts]);
+
   const handleOpenReels = (clickedPost: Post) => {
-    // Filter all video posts from the current feed to create the reels list
-    const videoPosts = posts.filter(p => p.mediaType === 'video' && (p.videoUrl || p.youtubeUrl));
-    
-    // Find index of clicked post in the filtered list
     const idx = videoPosts.findIndex(p => p.id === clickedPost.id);
-    
     if (idx !== -1) {
-      setReelsList(videoPosts);
       setReelsInitialIndex(idx);
     } else {
-      // If for some reason not found, just show the clicked one
-      setReelsList([clickedPost]);
       setReelsInitialIndex(0);
     }
-    
     setShowReelsOverlay(true);
   };
 
@@ -1401,7 +1395,7 @@ export default function App() {
   };
 
   const likePost = async (postId: string) => {
-    return reactToPost(postId, '👍');
+    return reactToPost(postId, '❤️');
   };
 
   const reactToPost = async (postId: string, reactionType: string) => {
@@ -1424,21 +1418,21 @@ export default function App() {
           // We only decrement likesCount if it was a '👍'? 
           // Actually let's just make likesCount represent TOTAL reactions for simplicity or just '👍'
           // User asked for "লাইক করা যাচ্চে না", usually means the main Like button.
-          likesCount: existingReaction === '👍' ? increment(-1) : increment(0)
+          likesCount: existingReaction === '👍' || existingReaction === '❤️' ? increment(-1) : increment(0)
         });
       } else {
         // Change or add new
         if (existingReaction) {
           batch.update(postRef, {
             [`reactions.${existingReaction}`]: increment(-1),
-            likesCount: existingReaction === '👍' ? increment(-1) : increment(0)
+            likesCount: existingReaction === '👍' || existingReaction === '❤️' ? increment(-1) : increment(0)
           });
         }
         
         batch.set(userReactionRef, { type: reactionType, timestamp: serverTimestamp() });
         batch.update(postRef, {
           [`reactions.${reactionType}`]: increment(1),
-          likesCount: reactionType === '👍' ? increment(1) : increment(0)
+          likesCount: reactionType === '👍' || reactionType === '❤️' ? increment(1) : increment(0)
         });
       }
 
@@ -6231,7 +6225,7 @@ export default function App() {
       <AnimatePresence>
         {showReelsOverlay && (
           <ReelsOverlay
-            reels={reelsList}
+            reels={videoPosts}
             initialIndex={reelsInitialIndex}
             onClose={() => setShowReelsOverlay(false)}
             usersRegistry={usersRegistry}
@@ -6239,7 +6233,7 @@ export default function App() {
             onLike={(id) => withAuth(() => likePost(id))}
             onComment={(id) => setCommentingPostId(id)}
             onShare={(id) => {
-              const p = reelsList.find(r => r.id === id);
+              const p = videoPosts.find(r => r.id === id);
               if (p) sharePost(p);
             }}
             onUserClick={navigateToProfile}
@@ -6359,9 +6353,7 @@ export default function App() {
               onClick={() => {
                 setCurrentApp('porshi');
                 if (item.id === 'video') {
-                  const videoPosts = posts.filter(p => p.mediaType === 'video' && (p.videoUrl || p.youtubeUrl));
                   if (videoPosts.length > 0) {
-                    setReelsList(videoPosts);
                     setReelsInitialIndex(0);
                     setShowReelsOverlay(true);
                   } else {
