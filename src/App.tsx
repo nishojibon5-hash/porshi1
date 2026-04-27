@@ -92,7 +92,7 @@ import LanguageSwitcher from './components/LanguageSwitcher';
 import NearbyDiscovery from './components/NearbyDiscovery';
 
 // Error Boundary Component
-export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+export class ErrorBoundary extends (React.Component as any) {
   constructor(props: any) {
     super(props);
     this.state = { hasError: false };
@@ -257,11 +257,19 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  useEffect(() => {
+    if (errorMessage) {
+      showToast(errorMessage, 'error');
+      setErrorMessage(null);
+    }
+  }, [errorMessage]);
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newBio, setNewBio] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -575,6 +583,7 @@ export default function App() {
     });
   }, [allUsers, adminSearchTerm, adminRoleFilter, adminMonetizationFilter]);
   const [viewingProfileUser, setViewingProfileUser] = useState<AppUser | null>(null);
+  const [selectedUserUid, setSelectedUserUid] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [postPrivacy, setPostPrivacy] = useState<'public' | 'followers' | 'private'>('public');
   
@@ -5546,11 +5555,6 @@ export default function App() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {errorMessage && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-red-500 text-[10px] uppercase font-black text-center">{errorMessage}</div>}
-                {authSuccessMessage && (
-                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-xs font-bold text-center">
-                    {authSuccessMessage}
-                  </div>
-                )}
                 
                 <div className="flex gap-2 p-1 bg-bg-dark border border-border-custom rounded-xl mb-4">
                   <button 
