@@ -138,6 +138,7 @@ export interface AppConfig {
   enableAds?: boolean;
   loginLogoUrl?: string;
   headerLogoUrl?: string;
+  appLogoUrl?: string;
 }
 
 export interface Advertisement {

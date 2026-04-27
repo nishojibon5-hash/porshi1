@@ -905,7 +905,7 @@ export default function App() {
     });
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'loginLogoUrl' | 'headerLogoUrl') => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'appLogoUrl' | 'loginLogoUrl' | 'headerLogoUrl') => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -4250,70 +4250,63 @@ export default function App() {
                           </Button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                           {/* Login Logo */}
-                           <div className="space-y-4 bg-bg-dark/30 p-6 rounded-3xl border border-border-custom">
-                              <div className="flex items-center justify-between">
-                                 <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">Sign In Page Logo</h3>
-                                 <span className="text-[8px] font-bold text-text-dim/60">Recommended: 200x200px (1:1)</span>
+                        <div className="max-w-2xl mx-auto">
+                           <div className="space-y-6 bg-bg-dark/30 p-8 rounded-3xl border border-border-custom relative overflow-hidden group">
+                              {/* Background Glow */}
+                              <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-[100px] -mr-32 -mt-32 transition-all group-hover:bg-accent/10" />
+                              
+                              <div className="flex items-center justify-between relative z-10">
+                                 <h3 className="text-xs font-black text-accent uppercase tracking-[4px]">Global App Logo</h3>
+                                 <span className="text-[10px] font-bold text-text-dim px-3 py-1 bg-white/5 rounded-full border border-white/5">Unified Brand Identity</span>
                               </div>
                               
-                              <div className="flex flex-col gap-6">
-                                 <div className="w-full h-40 rounded-3xl bg-bg-dark border-2 border-dashed border-accent/20 flex items-center justify-center overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
-                                    <div className="relative group">
-                                       <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} className="max-w-[120px] max-h-[120px] object-contain drop-shadow-[0_0_15px_rgba(0,209,255,0.3)]" alt="" />
-                                       <div className="absolute inset-0 bg-accent/20 blur-xl -z-10 animate-pulse" />
+                              <div className="flex flex-col gap-8 relative z-10">
+                                 <div className="w-full aspect-square max-w-[280px] mx-auto rounded-[40px] bg-bg-dark border-2 border-dashed border-accent/20 flex items-center justify-center overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative group/preview">
+                                    <div className="relative z-10 transition-transform duration-500 group-hover/preview:scale-110">
+                                       <img 
+                                          src={appConfig?.appLogoUrl || appConfig?.loginLogoUrl || appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} 
+                                          className="max-w-[180px] max-h-[180px] object-contain drop-shadow-[0_0_20px_rgba(0,209,255,0.4)]" 
+                                          alt="Global Logo" 
+                                       />
+                                       <div className="absolute inset-0 bg-accent/20 blur-2xl -z-10 animate-pulse" />
+                                    </div>
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                       <Scan className="w-8 h-8 text-white animate-bounce" />
                                     </div>
                                  </div>
                                  
-                                 <div className="space-y-3">
-                                    <Input 
-                                       value={appConfig?.loginLogoUrl || ''}
-                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, loginLogoUrl: e.target.value } : null)}
-                                       placeholder="Paste Logo URL here..."
-                                       className="h-12 bg-bg-dark/50 border-border-custom font-bold text-xs"
-                                    />
-                                    <label className="w-full h-12 bg-accent/10 text-accent border border-accent/20 text-[10px] font-black uppercase cursor-pointer flex items-center justify-center rounded-xl hover:bg-accent/20 transition-all border-dashed">
-                                       <CameraIcon className="w-4 h-4 mr-3" /> UPLOAD NEW LOGIN LOGO
-                                       <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'loginLogoUrl')} />
-                                    </label>
-                                 </div>
-                                 <p className="text-[9px] text-text-dim/80 italic leading-relaxed bg-accent/5 p-4 rounded-xl border border-accent/10">
-                                    This logo appears on the Sign In screen above the "PORSH - SIGN IN" title. It represents your brand's first impression.
-                                 </p>
-                              </div>
-                           </div>
+                                 <div className="space-y-4">
+                                    <div className="relative group/input">
+                                       <Input 
+                                          value={appConfig?.appLogoUrl || ''}
+                                          onChange={(e) => setAppConfig(prev => prev ? { ...prev, appLogoUrl: e.target.value } : null)}
+                                          placeholder="Enter Global Logo URL..."
+                                          className="h-14 bg-bg-dark/50 border-border-custom font-black text-sm pl-12 rounded-2xl focus:ring-accent transition-all"
+                                       />
+                                       <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-dim group-focus-within/input:text-accent transition-colors" />
+                                    </div>
 
-                           {/* Header/Drawer Logo */}
-                           <div className="space-y-4 bg-bg-dark/30 p-6 rounded-3xl border border-border-custom">
-                              <div className="flex items-center justify-between">
-                                 <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">App Header & Drawer Logo</h3>
-                                 <span className="text-[8px] font-bold text-text-dim/60">Recommended: 100x100px (1:1)</span>
-                              </div>
-                              
-                              <div className="flex flex-col gap-6">
-                                 <div className="w-full h-40 rounded-3xl bg-bg-dark border-2 border-dashed border-accent/20 flex items-center justify-center overflow-hidden bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
-                                    <div className="relative group flex items-center gap-4 bg-surface/50 p-6 rounded-2xl border border-white/5">
-                                       <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-12 h-12 object-contain" alt="" />
-                                       <span className="text-xl font-black italic tracking-tighter text-accent">PORSHI</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                       <label className="h-14 bg-accent/10 text-accent border border-accent/20 text-[11px] font-black uppercase cursor-pointer flex items-center justify-center rounded-2xl hover:bg-accent/20 transition-all border-dashed group/btn">
+                                          <CameraIcon className="w-5 h-5 mr-3 transition-transform group-hover/btn:rotate-12" /> UPDATE GLOBAL LOGO
+                                          <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'appLogoUrl')} />
+                                       </label>
+                                       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-center">
+                                          <p className="text-[10px] font-black text-text-dim uppercase tracking-wider mb-1">Adaptive Logo System</p>
+                                          <p className="text-[8px] text-text-dim/60 leading-tight">This logo will automatically scale for login, sidebar, and all mobile devices.</p>
+                                       </div>
                                     </div>
                                  </div>
-                                 
-                                 <div className="space-y-3">
-                                    <Input 
-                                       value={appConfig?.headerLogoUrl || ''}
-                                       onChange={(e) => setAppConfig(prev => prev ? { ...prev, headerLogoUrl: e.target.value } : null)}
-                                       placeholder="Paste Header Logo URL here..."
-                                       className="h-12 bg-bg-dark/50 border-border-custom font-bold text-xs"
-                                    />
-                                    <label className="w-full h-12 bg-accent/10 text-accent border border-accent/20 text-[10px] font-black uppercase cursor-pointer flex items-center justify-center rounded-xl hover:bg-accent/20 transition-all border-dashed">
-                                       <CameraIcon className="w-4 h-4 mr-3" /> UPLOAD NEW HEADER LOGO
-                                       <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'headerLogoUrl')} />
-                                    </label>
+
+                                 <div className="p-6 bg-accent/5 rounded-[24px] border border-accent/10 space-y-3">
+                                    <div className="flex items-center gap-2">
+                                       <Info className="w-4 h-4 text-accent" />
+                                       <span className="text-[10px] font-black text-accent uppercase">Professional Tip</span>
+                                    </div>
+                                    <p className="text-[10px] text-text-dim/80 leading-relaxed font-medium">
+                                       Use a high-resolution PNG or SVG with a transparent background. A square aspect ratio (1:1) works best to ensure it fits perfectly in the circular and squared containers throughout the app.
+                                    </p>
                                  </div>
-                                 <p className="text-[9px] text-text-dim/80 italic leading-relaxed bg-accent/5 p-4 rounded-xl border border-accent/10">
-                                    This logo appears in the side drawer next to the app name and in the top header. It's used throughout the active user session.
-                                 </p>
                               </div>
                            </div>
                         </div>
@@ -4677,64 +4670,12 @@ export default function App() {
                                        />
                                     </div>
                                  </div>
-
-                                 {/* Custom Logos */}
-                                 <div className="space-y-6 pt-6 border-t border-border-custom">
-                                    <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">Application Brand Logos</h3>
-                                    
-                                    <div className="grid grid-cols-1 gap-6">
-                                       {/* Login Logo */}
-                                       <div className="space-y-2 bg-bg-dark/20 p-4 rounded-2xl border border-border-custom">
-                                          <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Login Page Logo (Square 1:1, Recommended: 200x200px)</label>
-                                          <div className="flex gap-4 items-center">
-                                             <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden">
-                                                <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} className="w-full h-full object-contain p-2" alt="" />
-                                             </div>
-                                             <div className="flex-1 space-y-2">
-                                                <Input 
-                                                   value={appConfig?.loginLogoUrl || ''}
-                                                   onChange={(e) => setAppConfig(prev => prev ? { ...prev, loginLogoUrl: e.target.value } : null)}
-                                                   placeholder="URL or Upload"
-                                                   className="bg-bg-dark/50 border-border-custom text-xs"
-                                                />
-                                                <label className="w-full h-8 bg-accent/20 text-accent border border-accent/30 text-[8px] font-black uppercase cursor-pointer flex items-center justify-center rounded-lg hover:bg-accent/30 transition-all">
-                                                   <CameraIcon className="w-3 h-3 mr-2" /> UPLOAD LOGIN LOGO
-                                                   <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'loginLogoUrl')} />
-                                                </label>
-                                             </div>
-                                          </div>
-                                       </div>
-
-                                       {/* Header Logo */}
-                                       <div className="space-y-2 bg-bg-dark/20 p-4 rounded-2xl border border-border-custom">
-                                          <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Drawer & Sidebar Logo (Square 1:1, Recommended: 100x100px)</label>
-                                          <div className="flex gap-4 items-center">
-                                             <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden">
-                                                <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain p-2" alt="" />
-                                             </div>
-                                             <div className="flex-1 space-y-2">
-                                                <Input 
-                                                   value={appConfig?.headerLogoUrl || ''}
-                                                   onChange={(e) => setAppConfig(prev => prev ? { ...prev, headerLogoUrl: e.target.value } : null)}
-                                                   placeholder="URL or Upload"
-                                                   className="bg-bg-dark/50 border-border-custom text-xs"
-                                                />
-                                                <label className="w-full h-8 bg-accent/20 text-accent border border-accent/30 text-[8px] font-black uppercase cursor-pointer flex items-center justify-center rounded-lg hover:bg-accent/30 transition-all">
-                                                   <CameraIcon className="w-3 h-3 mr-2" /> UPLOAD HEADER LOGO
-                                                   <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'headerLogoUrl')} />
-                                                </label>
-                                             </div>
-                                          </div>
-                                       </div>
-                                    </div>
-                                 </div>
                               </div>
                            </div>
 
                            {/* Feature Management */}
                            <div className="space-y-6">
                               <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-widest border-b border-white/5 pb-2">Feature Management</h3>
-                              
                               <div className="grid grid-cols-1 gap-3">
                                  {[
                                     { id: 'enableChat', label: 'Real-time Messaging', icon: MessageCircle },
@@ -5949,7 +5890,11 @@ export default function App() {
             <Card className="bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 relative overflow-hidden border-2 border-accent/30 bg-surface">
-                  <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} alt="Logo" className="w-full h-full object-contain p-2" />
+                  <img 
+                    src={appConfig?.appLogoUrl || appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} 
+                    alt="Logo" 
+                    className="w-full h-full object-contain p-2" 
+                  />
                 </div>
                 <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSH - SIGN IN</CardTitle>
                 <CardDescription className="text-text-dim text-xs">
@@ -6608,7 +6553,7 @@ export default function App() {
         <div className="flex items-center gap-4 mb-12">
             <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-accent flex items-center justify-center">
               <img 
-                src={appConfig?.headerLogoUrl || appConfig?.appIcon || "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png"} 
+                src={appConfig?.appLogoUrl || appConfig?.headerLogoUrl || appConfig?.appIcon || "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png"} 
                 alt="Logo" 
                 className={`w-full h-full object-contain p-2 ${theme === 'dark' ? 'brightness-200 invert' : ''}`}
                 referrerPolicy="no-referrer"
@@ -6670,8 +6615,8 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
-            {appConfig?.headerLogoUrl && (
-              <img src={appConfig.headerLogoUrl} className="h-8 w-8 object-contain" alt="Logo" />
+            {(appConfig?.appLogoUrl || appConfig?.headerLogoUrl) && (
+              <img src={appConfig?.appLogoUrl || appConfig?.headerLogoUrl} className="h-8 w-8 object-contain" alt="Logo" />
             )}
             <span className="text-xl font-black tracking-tighter text-accent uppercase italic">
               {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
@@ -6827,7 +6772,7 @@ export default function App() {
                <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
-                       <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
+                       <img src={appConfig?.appLogoUrl || appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
                     <span className="text-xl font-black tracking-tighter italic">
                       {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
