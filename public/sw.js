@@ -1,23 +1,26 @@
-const CACHE_NAME = 'porsh-v17';
-const STATIC_CACHE = 'porsh-static-v17';
-const ASSET_CACHE = 'porsh-assets-v17';
+const CACHE_NAME = 'porsh-v20';
+const STATIC_CACHE = 'porsh-static-v20';
+const ASSET_CACHE = 'porsh-assets-v20';
+const IMAGE_CACHE = 'porsh-images-v20';
 
 const urlsToCache = [
   '/',
+  '/index.html',
   '/manifest.json',
-  '/porsh-pwa-icon.png'
+  '/porsh-pwa-icon.png',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap'
 ];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(STATIC_CACHE).then(async cache => {
-      // Use no-cors or ignore failures so one missing asset doesn't stop SW installation
+      console.log('[SW] Pre-caching static app shell');
       for (const url of urlsToCache) {
         try {
           await cache.add(url);
         } catch (e) {
-          console.warn('[SW] Failed to cache asset:', url, e);
+          console.warn('[SW] Failed to cache initial asset:', url);
         }
       }
     })
@@ -30,7 +33,7 @@ self.addEventListener('activate', event => {
       self.clients.claim(),
       caches.keys().then(keys => {
         return Promise.all(
-          keys.filter(key => key !== STATIC_CACHE && key !== ASSET_CACHE)
+          keys.filter(key => !key.includes('porsh-v20'))
               .map(key => caches.delete(key))
         );
       })
@@ -41,58 +44,83 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
+  // Skip cross-origin requests unless they are fonts/images
   if (url.origin !== self.location.origin) {
+    if (event.request.destination === 'font' || (event.request.destination === 'image' && url.hostname.includes('cloudinary'))) {
+      // Stale-While-Revalidate for external assets
+      event.respondWith(
+        caches.match(event.request).then(cachedResponse => {
+          const fetchPromise = fetch(event.request).then(networkResponse => {
+            if (networkResponse && networkResponse.status === 200) {
+              const cacheName = event.request.destination === 'font' ? ASSET_CACHE : IMAGE_CACHE;
+              caches.open(cacheName).then(cache => cache.put(event.request, networkResponse.clone()));
+            }
+            return networkResponse;
+          });
+          return cachedResponse || fetchPromise;
+        })
+      );
+    }
     return;
   }
 
-  // Network-First for HTML navigation
+  // Navigation: Network-First with Cache Fallback (App Shell)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(async () => {
-        const cache = await caches.open(STATIC_CACHE);
-        const cachedRes = await cache.match('/', { ignoreSearch: true });
-        if (cachedRes) return cachedRes;
-        return new Response('<h3>Porshi (Offline)</h3><p>Please check your internet connection.</p>', {
-          headers: { 'Content-Type': 'text/html' }
+      fetch(event.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open(STATIC_CACHE).then(cache => cache.put('/', clone));
+          return response;
+        })
+        .catch(async () => {
+          const cache = await caches.open(STATIC_CACHE);
+          const cachedRes = await cache.match('/', { ignoreSearch: true });
+          return cachedRes || new Response('Offline', { status: 503 });
+        })
+    );
+    return;
+  }
+
+  // Static Assets (Hashed JS/CSS from Vite): Cache-First
+  const isStaticAsset = url.pathname.includes('/assets/') || url.pathname.match(/\.(woff2?|css|js)$/);
+  if (isStaticAsset) {
+    event.respondWith(
+      caches.match(event.request).then(cachedResponse => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(event.request).then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(ASSET_CACHE).then(cache => cache.put(event.request, clone));
+          }
+          return networkResponse;
         });
       })
     );
     return;
   }
 
-  const isAsset = url.pathname.includes('/assets/') || 
-                  url.pathname.match(/\.(png|jpe?g|svg|woff2?|css|js)$/);
-
-  // Cache-First only for static hashed assets and images
-  if (isAsset) {
+  // Standard Images/Icons: Stale-While-Revalidate
+  if (event.request.destination === 'image') {
     event.respondWith(
-      caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
-        if (cachedResponse) return cachedResponse;
-        return fetch(event.request).then(networkResponse => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-            return networkResponse;
+      caches.match(event.request).then(cachedResponse => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(IMAGE_CACHE).then(cache => cache.put(event.request, clone));
           }
-          const responseClone = networkResponse.clone();
-          caches.open(ASSET_CACHE).then(cache => cache.put(event.request, responseClone));
           return networkResponse;
-        }).catch(() => new Response(""));
+        });
+        return cachedResponse || fetchPromise;
       })
     );
     return;
   }
 
-  // Network-First for everything else (like manifest.json, APIs, etc.)
+  // Default: Network-First
   event.respondWith(
-    fetch(event.request).then(networkResponse => {
-      // We can update the STATIC_CACHE here with the fresh response
-      if (networkResponse && networkResponse.status === 200) {
-        const clone = networkResponse.clone();
-        caches.open(STATIC_CACHE).then(cache => cache.put(event.request, clone));
-      }
-      return networkResponse;
-    }).catch(async () => {
-      const cache = await caches.open(STATIC_CACHE);
-      return cache.match(event.request, { ignoreSearch: true });
+    fetch(event.request).catch(async () => {
+      return caches.match(event.request);
     })
   );
 });
@@ -102,10 +130,3 @@ self.addEventListener('message', event => {
     self.skipWaiting();
   }
 });
-
-/**
- * FIREBASE MESSAGING COMPATIBILITY
- * If you use Firebase Messaging, you can import the script here:
- * importScripts('https://www.gstatic.com/firebasejs/9.x.x/firebase-app-compat.js');
- * importScripts('https://www.gstatic.com/firebasejs/9.x.x/firebase-messaging-compat.js');
- */
