@@ -51,12 +51,21 @@ const ImageWithTracking: React.FC<{ post: Post, theme: string, currentUserId?: s
   React.useEffect(() => {
     if (inView && !reachTracked.current) {
       reachTracked.current = true;
-      updateDoc(doc(db, 'posts', post.id), {
+      const updates: any = {
         reachCount: increment(1),
         viewsCount: increment(1)
-      }).catch(console.error);
+      };
+      updateDoc(doc(db, 'posts', post.id), updates).catch(console.error);
+
+      // Monetization reach
+      if (post.isMonetized) {
+        updateDoc(doc(db, 'monetization', post.authorUid), {
+          reach: increment(1),
+          totalEarnings: increment(0.001) // Tiny amount for view
+        }).catch(console.error);
+      }
     }
-  }, [inView, post.id]);
+  }, [inView, post.id, post.isMonetized, post.authorUid]);
 
   return (
     <div 

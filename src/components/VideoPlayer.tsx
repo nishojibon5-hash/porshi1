@@ -144,8 +144,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       updateDoc(doc(db, 'posts', post.id), {
         reachCount: increment(1)
       }).catch(console.error);
+
+      if (effectiveIsMonetized) {
+        updateDoc(doc(db, 'monetization', post.authorUid), {
+          reach: increment(1)
+        }).catch(console.error);
+      }
     }
-  }, [inView, post.id]);
+  }, [inView, post.id, effectiveIsMonetized, post.authorUid]);
 
   // Handle Monetized Ads
   React.useEffect(() => {
@@ -278,6 +284,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       updateDoc(doc(db, 'posts', post.id), {
         viewsCount: increment(1)
       }).catch(console.error);
+
+      if (effectiveIsMonetized) {
+        updateDoc(doc(db, 'monetization', post.authorUid), {
+          totalEarnings: increment(0.01) // 1 cent per video play
+        }).catch(console.error);
+      }
     }
   };
 

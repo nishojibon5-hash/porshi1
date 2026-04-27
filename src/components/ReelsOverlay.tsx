@@ -11,9 +11,13 @@ import {
   Plus,
   Search,
   X as CloseIcon,
-  MoreVertical
+  MoreVertical,
+  Eye,
+  Activity
 } from 'lucide-react';
 import { Post, AppUser } from '../types';
+import { db } from '../firebase';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
 interface ReelItemProps {
   post: Post;
@@ -55,6 +59,25 @@ const ReelItem: React.FC<ReelItemProps> = ({
   const isLiked = useMemo(() => {
     return post.reactions?.[currentUserId || ''] === '❤️';
   }, [post.reactions, currentUserId]);
+
+  const viewTracked = useRef(false);
+
+  useEffect(() => {
+    if (isActive && !viewTracked.current) {
+      viewTracked.current = true;
+      updateDoc(doc(db, 'posts', post.id), {
+        reachCount: increment(1),
+        viewsCount: increment(1)
+      }).catch(console.error);
+
+      if (post.isMonetized) {
+        updateDoc(doc(db, 'monetization', post.authorUid), {
+          reach: increment(1),
+          totalEarnings: increment(0.005) // Reels pay better!
+        }).catch(console.error);
+      }
+    }
+  }, [isActive, post.id, post.isMonetized, post.authorUid]);
 
   useEffect(() => {
     if (!videoRef.current) return;
@@ -173,6 +196,16 @@ const ReelItem: React.FC<ReelItemProps> = ({
                    <div className="animate-marquee-slow whitespace-nowrap">
                       Original sound - {author.displayName} • {post.content.slice(0, 40)}...
                    </div>
+                </div>
+             </div>
+             <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 text-[10px] font-black text-white uppercase tracking-widest pointer-events-none">
+                   <Eye className="w-3 h-3 text-accent" />
+                   {post.viewsCount || 0}
+                </div>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-black/20 backdrop-blur-md rounded-full border border-white/10 text-[10px] font-black text-white uppercase tracking-widest pointer-events-none">
+                   <Activity className="w-3 h-3 text-green-400" />
+                   {post.reachCount || 0}
                 </div>
              </div>
           </div>

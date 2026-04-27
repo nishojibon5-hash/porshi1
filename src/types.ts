@@ -98,6 +98,13 @@ export interface PairRequest {
   timestamp: any;
 }
 
+export interface MonetizationUpdate {
+  id: string;
+  type: 'Video Bonus' | 'Stars' | 'Ad Revenue' | 'Referral';
+  amount: number;
+  timestamp: any;
+}
+
 export interface MonetizationData {
   totalEarnings: number;
   monthlyEarnings: number;
@@ -105,6 +112,8 @@ export interface MonetizationData {
   engagement: number;
   followers: number;
   lastUpdated: any;
+  dailyStats?: { day: string; amount: number }[];
+  recentUpdates?: MonetizationUpdate[];
 }
 
 export interface AppConfig {

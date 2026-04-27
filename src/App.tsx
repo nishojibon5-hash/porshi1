@@ -9,83 +9,15 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { 
-  Nfc, 
-  Scan, 
-  PenLine, 
-  Info, 
-  AlertCircle, 
-  CheckCircle2, 
-  ExternalLink,
-  History,
-  Download,
-  MonitorSmartphone,
-  ChevronRight,
-  Trash2,
-  Wifi,
-  Link as LinkIcon,
-  Type,
-  User as UserIcon,
-  MessageSquare,
-  Send,
-  X,
-  LogOut,
-  UserPlus,
-  Minimize2,
-  ChevronDown,
-  ArrowLeft,
-  Camera as CameraIcon,
-  Loader2,
-  Home,
-  Users,
-  Bell,
-  Check,
-  Search,
-  PlusSquare,
-  Heart,
-  MessageCircle,
-  Share2,
-  MoreHorizontal,
-  Radar,
-  Bookmark,
-  Image as ImageIcon,
-  Video as VideoIcon,
-  Smile,
-  MapPin,
-  Briefcase,
-  GraduationCap,
-  Globe,
-  Lock,
-  UserCheck,
-  BarChart,
-  TrendingUp,
-  DollarSign,
-  Activity,
-  Eye,
-  Zap,
-  Play,
-  Star,
-  Moon,
-  Sun,
-  LayoutDashboard,
-  Megaphone,
-  Target,
-  Wallet,
-  CreditCard,
-  Calendar,
-  Menu,
-  Store,
-  PlayCircle,
-  UserCircle,
-  Plus,
-  ThumbsUp,
-  Pencil,
-  Settings2,
-  Phone,
-  PlusCircle,
-  Mic,
-  SendHorizontal,
-  RefreshCw
-} from 'lucide-react';
+  BarChart as RechartsBarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -555,6 +487,55 @@ export default function App() {
   const [showAdPaymentModal, setShowAdPaymentModal] = useState(false);
   const [pendingAdId, setPendingAdId] = useState<string | null>(null);
   const [myAds, setMyAds] = useState<Advertisement[]>([]);
+
+  const recordMonetizationUpdate = async (authorUid: string, type: 'Video Bonus' | 'Stars' | 'Ad Revenue' | 'Referral', amount: number) => {
+    try {
+      const monRef = doc(db, 'monetization', authorUid);
+      const monSnap = await getDoc(monRef);
+      const now = new Date();
+      const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+      const todayName = dayNames[now.getDay()];
+
+      const update: MonetizationUpdate = {
+        id: Math.random().toString(36).substr(2, 9),
+        type,
+        amount,
+        timestamp: serverTimestamp()
+      };
+
+      if (monSnap.exists()) {
+        const data = monSnap.data() as MonetizationData;
+        const recentUpdates = [update, ...(data.recentUpdates || [])].slice(0, 5);
+        
+        // Update daily stats
+        const dailyStats = [...(data.dailyStats || [
+          { day: 'S', amount: 0 },
+          { day: 'M', amount: 0 },
+          { day: 'T', amount: 0 },
+          { day: 'W', amount: 0 },
+          { day: 'T', amount: 0 },
+          { day: 'F', amount: 0 },
+          { day: 'S', amount: 0 },
+        ])];
+        
+        const todayStatIndex = dailyStats.findIndex(s => s.day === todayName);
+        if (todayStatIndex !== -1) {
+          dailyStats[todayStatIndex].amount += amount;
+        }
+
+        await updateDoc(monRef, {
+          totalEarnings: increment(amount),
+          reach: increment(1),
+          engagement: increment(1),
+          recentUpdates,
+          dailyStats,
+          lastUpdated: serverTimestamp()
+        });
+      }
+    } catch (e) {
+      console.error('Record monetization update error:', e);
+    }
+  };
   const [allAds, setAllAds] = useState<Advertisement[]>([]);
   const [usersRegistry, setUsersRegistry] = useState<Record<string, AppUser>>({});
   const [commentImage, setCommentImage] = useState<string | null>(null);
@@ -1440,12 +1421,8 @@ export default function App() {
       // Reward author logic
       const postDoc = await getDoc(postRef);
       const postData = postDoc.data() as Post;
-      if (postData.isMonetized && postData.authorUid !== user.uid) {
-        const authorMonetizationRef = doc(db, 'monetization', postData.authorUid);
-        await updateDoc(authorMonetizationRef, {
-          totalEarnings: increment(0.01),
-          engagement: increment(1)
-        });
+      if (postData.isMonetized && postData.authorUid !== user.uid && !existingReaction) {
+        await recordMonetizationUpdate(postData.authorUid, 'Ad Revenue', 0.05);
       }
 
       // Send Notification
@@ -1799,16 +1776,39 @@ export default function App() {
     if (!user) return;
     const unsub = onSnapshot(doc(db, 'monetization', user.uid), (docSnap) => {
       if (docSnap.exists()) {
-        setMonetizationData(docSnap.data() as MonetizationData);
+        const data = docSnap.data() as MonetizationData;
+        setMonetizationData({
+          ...data,
+          dailyStats: data.dailyStats || [
+            { day: 'S', amount: 0 },
+            { day: 'M', amount: 0 },
+            { day: 'T', amount: 0 },
+            { day: 'W', amount: 0 },
+            { day: 'T', amount: 0 },
+            { day: 'F', amount: 0 },
+            { day: 'S', amount: 0 },
+          ],
+          recentUpdates: data.recentUpdates || []
+        });
       } else {
-        // Initialize mock data if not exists
+        // Initialize real data (start at 0)
         const initialData: MonetizationData = {
-          totalEarnings: 125.50,
-          monthlyEarnings: 45.20,
-          reach: 12500,
-          engagement: 4500,
-          followers: 1200,
-          lastUpdated: serverTimestamp()
+          totalEarnings: 0,
+          monthlyEarnings: 0,
+          reach: 0,
+          engagement: 0,
+          followers: 0,
+          lastUpdated: serverTimestamp(),
+          dailyStats: [
+            { day: 'S', amount: 0 },
+            { day: 'M', amount: 0 },
+            { day: 'T', amount: 0 },
+            { day: 'W', amount: 0 },
+            { day: 'T', amount: 0 },
+            { day: 'F', amount: 0 },
+            { day: 'S', amount: 0 },
+          ],
+          recentUpdates: []
         };
         setDoc(doc(db, 'monetization', user.uid), initialData);
       }
@@ -4228,6 +4228,20 @@ export default function App() {
                                   >
                                     <DollarSign className="w-4 h-4" />
                                   </button>
+                                  {u.isMonetized && (
+                                    <button 
+                                      onClick={() => {
+                                        if (window.confirm(`Simulate $10.00 bonus for ${u.displayName}?`)) {
+                                          recordMonetizationUpdate(u.uid, 'Video Bonus', 10.00);
+                                          showToast('Bonus simulated!', 'success');
+                                        }
+                                      }}
+                                      className="p-2 rounded-xl border border-border-custom bg-surface-light text-text-dim hover:text-purple-500 hover:border-purple-500 transition-all cursor-pointer"
+                                      title="Simulate Bonus"
+                                    >
+                                      <Zap className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <button 
                                     onClick={() => {
                                       setAdminNoticeTargetUid(u.uid);
@@ -4764,93 +4778,158 @@ export default function App() {
         return (
           <div className="flex-1 p-4 overflow-y-auto custom-scrollbar bg-white dark:bg-[#18191A]">
             <div className="max-w-4xl mx-auto space-y-6">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center justify-between mb-2">
                 <button onClick={() => setActiveTab('home')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 font-bold text-sm text-[#1877F2] dark:text-accent">
                   <ArrowLeft className="w-5 h-5" /> Porsh Home
                 </button>
-              </div>
-              <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <div className="flex justify-between items-center mb-8">
-                  <div>
-                    <h2 className="text-2xl font-black tracking-tighter uppercase">Monetization Dashboard</h2>
-                    <p className="text-text-dim text-xs uppercase tracking-widest">Your content performance</p>
-                  </div>
-                  <div className="p-3 rounded-2xl bg-accent/10">
-                    <TrendingUp className="w-6 h-6 text-accent" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 rounded-lg bg-green-500/10"><DollarSign className="w-4 h-4 text-green-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">Total Earnings</span>
-                    </div>
-                    <div className="text-3xl font-black tracking-tighter">${monetizationData?.totalEarnings?.toFixed(2) || '0.00'}</div>
-                    <div className="text-[10px] text-green-500 mt-1 font-bold">+12% from last month</div>
-                  </div>
-                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 rounded-lg bg-blue-500/10"><Activity className="w-4 h-4 text-blue-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">Reach</span>
-                    </div>
-                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.reach?.toLocaleString() || '0'}</div>
-                    <div className="text-[10px] text-blue-500 mt-1 font-bold">+5.4% from last week</div>
-                  </div>
-                  <div className={`p-6 rounded-2xl border ${theme === 'dark' ? 'bg-bg-dark/50 border-border-custom' : 'bg-gray-50 border-gray-100'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 rounded-lg bg-purple-500/10"><Users className="w-4 h-4 text-purple-500" /></div>
-                      <span className="text-[10px] uppercase font-bold text-text-dim">Followers</span>
-                    </div>
-                    <div className="text-3xl font-black tracking-tighter">{monetizationData?.followers?.toLocaleString() || '0'}</div>
-                    <div className="text-[10px] text-purple-500 mt-1 font-bold">+86 new today</div>
-                  </div>
+                <div className="flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                   <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Live Analytics</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
-                  <h3 className="text-sm font-bold uppercase mb-6 flex items-center gap-2">
-                    <BarChart className="w-4 h-4 text-accent" />
-                    Earnings Stats
-                  </h3>
-                  <div className="h-48 flex items-end gap-2 px-2">
-                    {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
-                      <motion.div 
-                        key={i}
-                        initial={{ height: 0 }}
-                        animate={{ height: `${h}%` }}
-                        className="flex-1 bg-accent/20 rounded-t-lg relative group"
-                      >
-                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-accent text-bg-dark text-[8px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                          ${(h * 1.5).toFixed(0)}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                  <div className="flex justify-between mt-4 px-2">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                      <span key={i} className="text-[10px] text-text-dim font-bold">{d}</span>
-                    ))}
-                  </div>
+              <div className={`p-8 rounded-[40px] border relative overflow-hidden ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50'}`}>
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                   <DollarSign className="w-48 h-48" />
+                </div>
+                
+                <div className="relative z-10">
+                   <div className="flex justify-between items-start mb-10">
+                     <div className="space-y-1">
+                       <h2 className="text-3xl font-black tracking-tighter uppercase leading-none">MONETIZATION DASHBOARD</h2>
+                       <p className="text-text-dim text-[10px] font-bold uppercase tracking-[0.3em] opacity-60">Your Content Performance</p>
+                     </div>
+                     <div className="p-4 rounded-3xl bg-accent/10">
+                       <TrendingUp className="w-8 h-8 text-accent" />
+                     </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                       <div className="flex items-center gap-3 mb-6">
+                         <div className="w-10 h-10 rounded-2xl bg-green-500/10 flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-500" /></div>
+                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Total Earnings</span>
+                       </div>
+                       <div className="text-4xl font-black tracking-tighter mb-2">${monetizationData?.totalEarnings?.toFixed(2) || '0.00'}</div>
+                       <p className="text-[10px] text-green-500 font-black">+12% from last month</p>
+                     </div>
+
+                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                       <div className="flex items-center gap-3 mb-6">
+                         <div className="w-10 h-10 rounded-2xl bg-[#1877F2]/10 flex items-center justify-center"><Activity className="w-5 h-5 text-[#1877F2]" /></div>
+                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Reach</span>
+                       </div>
+                       <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.reach?.toLocaleString() || '0'}</div>
+                       <p className="text-[10px] text-[#1877F2] font-black">+5.4% from last week</p>
+                     </div>
+
+                     <div className={`p-8 rounded-[32px] border transition-all hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#18191A] border-[#3E4042]' : 'bg-gray-50/50 border-gray-100'}`}>
+                       <div className="flex items-center gap-3 mb-6">
+                         <div className="w-10 h-10 rounded-2xl bg-purple-500/10 flex items-center justify-center"><Users className="w-5 h-5 text-purple-500" /></div>
+                         <span className="text-[10px] uppercase font-black tracking-widest text-text-dim opacity-60">Followers</span>
+                       </div>
+                       <div className="text-4xl font-black tracking-tighter mb-2">{monetizationData?.followers?.toLocaleString() || user?.followersCount || '0'}</div>
+                       <p className="text-[10px] text-purple-500 font-black">+{user?.followersCount || 0} total growth</p>
+                     </div>
+                   </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className={`p-8 rounded-[40px] border ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50'}`}>
+                   <h3 className="text-xs font-black uppercase tracking-widest mb-10 flex items-center gap-3">
+                     <BarChart className="w-5 h-5 text-accent" />
+                     Earnings Stats
+                   </h3>
+                   <div className="h-64 w-full">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <RechartsBarChart data={monetizationData?.dailyStats || []}>
+                           <CartesianGrid vertical={false} stroke={theme === 'dark' ? '#333' : '#eee'} strokeDasharray="3 3" />
+                           <XAxis 
+                             dataKey="day" 
+                             axisLine={false} 
+                             tickLine={false} 
+                             tick={{ fontSize: 10, fontWeight: 900, fill: theme === 'dark' ? '#888' : '#666' }} 
+                             dy={10}
+                           />
+                           <RechartsTooltip 
+                             cursor={{ fill: 'transparent' }}
+                             content={({ active, payload }) => {
+                               if (active && payload && payload.length) {
+                                 return (
+                                   <div className="bg-bg-dark text-white p-3 rounded-2xl border border-accent/20 shadow-2xl">
+                                      <p className="text-[8px] font-black uppercase tracking-widest opacity-60">Daily Profit</p>
+                                      <p className="text-sm font-black text-accent">${payload[0].value}</p>
+                                   </div>
+                                 );
+                               }
+                               return null;
+                             }}
+                           />
+                           <Bar 
+                             dataKey="amount" 
+                             radius={[12, 12, 12, 12]} 
+                             barSize={24}
+                           >
+                              {(monetizationData?.dailyStats || []).map((entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={theme === 'dark' ? '#00D1FF' : '#1877F2'} fillOpacity={0.2 + (index * 0.1)} />
+                              ))}
+                           </Bar>
+                        </RechartsBarChart>
+                     </ResponsiveContainer>
+                   </div>
                 </div>
 
-                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-surface/30 border-border-custom' : 'bg-white border-gray-200 shadow-sm'}`}>
-                  <h3 className="text-sm font-bold uppercase mb-6">Recent Updates</h3>
+                <div className={`p-8 rounded-[40px] border ${theme === 'dark' ? 'bg-[#242526] border-[#3E4042]' : 'bg-white border-gray-100 shadow-xl shadow-gray-200/50'}`}>
+                  <div className="flex justify-between items-center mb-10">
+                    <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-3">
+                      <RefreshCw className="w-5 h-5 text-accent" />
+                      Recent Updates
+                    </h3>
+                  </div>
                   <div className="space-y-4">
-                    {[
-                      { label: 'Video Bonus', amount: '+$12.40', date: '2 hours ago' },
-                      { label: 'Stars', amount: '+$5.00', date: '5 hours ago' },
-                      { label: 'Ad Revenue', amount: '+$28.10', date: 'Yesterday' },
-                    ].map((item, i) => (
-                      <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-accent/5">
-                        <div>
-                          <div className="text-xs font-bold">{item.label}</div>
-                          <div className="text-[8px] text-text-dim uppercase">{item.date}</div>
-                        </div>
-                        <div className="text-sm font-black text-accent">{item.amount}</div>
+                    {monetizationData?.recentUpdates && monetizationData.recentUpdates.length > 0 ? (
+                      monetizationData.recentUpdates.map((update, i) => (
+                        <motion.div 
+                          key={update.id} 
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                          className={`flex justify-between items-center p-5 rounded-3xl transition-all hover:translate-x-1 ${theme === 'dark' ? 'bg-[#18191A] hover:bg-[#1C1D1E]' : 'bg-gray-50 hover:bg-gray-100/80 border border-gray-50'}`}
+                        >
+                          <div className="flex items-center gap-4">
+                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                               update.type === 'Video Bonus' ? 'bg-purple-500/10 text-purple-500' :
+                               update.type === 'Stars' ? 'bg-yellow-500/10 text-yellow-500' :
+                               'bg-green-500/10 text-green-500'
+                             }`}>
+                                {update.type === 'Video Bonus' ? <VideoIcon className="w-5 h-5" /> :
+                                 update.type === 'Stars' ? <Star className="w-5 h-5" /> :
+                                 <DollarSign className="w-5 h-5" />}
+                             </div>
+                             <div>
+                               <div className="text-[11px] font-black uppercase tracking-widest">{update.type}</div>
+                               <div className="text-[8px] text-text-dim uppercase font-bold mt-0.5">
+                                 {update.timestamp?.toDate?.()?.toLocaleString() || new Date().toLocaleString()}
+                               </div>
+                             </div>
+                          </div>
+                          <div className="text-sm font-black text-accent tracking-tighter">
+                            +${update.amount.toFixed(2)}
+                          </div>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <div className="py-12 border-2 border-dashed border-border-custom/20 rounded-[32px] flex flex-col items-center justify-center text-center space-y-4">
+                         <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center opacity-30">
+                            <History className="w-6 h-6" />
+                         </div>
+                         <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No recent updates</p>
+                            <p className="text-[8px] font-bold text-text-dim max-w-[180px]">When you earn from bonuses or ads, they will appear here automatically.</p>
+                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
