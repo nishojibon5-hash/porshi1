@@ -136,6 +136,8 @@ export interface AppConfig {
   enableFeed?: boolean;
   enableStories?: boolean;
   enableAds?: boolean;
+  loginLogoUrl?: string;
+  headerLogoUrl?: string;
 }
 
 export interface Advertisement {

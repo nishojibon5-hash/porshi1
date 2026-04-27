@@ -905,6 +905,20 @@ export default function App() {
     });
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'loginLogoUrl' | 'headerLogoUrl') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      showToast('Uploading logo...', 'info');
+      const url = await uploadToCloudinary(file, 'image');
+      setAppConfig(prev => prev ? { ...prev, [field]: url } : null);
+      showToast('Logo uploaded. Save changes below.', 'success');
+    } catch (err: any) {
+      showToast('Upload failed: ' + err.message, 'error');
+    }
+  };
+
   const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.7): Promise<string> => {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Image compression timed out')), 15000);
@@ -4564,6 +4578,57 @@ export default function App() {
                                        />
                                     </div>
                                  </div>
+
+                                 {/* Custom Logos */}
+                                 <div className="space-y-6 pt-6 border-t border-border-custom">
+                                    <h3 className="text-[10px] font-black text-accent uppercase tracking-[4px]">Application Brand Logos</h3>
+                                    
+                                    <div className="grid grid-cols-1 gap-6">
+                                       {/* Login Logo */}
+                                       <div className="space-y-2 bg-bg-dark/20 p-4 rounded-2xl border border-border-custom">
+                                          <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Login Page Logo (Square 1:1, Recommended: 200x200px)</label>
+                                          <div className="flex gap-4 items-center">
+                                             <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden">
+                                                <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} className="w-full h-full object-contain p-2" alt="" />
+                                             </div>
+                                             <div className="flex-1 space-y-2">
+                                                <Input 
+                                                   value={appConfig?.loginLogoUrl || ''}
+                                                   onChange={(e) => setAppConfig(prev => prev ? { ...prev, loginLogoUrl: e.target.value } : null)}
+                                                   placeholder="URL or Upload"
+                                                   className="bg-bg-dark/50 border-border-custom text-xs"
+                                                />
+                                                <label className="w-full h-8 bg-accent/20 text-accent border border-accent/30 text-[8px] font-black uppercase cursor-pointer flex items-center justify-center rounded-lg hover:bg-accent/30 transition-all">
+                                                   <CameraIcon className="w-3 h-3 mr-2" /> UPLOAD LOGIN LOGO
+                                                   <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'loginLogoUrl')} />
+                                                </label>
+                                             </div>
+                                          </div>
+                                       </div>
+
+                                       {/* Header Logo */}
+                                       <div className="space-y-2 bg-bg-dark/20 p-4 rounded-2xl border border-border-custom">
+                                          <label className="text-[9px] uppercase font-bold text-text-dim ml-1">Drawer & Sidebar Logo (Square 1:1, Recommended: 100x100px)</label>
+                                          <div className="flex gap-4 items-center">
+                                             <div className="w-16 h-16 rounded-2xl bg-bg-dark border border-border-custom flex items-center justify-center overflow-hidden">
+                                                <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain p-2" alt="" />
+                                             </div>
+                                             <div className="flex-1 space-y-2">
+                                                <Input 
+                                                   value={appConfig?.headerLogoUrl || ''}
+                                                   onChange={(e) => setAppConfig(prev => prev ? { ...prev, headerLogoUrl: e.target.value } : null)}
+                                                   placeholder="URL or Upload"
+                                                   className="bg-bg-dark/50 border-border-custom text-xs"
+                                                />
+                                                <label className="w-full h-8 bg-accent/20 text-accent border border-accent/30 text-[8px] font-black uppercase cursor-pointer flex items-center justify-center rounded-lg hover:bg-accent/30 transition-all">
+                                                   <CameraIcon className="w-3 h-3 mr-2" /> UPLOAD HEADER LOGO
+                                                   <input type="file" className="hidden" accept="image/*" onChange={(e) => handleLogoUpload(e, 'headerLogoUrl')} />
+                                                </label>
+                                             </div>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </div>
                               </div>
                            </div>
 
@@ -5785,7 +5850,7 @@ export default function App() {
             <Card className="bg-surface border-border-custom text-text-main shadow-2xl rounded-none relative">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 relative overflow-hidden border-2 border-accent/30 bg-surface">
-                  <img src="/porsh-pwa-icon.png" alt="Logo" className="w-full h-full object-contain p-2" />
+                  <img src={appConfig?.loginLogoUrl || "/porsh-pwa-icon.png"} alt="Logo" className="w-full h-full object-contain p-2" />
                 </div>
                 <CardTitle className="text-2xl font-black text-accent tracking-tighter uppercase">PORSH - SIGN IN</CardTitle>
                 <CardDescription className="text-text-dim text-xs">
@@ -6444,7 +6509,7 @@ export default function App() {
         <div className="flex items-center gap-4 mb-12">
             <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-accent flex items-center justify-center">
               <img 
-                src={appConfig?.appIcon || "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png"} 
+                src={appConfig?.headerLogoUrl || appConfig?.appIcon || "https://r.jina.ai/i/698785014730/bc2193c0-b3ea-4959-83b1-91ff4a797297/4e650d32-8f9d-473d-815a-938221235948.png"} 
                 alt="Logo" 
                 className={`w-full h-full object-contain p-2 ${theme === 'dark' ? 'brightness-200 invert' : ''}`}
                 referrerPolicy="no-referrer"
@@ -6506,6 +6571,9 @@ export default function App() {
             >
               <Menu className={`w-5 h-5 ${theme === 'dark' ? 'text-white' : 'text-foreground'}`} />
             </button>
+            {appConfig?.headerLogoUrl && (
+              <img src={appConfig.headerLogoUrl} className="h-8 w-8 object-contain" alt="Logo" />
+            )}
             <span className="text-xl font-black tracking-tighter text-accent uppercase italic">
               {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
             </span>
@@ -6660,7 +6728,7 @@ export default function App() {
                <div className="flex items-center justify-between mb-10">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center p-2">
-                       <img src={appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
+                       <img src={appConfig?.headerLogoUrl || appConfig?.appIcon || "/porsh-pwa-icon.png"} className="w-full h-full object-contain brightness-200 invert" alt="" />
                     </div>
                     <span className="text-xl font-black tracking-tighter italic">
                       {(activeTab === 'chat' || activeChat) ? (appConfig?.appName || 'PORSH') : 'PORSHI'}
