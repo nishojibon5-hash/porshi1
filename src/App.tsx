@@ -289,7 +289,6 @@ export default function App() {
   const [isPostMonetized, setIsPostMonetized] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
-  const [activeReel, setActiveReel] = useState<Post | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('porsh_theme') as 'light' | 'dark') || 'light';
   });
@@ -3323,14 +3322,22 @@ export default function App() {
                     <PlayCircle className="w-5 h-5 text-[#1877F2]" />
                     <h3 className="text-sm font-bold uppercase tracking-tight">Reels and short videos</h3>
                   </div>
-                  <button className="text-[#1877F2] text-xs font-bold hover:underline">See all</button>
+                  <button 
+                    onClick={() => withAuth(() => {
+                      const firstReel = posts.find(p => p.isReel);
+                      if (firstReel) handleOpenReels(firstReel);
+                    })}
+                    className="text-[#1877F2] text-xs font-bold hover:underline"
+                  >
+                    See all
+                  </button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
                   {posts.filter(p => p.isReel).slice(0, 10).map((reel) => (
                     <motion.div 
                       key={reel.id}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => withAuth(() => setActiveReel(reel))}
+                      onClick={() => withAuth(() => handleOpenReels(reel))}
                       className="relative flex-shrink-0 w-[120px] aspect-reel rounded-xl overflow-hidden cursor-pointer group shadow-lg"
                     >
                       <video 
@@ -4543,7 +4550,7 @@ export default function App() {
                          key={post.id}
                          whileHover={{ scale: 1.02 }}
                          whileTap={{ scale: 0.98 }}
-                         onClick={() => withAuth(() => setActiveReel(post))}
+                         onClick={() => withAuth(() => handleOpenReels(post))}
                          className="relative aspect-reel rounded-2xl overflow-hidden cursor-pointer bg-black group shadow-xl border border-white/5"
                        >
                           <video 
